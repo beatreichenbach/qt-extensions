@@ -12,36 +12,6 @@ from qtproperties import utils, widgets
 from qtproperties.group import CollapsibleBox
 
 
-# TODO: initialize widget with updated min_size_hint?
-class VerticalScrollArea(QtWidgets.QScrollArea):
-    # ScrollArea widget that has a minimum width based on its content
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWidgetResizable(True)
-        self.setFrameShape(QtWidgets.QFrame.NoFrame)
-
-    def eventFilter(self, watched, event):
-        if watched == self.verticalScrollBar():
-            if (
-                event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Hide)
-                and self.widget()
-            ):
-                min_width = self.widget().minimumSizeHint().width()
-                if event.type() == QtCore.QEvent.Show:
-                    min_width += self.verticalScrollBar().sizeHint().width()
-                self.setMinimumWidth(min_width)
-        return super().eventFilter(watched, event)
-
-    def update(self):
-        min_width = self.widget().minimumSizeHint().width()
-        self.setMinimumWidth(min_width)
-
-    def sizeHint(self):
-        widget = self.widget() or self
-        return widget.sizeHint()
-
-
 class PropertyEditor(VerticalScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -382,6 +352,9 @@ def main():
     editor.show()
 
     sys.exit(app.exec_())
+
+
+__all__ = ['PropertyEditor']
 
 
 if __name__ == '__main__':

@@ -1,57 +1,47 @@
 import logging
 import numbers
+import typing
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qtproperties.widgets import PropertyWidget
-from qtproperties.editor import PropertyEditor
-from qtproperties import IntProperty, FloatProperty
-
-from flare.qt import utils
-from qtmaterialicons.icons import MaterialIcon
-
-# https://pypi.org/project/tabulate/
-
-# move to util?
-MAX_INT = (1 << 31) - 1
+from qtextensions.properties.widgets import PropertyWidget, IntProperty, FloatProperty
+from qtextensions import helper
+from qtextensions.icons import MaterialIcon
+from qtextensions.resizegrip import ResizeGrip
 
 
 class TabDataProperty(PropertyWidget):
-    # property to display tabular data in qtreewidget
-    valueChanged = QtCore.Signal(str)
-    accepted_type = list
-    # TODO: add support for numpy lists and do proper nested list value validation
-    # accepted_type = Union[list, np.array]
+    # https://pypi.org/project/tabulate/
+    # property to display tabular data in a QTreeWidget
+    # TODO: add support for numpy lists
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    value_changed: QtCore.Signal = QtCore.Signal(list)
 
-        self.set_headers(self.headers)
-        self.set_types(self.types)
+    value: list | None = None
+    default: list | None = None
+    headers: list | None = None
+    types: list | None = None
+    start_index: int = 0
+    decimals: int = 3
 
-    def init_defaults(self):
-        super().init_defaults()
-        self.defaults['default'] = []
-        self.defaults['headers'] = []
-        self.defaults['types'] = []
-        self.defaults['decimals'] = 3
-        self.defaults['start_index'] = 0
+    def __init__(
+        self, name: str | None = None, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        self._delegates = []
+        super().__init__(name, parent)
 
-    def init_ui(self):
-        # super().init_ui()
-        self.setLayout(QtWidgets.QVBoxLayout())
+    def _init_ui(self) -> None:
+        QtWidgets.QWidget().setLayout(self.layout())
+        self.setLayout(QtWidgets.QVBoxLayout(self))
         self.layout().setContentsMargins(0, 0, 0, 0)
 
         # table view
         self.model = QtGui.QStandardItemModel(parent=self)
+        self.model.itemChanged.connect(self._item_change)
+        # self.model.dataChanged.connect(self.)
         self.view = DataTableView(parent=self)
         self.view.setModel(self.model)
         self.view.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
-        palette = self.view.palette()
-        palette.setColor(
-            QtGui.QPalette.AlternateBase, palette.color(QtGui.QPalette.Window)
-        )
-        self.view.setPalette(palette)
         self.layout().addWidget(self.view)
 
         # toolbar
@@ -70,11 +60,17 @@ class TabDataProperty(PropertyWidget):
         action.triggered.connect(self.remove_row)
         self.toolbar.addAction(action)
 
-    def connect_ui(self):
-        self.model.itemChanged.connect(self.item_changed)
+        self.resize_grip = ResizeGrip(self.view)
+        self.resize_grip.can_resize_horizontal = True
 
-    @property
-    def value(self):
+    def _init_signals(self) -> None:
+        super()._init_signals()
+        self.setter_signal('headers', lambda _: self.update_horizontal_headers())
+        self.setter_signal('start_index', lambda _: self.update_vertical_headers())
+        self.setter_signal('decimals', self.set_decimals)
+        self.setter_signal('types', self.set_types)
+
+    def _item_change(self) -> None:
         value = []
         for row in range(self.model.rowCount()):
             row_values = []
@@ -83,16 +79,50 @@ class TabDataProperty(PropertyWidget):
                 column_value = self.model.data(index, QtCore.Qt.EditRole)
                 row_values.append(column_value)
             value.append(row_values)
-        return value
 
-    @value.setter
-    def value(self, value):
-        self.set_data(value)
-        self.validate_value(value)
-        self.valueChanged.emit(value)
+        self._value = value
 
-    def set_data(self, data):
-        for row, row_data in enumerate(data):
+    def update_horizontal_headers(self) -> None:
+        if self.headers:
+            labels = list(map(helper.title, self.headers))
+        else:
+            labels = list(map(str, range(self.model.columnCount())))
+
+        # for i, label in enumerate(labels):
+        #     item = QtGui.QStandardItem()
+        #     item.setText(label)
+        #     self.model.setHorizontalHeaderItem(i, item)
+
+        self.model.setHorizontalHeaderLabels(labels)
+        self.resize_headers()
+
+    def update_vertical_headers(self) -> None:
+        rows = range(self.start_index, self.model.rowCount() + self.start_index)
+        labels = list(map(str, rows))
+        self.model.setVerticalHeaderLabels(labels)
+
+    def set_types(self, types: list[typing.Type] | None) -> None:
+        if types is None:
+            return
+        for i, type_ in enumerate(types):
+            if issubclass(type_, float):
+                delegate = FloatDelegate(self)
+            elif issubclass(type_, int):
+                delegate = IntegerDelegate(self)
+            else:
+                continue
+            self.view.setItemDelegateForColumn(i, delegate)
+            self._delegates.append(delegate)
+
+    def set_decimals(self, decimals: int) -> None:
+        for delegate in self._delegates:
+            if isinstance(delegate, FloatDelegate):
+                delegate.decimals = decimals
+
+    def set_value(self, value: list | None) -> None:
+        if value is None:
+            return
+        for row, row_data in enumerate(value):
             items = []
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
@@ -100,23 +130,9 @@ class TabDataProperty(PropertyWidget):
                 items.append(item)
             if items:
                 self.model.appendRow(items)
-        self.update_headers()
+        self.update_horizontal_headers()
 
-    def set_headers(self, headers):
-        for i, header in enumerate(headers):
-            item = QtGui.QStandardItem()
-            item.setText(utils.title(header))
-            self.model.setHorizontalHeaderItem(i, item)
-        self.resize_headers()
-
-    def set_types(self, types):
-        for i, type_ in enumerate(types):
-            if issubclass(type_, float):
-                self.view.setItemDelegateForColumn(i, FloatDelegate(self))
-            elif issubclass(type_, int):
-                self.view.setItemDelegateForColumn(i, IntegerDelegate(self))
-
-    def add_row(self):
+    def add_row(self) -> None:
         items = []
         for i in range(self.model.columnCount()):
             item = QtGui.QStandardItem()
@@ -128,29 +144,14 @@ class TabDataProperty(PropertyWidget):
                     item.setData('', QtCore.Qt.EditRole)
             items.append(item)
         self.model.insertRow(self.model.rowCount(), items)
-        self.item_changed()
-        self.update_headers()
+        self._item_change()
+        self.update_vertical_headers()
 
-    def remove_row(self):
+    def remove_row(self) -> None:
         self.model.takeRow(self.model.rowCount() - 1)
-        self.item_changed()
+        self._item_change()
 
-    def item_changed(self, item=None):
-        self.valueChanged.emit(self.value)
-
-    def update_headers(self):
-        if self.start_index != 1:
-            # horizontal headers
-            if not self.headers:
-                labels = map(str, range(self.model.columnCount()))
-                self.model.setHorizontalHeaderLabels(labels)
-                self.resize_headers()
-
-            # vertical headers
-            labels = map(str, range(self.model.rowCount()))
-            self.model.setVerticalHeaderLabels(labels)
-
-    def resize_headers(self):
+    def resize_headers(self) -> None:
         header = self.view.horizontalHeader()
         for i in range(header.count()):
             size = max(self.view.sizeHintForColumn(i), header.sectionSizeHint(i))
@@ -158,13 +159,12 @@ class TabDataProperty(PropertyWidget):
 
 
 class DataTableView(QtWidgets.QTableView):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.init_ui()
+        self._init_ui()
 
-    def init_ui(self):
-        # self.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
+    def _init_ui(self):
         self.setAlternatingRowColors(True)
         self.setShowGrid(False)
         self.setSortingEnabled(True)
@@ -173,7 +173,6 @@ class DataTableView(QtWidgets.QTableView):
         self.horizontalHeader().setSectionsMovable(True)
         self.horizontalHeader().setStretchLastSection(True)
 
-        # header = self.horizontalHeader()
         # header.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
@@ -181,93 +180,124 @@ class DataTableView(QtWidgets.QTableView):
 
 
 class IntegerDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-    def displayText(self, value, locale):
+    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
         return str(value)
 
-    def createEditor(self, parent, option, index):
-        editor = IntProperty(show_slider=False)
-        editor.setParent(parent)
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+
+        editor = IntProperty(parent=parent)
+        editor.slider_visible = False
         editor.line.setFrame(False)
         return editor
 
-    def setEditorData(self, editor, index):
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
         value = index.model().data(index, QtCore.Qt.EditRole)
         if value:
             editor.value = value
 
-    def setModelData(self, editor, model, index):
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
         value = editor.value
         model.setData(index, value, QtCore.Qt.EditRole)
 
-    def updateEditorGeometry(self, editor, option, index):
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
         editor.setGeometry(option.rect)
 
 
 class FloatDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        try:
-            self.decimals = parent.decimals
-        except AttributeError:
-            self.decimals = None
+        self.decimals = None
 
-    def displayText(self, value, locale):
+    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
         if self.decimals is not None:
             return f'{value:.{self.decimals}f}'.rstrip('0').rstrip('.')
         else:
             return str(value)
 
-    def createEditor(self, parent, option, index):
-        editor = FloatProperty(show_slider=False, decimals=6)
-        editor.setParent(parent)
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = FloatProperty(parent=parent)
+        editor.slider_visible = False
+        editor.decimals = 6
         editor.line.setFrame(False)
         return editor
 
-    def setEditorData(self, editor, index):
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
         value = index.model().data(index, QtCore.Qt.EditRole)
         if value:
             editor.value = value
 
-    def setModelData(self, editor, model, index):
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
         value = editor.value
         model.setData(index, value, QtCore.Qt.EditRole)
 
-    def updateEditorGeometry(self, editor, option, index):
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
         editor.setGeometry(option.rect)
 
 
 def main():
     import sys
+    from qtextensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 
-    import qtdarkstyle
-
     app = QtWidgets.QApplication()
-    qtdarkstyle.apply_style()
-    editor = PropertyEditor()
+    theme.apply_theme(theme.monokai)
+
     data = [
         ['Sun', 696000, 198],
         ['Earth', 6371, 5973.6],
         ['Moon', 1737, 73.5],
         ['Mars', 3390, 641.85],
-        # ['A really big Star', 406320, 339023452345.23450]
+        ['A really big Star', 406320, 339023452345.23450],
     ]
-    prop = TabDataProperty(
-        name='Data',
-        default=data,
-        headers=['Name', 'Radius', 'Weight'],
-        types=[str, int, float],
-    )
-    editor.add_property(prop)
-
-    editor.values_changed.connect(logging.debug)
-    editor.show()
+    prop = TabDataProperty()
+    prop.default = data
+    prop.headers = ['Name', 'Radius', 'Weight']
+    prop.types = [str, int, float]
+    prop.start_index = 4
+    prop.show()
     sys.exit(app.exec_())
+
+
+__all__ = ['TabDataProperty']
 
 
 if __name__ == '__main__':

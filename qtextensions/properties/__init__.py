@@ -1,15 +1,4 @@
-from qtproperties.widgets import (
-    IntProperty,
-    FloatProperty,
-    PointProperty,
-    PointFProperty,
-    SizeProperty,
-    StringProperty,
-    PathProperty,
-    BoolProperty,
-    ColorProperty,
-)
+from qtextensions.properties.widgets import *
+from qtextensions.properties.tabdata import *
 
-# from qtproperties.editor import PropertyEditor
-
-# TODO: Should __all__ be used here?
+# from qtextensions.properties.editor import *

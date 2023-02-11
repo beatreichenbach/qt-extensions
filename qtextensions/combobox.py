@@ -2,7 +2,7 @@ from PySide2 import QtWidgets, QtCore, QtGui
 
 
 class QComboBox(QtWidgets.QComboBox):
-    def paintEvent(self, event):
+    def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         # https://code.qt.io/cgit/qt/qtbase.git/tree/src/widgets/widgets/qcombobox.cpp?h=5.15.2#n3173
         painter = QtWidgets.QStylePainter(self)
         painter.setPen(self.palette().color(QtGui.QPalette.Text))
