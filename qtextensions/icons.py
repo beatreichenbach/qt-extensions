@@ -19,7 +19,7 @@ class MaterialIcon(QIcon):
         SHARP = 'sharp'
         TWO_TONE = 'two-tone'
 
-    def __init__(self, name, style=None):
+    def __init__(self, name: str, style: Style | None = None) -> None:
         super().__init__()
 
         # set pixmap
@@ -52,13 +52,15 @@ class MaterialIcon(QIcon):
 
         self.init_colors(colors)
 
-    def init_colors(self, colors):
+    def init_colors(self, colors: dict) -> None:
         for state, modes in colors.items():
             for mode, color in modes.items():
                 if color:
                     self.set_color(color, mode, state)
 
-    def set_color(self, color, mode, state):
+    def set_color(
+        self, color: QtGui.QColor, mode: QtGui.QIcon.Mode, state: QtGui.QIcon.State
+    ) -> None:
         pixmap = QtGui.QPixmap(self._pixmap)
         painter = QtGui.QPainter(pixmap)
         painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)

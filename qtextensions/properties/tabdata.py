@@ -4,7 +4,7 @@ import typing
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qtextensions.properties.widgets import PropertyWidget, IntProperty, FloatProperty
+from qtextensions.properties import PropertyWidget, IntProperty, FloatProperty
 from qtextensions import helper
 from qtextensions.icons import MaterialIcon
 from qtextensions.resizegrip import ResizeGrip

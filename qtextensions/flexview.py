@@ -23,7 +23,9 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
 
         palette = option_frame.palette
 
-        option_frame.palette.setColor(QtGui.QPalette.Window, palette.color(QtGui.QPalette.Dark))
+        option_frame.palette.setColor(
+            QtGui.QPalette.Window, palette.color(QtGui.QPalette.Dark)
+        )
 
         option_frame.state = option.state
         option_frame.rect = option.rect
@@ -75,16 +77,23 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
 
         if option.state & QtWidgets.QStyle.State_Selected:
             pixmap = self.selectedPixmap(
-                pixmap, option.palette, option.state & QtWidgets.QStyle.State_Enabled)
+                pixmap, option.palette, option.state & QtWidgets.QStyle.State_Enabled
+            )
 
         source_rect = QtWidgets.QStyle.alignedRect(
-            option.direction, option.decorationAlignment, rect.size(), pixmap.rect())
+            option.direction, option.decorationAlignment, rect.size(), pixmap.rect()
+        )
 
         painter.drawPixmap(rect, pixmap, source_rect)
 
     def drawDisplay(self, painter, option, rect, text):
         # get maximum
-        rect.adjust(self.textMargins.left(), 0, -self.textMargins.right(), -self.textMargins.bottom())
+        rect.adjust(
+            self.textMargins.left(),
+            0,
+            -self.textMargins.right(),
+            -self.textMargins.bottom(),
+        )
         super().drawDisplay(painter, option, rect, text)
 
     def sizeHint(self, option, index):
@@ -180,7 +189,7 @@ class FlexView(QtWidgets.QAbstractItemView):
             except IndexError:
                 next_next_x = next_x - spacing
 
-            is_last_item = (i == len(items) - 1)
+            is_last_item = i == len(items) - 1
             is_overlapped = next_next_x > rect.right()
 
             if self.wrap:
@@ -230,7 +239,10 @@ class FlexView(QtWidgets.QAbstractItemView):
                         item_width = size.width()
 
                     # group_item.setGeometry(QtCore.QRect(QtCore.QPoint(item_x, item_y), QtCore.QSize(item_width, item_height)))
-                    item_rect = QtCore.QRect(QtCore.QPoint(item_x, item_y), QtCore.QSize(item_width, item_height))
+                    item_rect = QtCore.QRect(
+                        QtCore.QPoint(item_x, item_y),
+                        QtCore.QSize(item_width, item_height),
+                    )
                     self.item_rects.append(item_rect)
                     item_x += item_width + item_spacing
 
@@ -260,7 +272,9 @@ class FlexView(QtWidgets.QAbstractItemView):
         # rect = self.viewportRectForRow(0)
         # self.paintOutline(painter, rect)
 
-        painter.setRenderHints(QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing)
+        painter.setRenderHints(
+            QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing
+        )
 
         # total_width = self.viewport().size().width()
         for row in range(self.model().rowCount(self.rootIndex())):
@@ -286,9 +300,9 @@ class FlexView(QtWidgets.QAbstractItemView):
             option.decorationPosition = QtWidgets.QStyleOptionViewItem.Top
             option.displayAlignment = QtCore.Qt.AlignBottom | QtCore.Qt.AlignLeft
 
-            if (self.selectionModel().isSelected(index)):
+            if self.selectionModel().isSelected(index):
                 option.state |= QtWidgets.QStyle.State_Selected
-            if (self.currentIndex() == index):
+            if self.currentIndex() == index:
                 option.state |= QtWidgets.QStyle.State_HasFocus
             self.itemDelegate().paint(painter, option, index)
 
@@ -296,7 +310,9 @@ class FlexView(QtWidgets.QAbstractItemView):
         self.setCurrentIndex(self.indexAt(event.pos()))
 
         if not self.rubber_band:
-            self.rubber_band = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle, self)
+            self.rubber_band = QtWidgets.QRubberBand(
+                QtWidgets.QRubberBand.Rectangle, self
+            )
         self.rubber_origin = event.pos()
         self.rubber_band.setGeometry(QtCore.QRect(self.rubber_origin, QtCore.QSize()))
         self.rubber_band.show()
@@ -320,7 +336,9 @@ class FlexView(QtWidgets.QAbstractItemView):
         return QtWidgets.QWidget()
 
     def indexAt(self, point):
-        point += QtCore.QPoint(self.horizontalScrollBar().value(), self.verticalScrollBar().value())
+        point += QtCore.QPoint(
+            self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        )
 
         self.update_item_rects()
 
@@ -355,7 +373,9 @@ class FlexView(QtWidgets.QAbstractItemView):
     def setSelection(self, rect, flags):
         logging.debug(rect)
 
-        rect = rect.translated(self.horizontalScrollBar().value(), self.verticalScrollBar().value()).normalized()
+        rect = rect.translated(
+            self.horizontalScrollBar().value(), self.verticalScrollBar().value()
+        ).normalized()
         self.update_item_rects()
 
         selection = QtCore.QItemSelection()
@@ -379,6 +399,7 @@ class FlexView(QtWidgets.QAbstractItemView):
         if index.isValid():
             # if cursor_action == QtCore.Qt.MoveLeft and index.row() > 0 or
             return
+
     # QModelIndex index = currentIndex();
     # if (index.isValid()) {
     #     if ((cursorAction == MoveLeft && index.row() > 0) ||
@@ -409,6 +430,7 @@ class FlexView(QtWidgets.QAbstractItemView):
 
     def scrollTo(self, index, hint=QtWidgets.QAbstractItemView.EnsureVisible):
         return
+
     # QRect viewRect = viewport()->rect();
     # QRect itemRect = visualRect(index);
 
@@ -486,7 +508,7 @@ def main():
     pixmap = QtGui.QPixmap(r'D:\files\dev\027_flare\flare\designer\starburst.png')
     pixmap = pixmap.scaledToWidth(200)
     for row in range(model.rowCount()):
-        model.item(row, 0).setData(pixmap, QtCore.Qt.DecorationRole)
+        model._item(row, 0).setData(pixmap, QtCore.Qt.DecorationRole)
 
     widget.show()
 

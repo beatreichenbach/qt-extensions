@@ -64,7 +64,12 @@ class CollapsibleHeader(QtWidgets.QWidget):
         if self.collapsible:
             margins = QtCore.QMargins(4, 4, 4, 4)
         else:
-            margins = QtWidgets.QLayout().contentsMargins()
+            left = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutLeftMargin)
+            top = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutTopMargin)
+            right = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutRightMargin)
+            bottom = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutBottomMargin)
+            margins = QtCore.QMargins(left, top, right, bottom)
+
         self.layout().setContentsMargins(margins)
         self.expand_label.setVisible(self.collapsible)
 

@@ -74,14 +74,14 @@ monokai = ColorScheme(
     primary=QColor(92, 195, 204),
     secondary=QColor(62, 113, 179),
     black1=QColor(20, 20, 20),
-    dark1=QColor(35, 32, 36),
-    dark2=QColor(45, 42, 46),
-    dark3=QColor(54, 51, 55),
-    medium1=QColor(66, 66, 66),
-    medium2=QColor(80, 80, 80),
-    medium3=QColor(90, 90, 90),
-    bright1=QColor(127, 127, 127),
-    bright2=QColor(206, 208, 214),
+    dark1=QColor(32, 33, 36),
+    dark2=QColor(41, 42, 46),
+    dark3=QColor(50, 52, 56),
+    medium1=QColor(60, 61, 66),
+    medium2=QColor(73, 75, 82),
+    medium3=QColor(80, 83, 89),
+    bright1=QColor(121, 123, 128),
+    bright2=QColor(206, 209, 217),
 )
 
 

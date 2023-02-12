@@ -10,7 +10,7 @@ from qtextensions.resizegrip import ResizeGrip
 
 class PropertyWidget(QtWidgets.QWidget):
     # by not using @property it is easier to set typing hints
-
+    enabled_changed: QtCore.Signal = QtCore.Signal(bool)
     value_changed: QtCore.Signal = QtCore.Signal(object)
 
     value: typing.Any = None
@@ -106,6 +106,11 @@ class PropertyWidget(QtWidgets.QWidget):
         for attr, value in class_attrs.items():
             setattr(self, attr, value)
         self.value = value
+
+    def changeEvent(self, event):
+        if event.type() == QtCore.QEvent.EnabledChange:
+            self.enabled_changed.emit(self.isEnabled())
+        super().changeEvent(event)
 
 
 class IntProperty(PropertyWidget):
@@ -1091,6 +1096,7 @@ def main():
 
 
 __all__ = [
+    'PropertyWidget',
     'IntProperty',
     'FloatProperty',
     'PointProperty',

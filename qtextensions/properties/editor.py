@@ -1,37 +1,42 @@
 import enum
 import itertools
-import json
 from functools import partial
 import logging
-from typing import Any
+import typing
+from typing_extensions import Self
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-# TODO: widgets is a shit name cause i use that name a lot
-from qtproperties import utils, widgets
-from qtproperties.group import CollapsibleBox
+from qtextensions import helper
+from qtextensions.scrollarea import VerticalScrollArea
+from qtextensions.properties import PropertyWidget
+from qtextensions.box import CollapsibleBox
 
 
 class PropertyEditor(VerticalScrollArea):
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        # set 'form' attribute on this class
         self.__dict__['form'] = PropertyForm()
         self.setWidget(self.form)
 
-    def __getattr__(self, item):
+    def __getattr__(self, item: typing.Any) -> typing.Any:
         return getattr(self.form, item)
 
-    def __setattr__(self, key, value):
+    def __setattr__(self, key: str, value: typing.Any) -> None:
         setattr(self.form, key, value)
 
 
 class PropertyForm(QtWidgets.QWidget):
-    actions_changed = QtCore.Signal(list)
-    property_changed = QtCore.Signal(widgets.PropertyWidget)
+    actions_changed: QtCore.Signal = QtCore.Signal(list)
+    property_changed: QtCore.Signal = QtCore.Signal(PropertyWidget)
 
-    def __init__(self, name=None, root=None, parent=None):
+    def __init__(
+        self,
+        name: str | None = None,
+        root: Self | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
 
         # require unique names in the whole hierarchy
@@ -43,17 +48,16 @@ class PropertyForm(QtWidgets.QWidget):
         self.root = root or self
         self.name = name
 
-        # init ui
         self.setLayout(QtWidgets.QGridLayout(self))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}(\'{self.name}\')'
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
 
-    def validate_name(self, name):
+    def validate_name(self, name: str) -> None:
         if name is None:
             raise ValueError(f'Cannot add widget with name {name}')
 
@@ -65,7 +69,7 @@ class PropertyForm(QtWidgets.QWidget):
         if name in hierarchical_names:
             raise ValueError(f'Cannot add widget {name} (name already exists)')
 
-    def hierarchical_names(self):
+    def hierarchical_names(self) -> list[str]:
         # generate a flat list of all child widget names
         names = []
         for name, widget in self._widgets.items():
@@ -75,10 +79,10 @@ class PropertyForm(QtWidgets.QWidget):
                 names.append(name)
         return names
 
-    def create_form(self, name, link=None):
+    def create_form(self, name, link: Self | None = None) -> Self:
         self.validate_name(name)
 
-        form = PropertyForm(name=name, root=self)
+        form = self.__class__(name=name, root=self)
         self._widgets[name] = form
 
         if link is not None:
@@ -86,7 +90,7 @@ class PropertyForm(QtWidgets.QWidget):
 
         return form
 
-    def link(self, link):
+    def link(self, link: Self) -> None:
         for name, widget in link._widgets.items():
             if isinstance(widget, self.__class__):
                 # TODO: add support for linking nested groups
@@ -97,11 +101,16 @@ class PropertyForm(QtWidgets.QWidget):
                 self.add_property(new_widget, link=widget)
 
     def add_group(
-        self, name, label=None, collapsible=False, style=None, link=None
-    ) -> 'PropertyForm':
+        self,
+        name: str,
+        label: str = None,
+        collapsible: bool = False,
+        style: CollapsibleBox.Style = None,
+        link: Self = None,
+    ) -> Self:
         form = self.create_form(name, link)
         form.property_changed.connect(self.property_changed.emit)
-        label = label or utils.title(name)
+        label = label or helper.title(name)
         group = CollapsibleBox(label, collapsible, style)
 
         group.setLayout(QtWidgets.QVBoxLayout(self))
@@ -115,13 +124,15 @@ class PropertyForm(QtWidgets.QWidget):
         self.add_widget(group)
         return form
 
-    def add_tab_group(self, names, labels=None, link=None):
+    def add_tab_group(
+        self, names: list[str], labels: list[str] = None, link: Self | None = None
+    ) -> QtWidgets.QTabWidget:
         group = QtWidgets.QTabWidget(self)
         group.tabs = {}
         labels = labels or []
         for name, label in itertools.zip_longest(names, labels):
             form = self.create_form(name, link)
-            label = label or utils.title(name)
+            label = label or helper.title(name)
             group.addTab(form, label)
             group.tabs[name] = form
 
@@ -129,8 +140,8 @@ class PropertyForm(QtWidgets.QWidget):
         return group
 
     def add_property(
-        self, widget: widgets.PropertyWidget, link: widgets.PropertyWidget | None = None
-    ) -> widgets.PropertyWidget:
+        self, widget: PropertyWidget, link: PropertyWidget | None = None
+    ) -> PropertyWidget:
         name = widget.name
         self.validate_name(name)
 
@@ -143,12 +154,12 @@ class PropertyForm(QtWidgets.QWidget):
         if widget.label:
             label = QtWidgets.QLabel(widget.label, self)
             layout.addWidget(label, row, 1)
-            widget.enabledChanged.connect(label.setEnabled)
-            widget.enabledChanged.emit(widget.isEnabled())
+            widget.enabled_changed.connect(label.setEnabled)
+            widget.enabled_changed.emit(widget.isEnabled())
 
         # widget
         layout.addWidget(widget, row, 2)
-        widget.valueChanged.connect(lambda: self.property_changed.emit(widget))
+        widget.value_changed.connect(lambda: self.property_changed.emit(widget))
 
         # checkbox
         if link is not None:
@@ -162,7 +173,7 @@ class PropertyForm(QtWidgets.QWidget):
         self.update_stretch()
         return widget
 
-    def add_separator(self):
+    def add_separator(self) -> QtWidgets.QFrame:
         line = QtWidgets.QFrame(self)
         line.setFixedHeight(1)
         line.setFrameShape(QtWidgets.QFrame.StyledPanel)
@@ -171,33 +182,33 @@ class PropertyForm(QtWidgets.QWidget):
         self.add_widget(line)
         return line
 
-    def add_widget(self, widget):
+    def add_widget(self, widget: QtWidgets.QWidget) -> QtWidgets.QWidget:
         layout = self.grid_layout
         row = layout.rowCount() - 1
         layout.addWidget(widget, row, 0, 1, 3)
         self.update_stretch()
         return widget
 
-    def add_layout(self, layout):
+    def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
         grid_layout = self.grid_layout
         row = grid_layout.rowCount() - 1
         grid_layout.addLayout(layout, row, 0, 1, 3)
         self.update_stretch()
         return layout
 
-    def update_stretch(self):
+    def update_stretch(self) -> None:
         layout = self.grid_layout
         layout.setRowStretch(layout.rowCount() - 1, 0)
         layout.setRowStretch(layout.rowCount(), 1)
 
     @property
-    def grid_layout(self):
+    def grid_layout(self) -> QtWidgets.QGridLayout:
         layout = self.layout()
         if not isinstance(layout, QtWidgets.QGridLayout):
             raise RuntimeError('Layout needs to be QGridLayout')
         return layout
 
-    def set_widget_row_enabled(self, widget, enabled):
+    def set_widget_row_enabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
         # get parent grid layout
         layout = widget.parentWidget().layout()
         if not isinstance(layout, QtWidgets.QGridLayout):
@@ -221,12 +232,14 @@ class PropertyForm(QtWidgets.QWidget):
             if not hasattr(widget, 'set_value'):
                 widget.set_value = partial(setattr, widget, 'value')
             if enabled:
-                widget.link.valueChanged.disconnect(widget.set_value)
+                widget.link.value_changed.disconnect(widget.set_value)
             else:
                 widget.value = widget.link.value
-                widget.link.valueChanged.connect(widget.set_value)
+                widget.link.value_changed.connect(widget.set_value)
 
-    def update_widget_values(self, values, widgets=None):
+    def update_widget_values(
+        self, values: dict, widgets: dict[str, PropertyWidget] | None = None
+    ) -> None:
         if widgets is None:
             widgets = self.widgets()
         for key, value in values.items():
@@ -238,7 +251,7 @@ class PropertyForm(QtWidgets.QWidget):
             else:
                 widget.value = value
 
-    def values(self) -> dict[str, Any]:
+    def values(self) -> dict[str, typing.Any]:
         # create nested dictionary of all property values
         values = {}
         for name, widget in self._widgets.items():
@@ -251,7 +264,7 @@ class PropertyForm(QtWidgets.QWidget):
                 values[name] = widget.value
         return values
 
-    def widgets(self) -> dict[str, widgets.PropertyWidget]:
+    def widgets(self) -> dict[str, PropertyWidget]:
         # create nested dictionary of all property widgets
         widgets = {}
         for name, widget in self._widgets.items():
@@ -270,80 +283,89 @@ def main():
     import widgets
     import logging
 
-    import qtdarkstyle
+    from qtextensions import theme
+    from qtextensions import properties
 
     logging.getLogger().setLevel(logging.DEBUG)
 
     app = QtWidgets.QApplication()
-    qtdarkstyle.apply_style()
+    theme.apply_theme(theme.modern_dark)
 
     editor = PropertyEditor()
 
-    editor.add_property(widgets.IntProperty('int'))
-    editor.add_property(widgets.FloatProperty('float'))
+    editor.add_property(properties.IntProperty('int'))
+    editor.add_property(properties.FloatProperty('float'))
     editor.add_separator()
-    editor.add_property(widgets.PointProperty('point'))
-    editor.add_property(widgets.PointFProperty('pointf'))
-    editor.add_property(widgets.BoolProperty('bool'))
-    editor.add_property(widgets.PathProperty('path'))
-    editor.add_property(widgets.StringProperty('string'))
-    editor.add_property(widgets.ColorProperty('color'))
-    editor.add_property(
-        widgets.EnumProperty('enum', enum=enum.Enum('Number', ('one', 'two', 'three')))
+    editor.add_property(properties.PointProperty('point'))
+    editor.add_property(properties.PointFProperty('pointf'))
+    editor.add_property(properties.BoolProperty('bool'))
+    editor.add_property(properties.PathProperty('path'))
+    editor.add_property(properties.StringProperty('string'))
+    editor.add_property(properties.ColorProperty('color'))
+    # editor.add_property(
+    #     properties.EnumProperty('enum', enum=enum.Enum('Number', ('one', 'two', 'three')))
+    # )
+
+    group1 = editor.add_group(
+        'group_1', collapsible=True, style=CollapsibleBox.Style.BUTTON
     )
 
-    group1 = editor.add_group('group_1', collapsible=True, style=CollapsibleBox.BUTTON)
-
-    group1.add_property(widgets.IntProperty('int'))
-    group1.add_property(widgets.FloatProperty('float'))
+    group1.add_property(properties.IntProperty('int'))
+    group1.add_property(properties.FloatProperty('float'))
 
     group1_menu = editor.add_group(
-        'group1_menu', collapsible=True, style=CollapsibleBox.BUTTON
+        'group1_menu', collapsible=True, style=CollapsibleBox.Style.BUTTON
     )
-    group1_menu.add_property(widgets.IntProperty('int'))
-    group1_menu.add_property(widgets.FloatProperty('float'))
+    group1_menu.add_property(properties.IntProperty('int'))
+    group1_menu.add_property(properties.FloatProperty('float'))
 
     action = QtWidgets.QAction('Save', group1_menu)
     group1_menu.addAction(action)
     group1_menu.addAction(QtWidgets.QAction('Save1', group1_menu))
     group1_menu.addAction(QtWidgets.QAction('Save2', group1_menu))
 
-    group2 = editor.add_group('group_2', collapsible=False, style=CollapsibleBox.SIMPLE)
+    group2 = editor.add_group(
+        'group_2', collapsible=False, style=CollapsibleBox.Style.SIMPLE
+    )
 
-    group2.add_property(widgets.IntProperty('int'))
-    group2.add_property(widgets.FloatProperty('float'))
+    group2.add_property(properties.IntProperty('int'))
+    group2.add_property(properties.FloatProperty('float'))
 
     group1_nested = group2.add_group(
-        'group_1_nested', collapsible=True, style=CollapsibleBox.BUTTON
+        'group_1_nested', collapsible=True, style=CollapsibleBox.Style.BUTTON
     )
-    group1_nested.add_property(widgets.IntProperty('int'))
-    group1_nested.add_property(widgets.FloatProperty('float'))
+    group1_nested.add_property(properties.IntProperty('int'))
+    group1_nested.add_property(properties.FloatProperty('float'))
 
-    editor.add_property(widgets.IntProperty('int3'))
-    editor.add_property(widgets.FloatProperty('float3'))
+    editor.add_property(properties.IntProperty('int3'))
+    editor.add_property(properties.FloatProperty('float3'))
 
     group3 = editor.add_tab_group(('tab_1', 'tab_2'))
 
-    group3.tabs['tab_1'].add_property(widgets.IntProperty('int4'))
-    group3.tabs['tab_1'].add_property(widgets.FloatProperty('float4'))
+    group3.tabs['tab_1'].add_property(properties.IntProperty('int4'))
+    group3.tabs['tab_1'].add_property(properties.FloatProperty('float4'))
 
-    group4 = editor.add_group('group_4', collapsible=True, style=CollapsibleBox.SIMPLE)
-
-    group4.add_property(widgets.IntProperty('int'))
-    group4.add_property(widgets.FloatProperty('float'))
-
-    group4_menu = editor.add_group(
-        'group_4_menu', collapsible=True, style=CollapsibleBox.SIMPLE
+    group4 = editor.add_group(
+        'group_4', collapsible=True, style=CollapsibleBox.Style.SIMPLE
     )
 
-    group4_menu.add_property(widgets.IntProperty('int'))
-    group4_menu.add_property(widgets.FloatProperty('float'))
+    group4.add_property(properties.IntProperty('int'))
+    group4.add_property(properties.FloatProperty('float'))
+
+    group4_menu = editor.add_group(
+        'group_4_menu', collapsible=True, style=CollapsibleBox.Style.SIMPLE
+    )
+
+    group4_menu.add_property(properties.IntProperty('int'))
+    group4_menu.add_property(properties.FloatProperty('float'))
 
     group4_menu.addAction(QtWidgets.QAction('Save', group4_menu))
     group4_menu.addAction(QtWidgets.QAction('Save1', group4_menu))
     group4_menu.addAction(QtWidgets.QAction('Save2', group4_menu))
 
-    editor.add_property(widgets.StringProperty('text', area=True))
+    prop = properties.StringProperty('text')
+    prop.area = True
+    editor.add_property(prop)
 
     # editor.values_changed.connect(logging.debug)
     # logging.debug(json.dumps(editor.values(), indent=4, default=lambda x: str(x)))
