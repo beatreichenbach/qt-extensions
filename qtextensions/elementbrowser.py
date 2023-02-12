@@ -251,40 +251,6 @@ class ElementProxyModel(QtCore.QSortFilterProxyModel):
             return result
 
 
-class FileNameDelegate(QtWidgets.QStyledItemDelegate):
-    item_changed = QtCore.Signal(str, QtCore.QAbstractItemModel, QtCore.QModelIndex)
-
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-        regex = QtCore.QRegularExpression(r'[\w\d\.-]+')
-        self.validator = QtGui.QRegularExpressionValidator(regex, self)
-
-    def createEditor(
-        self,
-        parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> QtWidgets.QWidget:
-        editor = super().createEditor(parent, option, index)
-        if self.validator:
-            editor.setValidator(self.validator)
-        return editor
-
-    def setEditorData(
-        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
-    ) -> None:
-        super().setEditorData(editor, index)
-
-        # selectAll gets called after opening the editor
-        def set_selection():
-            editor.selectionChanged.disconnect(set_selection)
-            text = editor.text()
-            root, ext = os.path.splitext(text)
-            editor.setSelection(0, len(root))
-
-        editor.selectionChanged.connect(set_selection)
-
-
 class ElementTree(QtWidgets.QTreeView):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)

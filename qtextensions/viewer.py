@@ -1,5 +1,3 @@
-import colorsys
-import dataclasses
 import logging
 
 import numpy as np
@@ -51,7 +49,7 @@ class Footer(QtWidgets.QWidget):
         self.coordinates_lbl.setText(coordinates)
 
     def update_pixel_color(self, color: QtGui.QColor | None) -> None:
-        if color is not None:
+        if color.isValid():
             r, g, b, a = color.getRgbF()
             rgb = (
                 f'<font color="#ff2222">{r:.4f}</font> '
@@ -59,6 +57,7 @@ class Footer(QtWidgets.QWidget):
                 f'<font color="#0088ff">{b:.4f}</font>'
             )
             h, s, v, a = color.getHsvF()
+            h = max(h, 0)
         else:
             rgb = ''
             h, s, v = 0, 0, 0
@@ -82,11 +81,6 @@ class Footer(QtWidgets.QWidget):
         self.setPalette(palette)
 
 
-class ToolBar(QtWidgets.QToolBar):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-
 class Viewer(QtWidgets.QWidget):
     # https://cyrille.rossant.net/a-tutorial-on-openglopencl-interoperability-in-python/
     # Using OpenGL/OpenCL interoperability is currently not feasible as pyopencl
@@ -103,6 +97,7 @@ class Viewer(QtWidgets.QWidget):
         super().__init__(parent)
 
         self.paused = False
+        self._resolution = QtCore.QSize()
 
         self._init_ui()
 
@@ -111,27 +106,33 @@ class Viewer(QtWidgets.QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.layout().setSpacing(0)
 
-        self.toolbar = self._init_toolbar()
+        # toolbar
+        self.toolbar = self._toolbar()
         self.layout().addWidget(self.toolbar)
 
         # view
         self.scene = GraphicsScene()
         self.scene.background_color = self.background_color
 
+        self.item = GraphicsItem()
+        self.scene.item = self.item
+
         self.view = GraphicsView()
         self.view.setScene(self.scene)
-        self.view.zoom_changed.connect(self.zoom_changed)
+        self.view.zoom_changed.connect(self.zoom_change)
         self.layout().addWidget(self.view)
 
+        # footer
         self.footer = Footer()
         self.footer.background_color = self.background_color
         self.layout().addWidget(self.footer)
 
+        # signals
         self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
         self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
         self.view.position_changed.connect(self.position_changed.emit)
 
-    def _init_toolbar(self) -> QtWidgets.QToolBar:
+    def _toolbar(self) -> QtWidgets.QToolBar:
         toolbar = QtWidgets.QToolBar()
 
         size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
@@ -141,7 +142,7 @@ class Viewer(QtWidgets.QWidget):
         exposure_slider = FloatProperty(parent=toolbar)
         exposure_slider.slider_min = -10
         exposure_slider.slider_max = 10
-        exposure_slider.value_changed.connect(self.update_exposure)
+        exposure_slider.value_changed.connect(self.exposure_change)
         palette = exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
         exposure_slider.slider.setPalette(palette)
@@ -150,7 +151,7 @@ class Viewer(QtWidgets.QWidget):
         # refresh
         icon = MaterialIcon('refresh')
         refresh_action = QtWidgets.QAction(icon, 'refresh', self)
-        refresh_action.triggered.connect(self.refreshed.emit)
+        refresh_action.triggered.connect(self.refresh)
         toolbar.addAction(refresh_action)
 
         # pause
@@ -169,7 +170,7 @@ class Viewer(QtWidgets.QWidget):
         for factor in reversed(factors):
             self.zoom_cmb.addItem(f'{factor:2.0%}', factor)
         self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
-        # self.zoom_cmb.current
+        self.zoom_cmb.currentIndexChanged.connect(self.zoom_index_change)
         toolbar.addWidget(self.zoom_cmb)
 
         # proxy resolution
@@ -186,23 +187,15 @@ class Viewer(QtWidgets.QWidget):
 
         return toolbar
 
-    # def connect_ui(self) -> None:
-    #     self.exposure_slider.valueChanged.connect(self.exposure_changed)
-    #     self.refresh_btn.clicked.connect(self.refresh)
-    #     self.pause_btn.clicked.connect(self.pause)
-    #     self.zoom_cmb.currentIndexChanged.connect(self.zoom_index_changed)
-    #
+    def exposure_change(self, value: float) -> None:
+        if not self.paused:
+            self.item.exposure = value
 
-    def update_exposure(self, value: float) -> None:
-        if self.scene.item:
-            self.scene.item.exposure = value * 0.25
-
-    # def refresh(self) -> None:
-    #     self.refreshed.emit()
+    def refresh(self) -> None:
+        self.refreshed.emit()
 
     def pause(self, state=True) -> None:
         self.paused = state
-        self.pause_changed.emit(self.paused)
 
         if self.paused:
             self.view.setFrameShape(QtWidgets.QFrame.Box)
@@ -215,44 +208,100 @@ class Viewer(QtWidgets.QWidget):
             self.view.setStyleSheet('')
             self.view.setEnabled(True)
 
-    def zoom_index_changed(self, index: int) -> None:
+        self.pause_changed.emit(self.paused)
+
+    def zoom_index_change(self, index: int) -> None:
         if self.zoom_cmb.currentText() == 'fit':
             self.view.fit()
         elif index > 0:
             self.view.zoom(self.zoom_cmb.currentData())
 
-    def zoom_changed(self, factor: float) -> None:
+    def zoom_change(self, factor: float) -> None:
         self.zoom_cmb.setCurrentIndex(-1)
         self.zoom_cmb.setPlaceholderText(f'{factor:2.1%}')
 
-    # def update_buffer(self, buffer):
-    #     self._item.array = buffer
-    #     height, width, channels = buffer.shape
-    #     self.update_resolution(width, height)
-    #
-    # def update_resolution(self, x, y):
-    #     self.resolution_lbl.setText(f'{x:.0f}x{y:.0f}')
-    #     self.resolution = Int2(x, y)
-    #
-    #     # TODO: Just end yourself you garbage human being
-    #     if self._frame:
-    #         rect = QtCore.QRectF(0, 0, self.resolution.x, self.resolution.y)
-    #         self._frame.setRect(rect)
-    #
-    # def update_position(self, position):
-    #     position.y = self.resolution.y - position.y
-    #     self.position_changed.emit(position)
+    def update_buffer(self, buffer):
+        if not self.paused:
+            self.item.array = buffer
+            self.resolution = QtCore.QSize(buffer.shape[0], buffer.shape[1])
+
+    @property
+    def resolution(self) -> QtCore.QSize:
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value: QtCore.QSize) -> None:
+        if self._resolution != value:
+            self._resolution = value
+            self.footer.update_resolution(value)
+            self.scene.update_frame(value)
+
+
+class GraphicsItem(QtWidgets.QGraphicsItem):
+    # TODO: not sure if bad idea:
+    # converting to pixmap is slower but on every drag/zoom we are repainting
+    # however when changing sliders, we might prefer faster I/O
+
+    def __init__(self, parent: QtWidgets.QGraphicsItem | None = None) -> None:
+        super().__init__(parent)
+
+        self._exposure: float = 0
+        self._array = np.ndarray((0, 0, 3))
+        self.image = QtGui.QImage()
+
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionGraphicsItem,
+        widget: QtWidgets.QWidget | None = None,
+    ) -> None:
+        painter.drawImage(option.rect, self.image)
+
+    def boundingRect(self) -> QtCore.QRectF:
+        rect = QtCore.QRectF(self.image.rect())
+        return rect
+
+    @property
+    def array(self) -> np.ndarray:
+        return self._array
+
+    @array.setter
+    def array(self, value: np.ndarray) -> None:
+        self._array = value
+        self.update_image()
+
+    @property
+    def exposure(self) -> float:
+        return self._exposure
+
+    @exposure.setter
+    def exposure(self, value: float) -> None:
+        self._exposure = value
+        self.update_image()
+
+    def update_image(self) -> None:
+        gain = pow(2, self.exposure)
+        self.image = image_from_buffer(self.array * gain)
+
+    def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
+        height, width, channels = self.array.shape
+        x = position.x()
+        y = position.y()
+        if x < 0 or x >= width or y < 0 or y >= height:
+            color = QtGui.QColor()
+            color.convertTo(QtGui.QColor.Invalid)
+        else:
+            rgb = self.array[y, x]
+            color = QtGui.QColor.fromRgbF(*rgb)
+        return color
 
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._background_color = None
-
-        # item
-        self.item = GraphicsItem()
-        self.addItem(self.item)
+        self._background_color = QtGui.QColor(0, 0, 0)
+        self._item: GraphicsItem | None = None
 
         # bounding box frame
         rect = QtCore.QRect()
@@ -264,11 +313,10 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         brush.setStyle(QtCore.Qt.NoBrush)
 
         self._frame = self.addRect(rect, pen, brush)
+        self._frame.setZValue(1)
 
-    def update_frame(self) -> None:
-        if self.item is None:
-            return
-        rect = QtCore.QRect(QtCore.QPoint(), self.item.resolution)
+    def update_frame(self, resolution: QtCore.QSize) -> None:
+        rect = QtCore.QRect(QtCore.QPoint(), resolution)
         self._frame.setRect(rect)
 
     @property
@@ -279,6 +327,17 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     def background_color(self, value: QtGui.QColor) -> None:
         self._background_color = value
         self.setBackgroundBrush(QtGui.QBrush(value))
+
+    @property
+    def item(self) -> GraphicsItem:
+        return self._item
+
+    @item.setter
+    def item(self, value: GraphicsItem) -> None:
+        if self._item and self._item.parent() == self:
+            self.removeItem(self._item)
+        self._item = value
+        self.addItem(value)
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -293,8 +352,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._dragging = False
-        self._item: QtWidgets.QGraphicsItem | None = None
+        self._dragging: bool = False
 
         self.setMouseTracking(True)
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
@@ -369,15 +427,15 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseMoveEvent(event)
 
-        if self._item:
-            position = self.mapToScene(event.pos())
-            resolution = self._item.boundingRect().size()
-            position.setY(resolution.height() - position.y())
+        item = self.scene().item
+        if item:
+            position = self.mapToScene(event.pos()).toPoint()
+            position.setY(item.boundingRect().height() - position.y())
 
             if self._dragging:
                 self.position_changed.emit(position)
 
-            color = self._item.color_at(position)
+            color = item.color_at(position)
             self.pixel_color_changed.emit(color)
             self.pixel_position_changed.emit(position)
 
@@ -405,78 +463,19 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.absolute_scale = factor
 
     def fit(self) -> None:
-        if self._item:
-            self.fitInView(self._item, QtCore.Qt.KeepAspectRatio)
+        item = self.scene().item
+        if item:
+            self.fitInView(item, QtCore.Qt.KeepAspectRatio)
             self.zoom_changed.emit(self.absolute_scale)
 
     def setScene(self, scene: GraphicsScene) -> None:
         super().setScene(scene)
-        self._item = scene.item
-
-
-class GraphicsItem(QtWidgets.QGraphicsItem):
-    # TODO: not sure if bad idea:
-    # converting to pixmap is slower but on every drag/zoom we are repainting
-    # however when changing sliders, we might prefer faster I/O
-
-    def __init__(self, parent: QtWidgets.QGraphicsItem | None = None) -> None:
-        super().__init__(parent)
-        self._exposure = 0
-        self._array = None
-        self.image = None
-
-    def paint(
-        self,
-        painter: QtGui.QPainter,
-        option: QtWidgets.QStyleOptionGraphicsItem,
-        widget: QtWidgets.QWidget | None = None,
-    ) -> None:
-        painter.drawImage(option.rect, self.image)
-
-    def boundingRect(self) -> QtCore.QRectF:
-        if self.image:
-            rect = QtCore.QRectF(self.image.rect())
-        else:
-            rect = QtCore.QRectF()
-        return rect
-
-    @property
-    def array(self) -> np.ndarray:
-        return self._array
-
-    @array.setter
-    def array(self, value: np.ndarray) -> None:
-        self._array = value
-        self.update_image()
-
-    @property
-    def exposure(self) -> float:
-        return self._exposure
-
-    @exposure.setter
-    def exposure(self, value: float) -> None:
-        self._exposure = value
-        self.update_image()
-
-    def update_image(self) -> None:
-        if self.array:
-            gain = pow(2, self.exposure)
-            self.image = image_from_buffer(self.array * gain)
-
-    def color_at(self, position: QtCore.QPoint) -> QtGui.QColor | None:
-        if self.array:
-            height, width, channels = self.array.shape
-            x = position.x()
-            y = position.y()
-            if x < 0 or x >= width or y < 0 or y >= height:
-                return None
-            else:
-                rgb = self.array[y, x]
-                return QtGui.QColor.fromRgbF(*rgb)
 
 
 def image_from_buffer(buffer: np.ndarray) -> QtGui.QImage:
     # TODO: check speed on [:3]
+    # TODO: overall profile this
+
     buffer = buffer[:, :, :3]
     buffer = np.clip(buffer, 0, 1)
     buffer *= 255
@@ -500,9 +499,9 @@ def main():
 
     viewer = Viewer()
 
-    # buffer = np.tile(np.linspace(0, 1, 512), (512, 1))
-    # buffer = np.dstack((buffer, buffer, buffer))
-    # viewer.update_buffer(buffer)
+    buffer = np.tile(np.linspace(0, 1, 512), (512, 1))
+    buffer = np.dstack((buffer, buffer, buffer))
+    viewer.update_buffer(buffer)
 
     viewer.show()
 

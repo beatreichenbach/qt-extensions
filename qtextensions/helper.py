@@ -1,12 +1,12 @@
 import re
 
 
-def title(text):
-    text = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', text).replace('_', ' ').title()
+def title(text: str) -> str:
+    text = re.sub(r'([a-z0-9])([A-Z])', r'\g<1> \g<2>', text).replace('_', ' ').title()
     return text
 
 
-def unique_name(name, existing_names):
+def unique_name(name: str, existing_names: list[str]) -> str:
     for existing_name in existing_names:
         if name.lower() == existing_name.lower():
             match = re.search(r'(.*?)(\d+)$', name)
