@@ -31,6 +31,9 @@ class CollapsibleHeader(QtWidgets.QWidget):
 
         self.collapsible = collapsible
 
+    def __repr__(self):
+        return f'{self.__class__.__name__}({repr(self.title)})'
+
     def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QHBoxLayout(self))
 
@@ -114,7 +117,7 @@ class CollapsibleBox(QtWidgets.QFrame):
 
     def __init__(
         self,
-        title,
+        title: str,
         collapsible: bool = True,
         style: Style | None = None,
         parent: QtWidgets.QWidget | None = None,
@@ -133,6 +136,9 @@ class CollapsibleBox(QtWidgets.QFrame):
         self.frame = None
 
         self._init_ui()
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({repr(self.title)})'
 
     def _init_ui(self) -> None:
         self.setSizePolicy(

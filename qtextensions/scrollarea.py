@@ -1,3 +1,5 @@
+import logging
+
 from PySide2 import QtCore, QtGui, QtWidgets
 
 
@@ -8,15 +10,13 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.viewport().installEventFilter(self)
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
-        if watched == self.verticalScrollBar():
-            if (
-                event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Hide)
-                and self.widget()
-            ):
+        if watched == self.viewport() and event.type() == QtCore.QEvent.LayoutRequest:
+            if self.widget():
                 min_width = self.widget().minimumSizeHint().width()
-                if event.type() == QtCore.QEvent.Show:
+                if self.verticalScrollBar().isVisible():
                     min_width += self.verticalScrollBar().sizeHint().width()
                 self.setMinimumWidth(min_width)
         return super().eventFilter(watched, event)

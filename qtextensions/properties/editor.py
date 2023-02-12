@@ -43,7 +43,7 @@ class PropertyForm(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self._widgets = {}
+        self._widgets: dict[str, PropertyWidget] = {}
 
         self.name = name
         self.root = root or self
@@ -51,7 +51,7 @@ class PropertyForm(QtWidgets.QWidget):
         self.setLayout(QtWidgets.QGridLayout(self))
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}(\'{self.name}\')'
+        return f'{self.__class__.__name__}({repr(self.name)})'
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
@@ -97,7 +97,8 @@ class PropertyForm(QtWidgets.QWidget):
                 # this requires to keep track of group type and not just forms
                 pass
             else:
-                new_widget = widget.copy()
+                new_widget = widget.__class__(widget.name)
+                new_widget.init_from(widget)
                 self.add_property(new_widget, link=widget)
 
     def add_group(
@@ -276,6 +277,25 @@ class PropertyForm(QtWidgets.QWidget):
             else:
                 widgets[name] = widget
         return widgets
+
+    def boxes(
+        self, layout: QtWidgets.QLayout | None = None
+    ) -> dict[CollapsibleBox, ...]:
+        # create nested dict of all boxes
+        if layout is None:
+            layout = self.grid_layout
+
+        boxes = {}
+        for index in range(layout.count()):
+            widget = layout.itemAt(index).widget()
+            if isinstance(widget, CollapsibleBox):
+                if widget.layout():
+                    children = self.boxes(widget.layout())
+                    boxes[widget] = children
+            elif isinstance(widget, PropertyForm):
+                children = widget.boxes()
+                boxes.update(children)
+        return boxes
 
 
 def main():

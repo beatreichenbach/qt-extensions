@@ -1,3 +1,5 @@
+import logging
+import types
 from enum import Enum, IntEnum, auto
 import math
 import typing
@@ -43,7 +45,7 @@ class PropertyWidget(QtWidgets.QWidget):
         if not hasattr(self, '_setter_signals'):
             return
         for attr in self._setter_signals.keys():
-            if key == attr or isinstance(attr, tuple) and key in attr:
+            if key == attr:
                 self._setter_signals[attr](value)
 
     def _init_layout(self) -> None:
@@ -56,16 +58,14 @@ class PropertyWidget(QtWidgets.QWidget):
     def _init_signals(self) -> None:
         self.setter_signal('value', self.set_value)
         self.setter_signal('_value', self._set_value)
+        self.setter_signal('default', self.set_default)
 
     def _init_attrs(self) -> None:
         self.blockSignals(True)
 
-        class_attrs = self._class_attrs()
-
-        # set default values
-        class_attrs.pop('value', None)
-        for attr, value in class_attrs.items():
-            setattr(self, attr, value)
+        for attr in self._setter_signals.keys():
+            value = getattr(self, attr)
+            self._setter_signals[attr](value)
         self.value = self.default
 
         self.blockSignals(False)
@@ -80,7 +80,6 @@ class PropertyWidget(QtWidgets.QWidget):
                 if key not in class_attrs and not isinstance(value, QtCore.Signal):
                     class_attrs[key] = value
             cls = cls.__base__
-
         return class_attrs
 
     def _set_value(self, value: typing.Any) -> None:
@@ -90,6 +89,9 @@ class PropertyWidget(QtWidgets.QWidget):
 
     def set_value(self, value: typing.Any) -> None:
         self.value_changed.emit(value)
+
+    def set_default(self, value: typing.Any) -> None:
+        self.value = value
 
     def setter_signal(self, attr: str, func: typing.Callable) -> None:
         # helper function to register signals when attrs are set
@@ -102,10 +104,10 @@ class PropertyWidget(QtWidgets.QWidget):
         class_attrs = instance._class_attrs()
 
         # set default values
-        value = class_attrs.pop('value', None)
+        current_value = class_attrs.pop('value', None)
         for attr, value in class_attrs.items():
             setattr(self, attr, value)
-        self.value = value
+        self.value = current_value
 
     def changeEvent(self, event):
         if event.type() == QtCore.QEvent.EnabledChange:
@@ -337,8 +339,17 @@ class EnumProperty(PropertyWidget):
 
     def _init_signals(self) -> None:
         super()._init_signals()
-        self.setter_signal('formatter', lambda _: self.update_items())
-        self.setter_signal('enum', lambda _: self.update_items())
+        self.setter_signal('formatter', self.set_formatter)
+        self.setter_signal('enum', self.set_enum)
+
+    def set_formatter(self, formatter: typing.Callable):
+        func = formatter.__func__
+        QtWidgets.QWidget.__setattr__(self, 'formatter', func)
+        self.update_items()
+
+    def set_enum(self, enum):
+        print(self.enum)
+        self.update_items()
 
     def update_items(self) -> None:
         for index in reversed(range(self.combo.count())):
@@ -346,15 +357,17 @@ class EnumProperty(PropertyWidget):
 
         if self.enum is not None:
             for member in self.enum:
-                self.combo.addItem(formatter(member.name), member.value)
+                print(self.formatter)
+                label = self.formatter(member.name)
+                self.combo.addItem(label, member.value)
 
     def current_index_change(self, index: int) -> None:
         self._value = self.combo.itemData(index)
 
-    def set_value(self, value: Enum) -> None:
+    def set_value(self, value: Enum | None) -> None:
         super().set_value(value)
 
-        if value in self.enum:
+        if self.enum is not None and value in self.enum:
             index = self.combo.findText(value.name)
             self.combo.setCurrentIndex(index)
 
@@ -420,8 +433,12 @@ class PointProperty(PropertyWidget):
         if isinstance(value, (list, tuple)):
             value = QtCore.QPoint(value[0], value[1])
         super().set_value(value)
+        self.line1.blockSignals(True)
         self.line1.setValue(value.x())
+        self.line1.blockSignals(False)
+        self.line2.blockSignals(True)
         self.line2.setValue(value.y())
+        self.line2.blockSignals(False)
 
 
 class PointFProperty(PointProperty):
@@ -447,7 +464,7 @@ class PointFProperty(PointProperty):
         value = QtCore.QPointF(self.line1.value, self.line2.value)
         self._value = value
 
-    def set_value(self, value: QtCore.QPointF) -> None:
+    def set_value(self, value: QtCore.QPointF | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
             value = QtCore.QPointF(value[0], value[1])
         super().set_value(value)
@@ -524,7 +541,7 @@ class SizeProperty(IntProperty):
         self.line2.setVisible(not value)
         self.toggle_slider(value)
 
-    def set_value(self, value: QtCore.QSize) -> None:
+    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
             value = QtCore.QSize(value[0], value[1])
         if self.keep_ratio:
@@ -613,7 +630,7 @@ class SizeFProperty(SizeProperty):
         self.line1.setDecimals(self.decimals)
         self.line2.setDecimals(self.decimals)
 
-    def set_value(self, value: QtCore.QSizeF) -> None:
+    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
             value = QtCore.QSizeF(value[0], value[1])
         super().set_value(value)
@@ -963,20 +980,30 @@ class IntSlider(QtWidgets.QSlider):
         self.setTickInterval(step * 10)
 
     def setMinimum(self, value: int) -> None:
+        # setting the minimum and maximum to the same value results in the QSlider
+        # adjusting the value and min/max in order to stay valid.
+        # This is the reason for blocking the signals and reassigning the internal vars.
+        self.blockSignals(True)
         super().setMinimum(value)
+        self.blockSignals(False)
         self._slider_min = self.minimum()
         self._slider_max = self.maximum()
         self._update_steps()
 
     def setMaximum(self, value: int) -> None:
+        # setting the minimum and maximum to the same value results in the QSlider
+        # adjusting the value and min/max in order to stay valid.
+        # This is the reason for blocking the signals and reassigning the internal vars.
+        self.blockSignals(True)
         super().setMaximum(value)
+        self.blockSignals(False)
         self._slider_min = self.minimum()
         self._slider_max = self.maximum()
         self._update_steps()
 
 
 class FloatSlider(IntSlider):
-    valueChanged = QtCore.Signal(float)
+    valueChanged: QtCore.Signal = QtCore.Signal(float)
 
     def __init__(
         self,
@@ -984,7 +1011,7 @@ class FloatSlider(IntSlider):
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(orientation, parent)
-        super().valueChanged.connect(lambda _: self.valueChanged.emit(self.value()))
+        super().valueChanged.connect(self._value_change)
 
         self._slider_min = self.minimum()
         self._slider_max = self.maximum()
@@ -997,14 +1024,24 @@ class FloatSlider(IntSlider):
         # find a value that brings the float range into an int range
         # with step size locked to 1 and 10
         normalize = pow(10, -(self._exponent() - 2))
+        self.blockSignals(True)
         QtWidgets.QSlider.setMinimum(self, self._slider_min * normalize)
         QtWidgets.QSlider.setMaximum(self, self._slider_max * normalize)
+        self.blockSignals(False)
+
+    def _value_change(self, value: float) -> None:
+        value = self.value()
+        if not math.isnan(value):
+            self.valueChanged.emit(value)
 
     def value(self) -> float:
         value = super().value()
         # convert from int slider scale to float
         slider_range = self.maximum() - self.minimum()
-        percentage = (value - self.minimum()) / slider_range
+        try:
+            percentage = (value - self.minimum()) / slider_range
+        except ZeroDivisionError:
+            return float('nan')
         float_value = (
             self._slider_min + (self._slider_max - self._slider_min) * percentage
         )
@@ -1012,7 +1049,12 @@ class FloatSlider(IntSlider):
 
     def setSliderPosition(self, value: int) -> None:
         # convert from float to int in slider scale
-        percentage = (value - self._slider_min) / (self._slider_max - self._slider_min)
+        try:
+            percentage = (value - self._slider_min) / (
+                self._slider_max - self._slider_min
+            )
+        except ZeroDivisionError:
+            return
         slider_range = self.maximum() - self.minimum()
         clamped_value = min(max(percentage, 0), 1) * slider_range + self.minimum()
         int_value = int(clamped_value)
