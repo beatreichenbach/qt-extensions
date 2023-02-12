@@ -598,7 +598,7 @@ class SizeFProperty(SizeProperty):
 
     def _init_signals(self) -> None:
         super()._init_signals()
-        self.setter_signal('decimals', self.update_lines)
+        self.setter_signal('decimals', lambda _: self.update_lines())
 
     def _line_value_change(self, _) -> None:
         value = QtCore.QSizeF(self.line1.value, self.line2.value)

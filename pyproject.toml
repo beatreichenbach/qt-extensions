@@ -1,0 +1,16 @@
+[project]
+name = "qt-extensions"
+version = "0.0.1"
+description = "Various QtWidgets extending the functionality of PySide2"
+authors = [
+    {name = "Beat Reichenbach", email = "info@artofbeat.com"}
+]
+dependencies = [
+    "PySide2"
+]
+requires-python = ">=3.10"
+license = {text = "MIT"}
+readme = "README.md"
+
+[tool.setuptools]
+packages = ["qtextensions"]
