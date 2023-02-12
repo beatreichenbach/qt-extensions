@@ -1,7 +1,5 @@
-import enum
 import itertools
 from functools import partial
-import logging
 import typing
 from typing_extensions import Self
 
@@ -31,6 +29,12 @@ class PropertyForm(QtWidgets.QWidget):
     actions_changed: QtCore.Signal = QtCore.Signal(list)
     property_changed: QtCore.Signal = QtCore.Signal(PropertyWidget)
 
+    # require unique names in the whole hierarchy
+    unique_hierarchical_names: bool = False
+
+    # when querying widgets or values, should these values be in their own hierarchy
+    create_hierarchy: bool = True
+
     def __init__(
         self,
         name: str | None = None,
@@ -39,14 +43,10 @@ class PropertyForm(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        # require unique names in the whole hierarchy
-        self.unique_hierarchical_names = False
-        # when querying widgets or values, should these values be in their own hierarchy
-        self.create_hierarchy = True
-
         self._widgets = {}
-        self.root = root or self
+
         self.name = name
+        self.root = root or self
 
         self.setLayout(QtWidgets.QGridLayout(self))
 
@@ -280,7 +280,6 @@ class PropertyForm(QtWidgets.QWidget):
 
 def main():
     import sys
-    import widgets
     import logging
 
     from qtextensions import theme

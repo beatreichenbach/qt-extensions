@@ -1,4 +1,4 @@
-import enum
+from enum import Enum, IntEnum, auto
 import math
 import typing
 from functools import partial
@@ -258,10 +258,10 @@ class StringProperty(PropertyWidget):
 
 
 class PathProperty(PropertyWidget):
-    class Method(enum.IntEnum):
-        OPEN_FILE = enum.auto()
-        SAVE_FILE = enum.auto()
-        EXISTING_DIR = enum.auto()
+    class Method(IntEnum):
+        OPEN_FILE = auto()
+        SAVE_FILE = auto()
+        EXISTING_DIR = auto()
 
     value_changed: QtCore.Signal = QtCore.Signal(str)
 
@@ -319,53 +319,44 @@ class PathProperty(PropertyWidget):
         self.line.blockSignals(False)
 
 
-# class EnumProperty(PropertyWidget):
-#     value_changed = QtCore.Signal(Enum)
-#     accepted_type = Enum
-#
-#     def __init__(self, *args, **kwargs):
-#         if args and isinstance(args[0], self.__class__):
-#             super().__init__(*args, **kwargs)
-#             return
-#
-#         if 'enum' not in kwargs:
-#             raise AttributeError(
-#                 f'{self.__class__.__name__} requires argument \'enum\''
-#             )
-#         if 'default' not in kwargs:
-#             kwargs['default'] = next(iter(kwargs['enum']))
-#
-#         super().__init__(*args, **kwargs)
-#
-#     def init_ui(self) -> None:
-#         super().init_ui()
-#
-#         self.combo = QtWidgets.QComboBox()
-#
-#         formatting = lambda e: helper.title(e.name)
-#         for e in self.enum:
-#             # TODO: should we be able to provide a format function?
-#             # e.g formatting=lambda e: e.name.title()
-#             self.combo.addItem(formatting(e), e)
-#         self.layout().addWidget(self.combo)
-#         # self.layout().addStretch()
-#         self.setFocusProxy(self.combo)
-#
-#     def connect_ui(self) -> None:
-#         self.combo.currentIndexChanged.connect(self.combo_index_changed)
-#
-#     def combo_index_changed(self, index):
-#         self.value_changed.emit(self.value)
-#
-#     @property
-#     def value(self) -> None:
-#         return self.combo.currentData()
-#
-#     @value.setter
-#     def value(self, value):
-#         self.validate_value(value)
-#         index = self.combo.findData(value)
-#         self.combo.setCurrentIndex(index)
+class EnumProperty(PropertyWidget):
+    value_changed: QtCore.Signal = QtCore.Signal(Enum)
+
+    value: Enum | None = None
+    default: Enum | None = None
+    formatter: typing.Callable = helper.title
+    enum: Enum | None = None
+
+    def _init_ui(self) -> None:
+        self.combo = QtWidgets.QComboBox()
+        self.combo.currentIndexChanged.connect(self.current_index_change)
+
+        self.layout().addWidget(self.combo)
+        # self.layout().addStretch()
+        self.setFocusProxy(self.combo)
+
+    def _init_signals(self) -> None:
+        super()._init_signals()
+        self.setter_signal('formatter', lambda _: self.update_items())
+        self.setter_signal('enum', lambda _: self.update_items())
+
+    def update_items(self) -> None:
+        for index in reversed(range(self.combo.count())):
+            self.combo.removeItem(index)
+
+        if self.enum is not None:
+            for member in self.enum:
+                self.combo.addItem(formatter(member.name), member.value)
+
+    def current_index_change(self, index: int) -> None:
+        self._value = self.combo.itemData(index)
+
+    def set_value(self, value: Enum) -> None:
+        super().set_value(value)
+
+        if value in self.enum:
+            index = self.combo.findText(value.name)
+            self.combo.setCurrentIndex(index)
 
 
 class BoolProperty(PropertyWidget):
@@ -472,6 +463,7 @@ class SizeProperty(IntProperty):
     slider_min: int = 0
     slider_max: int = 10
     keep_ratio: bool = True
+    ratio_visible: bool = True
 
     def _init_ui(self) -> None:
         # lines
@@ -509,6 +501,7 @@ class SizeProperty(IntProperty):
         self.setter_signal('slider_max', self.slider.setMaximum)
         self.setter_signal('slider_visible', self.toggle_slider)
         self.setter_signal('keep_ratio', self.keep_ratio_toggle)
+        self.setter_signal('ratio_visible', self.toggle_ratio)
 
     def _line_value_change(self, _) -> None:
         value = QtCore.QSize(self.line1.value, self.line2.value)
@@ -550,6 +543,11 @@ class SizeProperty(IntProperty):
         self.slider.blockSignals(True)
         self.slider.setSliderPosition(value.width())
         self.slider.blockSignals(False)
+
+    def toggle_ratio(self, value: bool) -> None:
+        self.keep_ratio_button.setVisible(value)
+        if not value:
+            self.keep_ratio = False
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         QtWidgets.QWidget.resizeEvent(self, event)
@@ -946,6 +944,8 @@ class IntSlider(QtWidgets.QSlider):
     def _exponent(self) -> int:
         # automatically adjust step size and tick interval based on slider range
         num_range = abs(self._slider_max - self._slider_min)
+        if num_range == 0:
+            num_range = 1
         exponent = math.log10(num_range)
 
         # round exponent up or down with weighting towards down
@@ -964,12 +964,14 @@ class IntSlider(QtWidgets.QSlider):
 
     def setMinimum(self, value: int) -> None:
         super().setMinimum(value)
-        self._slider_min = value
+        self._slider_min = self.minimum()
+        self._slider_max = self.maximum()
         self._update_steps()
 
     def setMaximum(self, value: int) -> None:
         super().setMaximum(value)
-        self._slider_max = value
+        self._slider_min = self.minimum()
+        self._slider_max = self.maximum()
         self._update_steps()
 
 
@@ -997,14 +999,6 @@ class FloatSlider(IntSlider):
         normalize = pow(10, -(self._exponent() - 2))
         QtWidgets.QSlider.setMinimum(self, self._slider_min * normalize)
         QtWidgets.QSlider.setMaximum(self, self._slider_max * normalize)
-
-    def setMinimum(self, value: int) -> None:
-        self._slider_min = value
-        self._update_steps()
-
-    def setMaximum(self, value: int) -> None:
-        self._slider_max = value
-        self._update_steps()
 
     def value(self) -> float:
         value = super().value()
@@ -1087,7 +1081,7 @@ def main():
     widget.layout().addWidget(BoolProperty('bool'))
 
     #  widget.layout().addWidget(
-    #     EnumProperty('enum', enum=enum.Enum('Number', ('one', 'two', 'three')))
+    #     EnumProperty('enum', enum=Enum('Number', ('one', 'two', 'three')))
     # )
 
     widget.show()
@@ -1106,6 +1100,7 @@ __all__ = [
     'StringProperty',
     'PathProperty',
     'BoolProperty',
+    'EnumProperty',
     'ColorProperty',
 ]
 
