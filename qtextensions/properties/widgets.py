@@ -1,5 +1,4 @@
 import logging
-import types
 from enum import Enum, IntEnum, auto
 import math
 import typing
@@ -61,14 +60,40 @@ class PropertyWidget(QtWidgets.QWidget):
         self.setter_signal('default', self.set_default)
 
     def _init_attrs(self) -> None:
+        # trigger all signals once to initialize the widget
         self.blockSignals(True)
-
         for attr in self._setter_signals.keys():
             value = getattr(self, attr)
             self._setter_signals[attr](value)
         self.value = self.default
-
         self.blockSignals(False)
+
+    def changeEvent(self, event):
+        if event.type() == QtCore.QEvent.EnabledChange:
+            self.enabled_changed.emit(self.isEnabled())
+        super().changeEvent(event)
+
+    def init_from(self, instance) -> None:
+        if not isinstance(instance, self.__class__):
+            raise TypeError('instance needs to be the same type as self')
+
+        class_attrs = instance._class_attrs()
+
+        # set default values
+        current_value = class_attrs.pop('value', None)
+        for attr, value in class_attrs.items():
+            setattr(self, attr, value)
+        self.value = current_value
+
+    def set_value(self, value: typing.Any) -> None:
+        self.value_changed.emit(value)
+
+    def set_default(self, value: typing.Any) -> None:
+        self.value = value
+
+    def setter_signal(self, attr: str, func: typing.Callable) -> None:
+        # helper function to register signals when attrs are set
+        self._setter_signals[attr] = func
 
     def _class_attrs(self) -> dict[str, typing.Any]:
         # get default values based on annotations
@@ -86,33 +111,6 @@ class PropertyWidget(QtWidgets.QWidget):
         # this is only used internally to not trigger any recursive loops
         self.value_changed.emit(value)
         super().__setattr__('value', value)
-
-    def set_value(self, value: typing.Any) -> None:
-        self.value_changed.emit(value)
-
-    def set_default(self, value: typing.Any) -> None:
-        self.value = value
-
-    def setter_signal(self, attr: str, func: typing.Callable) -> None:
-        # helper function to register signals when attrs are set
-        self._setter_signals[attr] = func
-
-    def init_from(self, instance) -> None:
-        if not isinstance(instance, self.__class__):
-            raise TypeError('instance needs to be the same type as self')
-
-        class_attrs = instance._class_attrs()
-
-        # set default values
-        current_value = class_attrs.pop('value', None)
-        for attr, value in class_attrs.items():
-            setattr(self, attr, value)
-        self.value = current_value
-
-    def changeEvent(self, event):
-        if event.type() == QtCore.QEvent.EnabledChange:
-            self.enabled_changed.emit(self.isEnabled())
-        super().changeEvent(event)
 
 
 class IntProperty(PropertyWidget):
@@ -145,19 +143,15 @@ class IntProperty(PropertyWidget):
 
     def _init_signals(self) -> None:
         super()._init_signals()
-        self.setter_signal('line_min', self.line.setMinimum)
-        self.setter_signal('line_max', self.line.setMaximum)
+        self.setter_signal('line_min', partial(setattr, self.line, 'minimum'))
+        self.setter_signal('line_max', partial(setattr, self.line, 'maximum'))
         self.setter_signal('slider_min', self.slider.setMinimum)
         self.setter_signal('slider_max', self.slider.setMaximum)
         self.setter_signal('slider_visible', self.toggle_slider)
 
-    def _line_value_change(self, value: int) -> None:
-        self._value = value
-        self.set_slider_value(value)
-
-    def _slider_value_change(self, value: int) -> None:
-        self._value = value
-        self.set_line_value(value)
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        super().resizeEvent(event)
+        self.toggle_slider(True)
 
     def set_value(self, value: int) -> None:
         super().set_value(value)
@@ -166,7 +160,7 @@ class IntProperty(PropertyWidget):
 
     def set_line_value(self, value: int) -> None:
         self.line.blockSignals(True)
-        self.line.setValue(value)
+        self.line.value = value
         self.line.blockSignals(False)
 
     def set_slider_value(self, value: int) -> None:
@@ -178,9 +172,13 @@ class IntProperty(PropertyWidget):
         has_space = self.size().width() > 200
         self.slider.setVisible(self.slider_visible and value and has_space)
 
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        super().resizeEvent(event)
-        self.toggle_slider(True)
+    def _line_value_change(self, value: int) -> None:
+        self._value = value
+        self.set_slider_value(value)
+
+    def _slider_value_change(self, value: int) -> None:
+        self._value = value
+        self.set_line_value(value)
 
 
 class FloatProperty(IntProperty):
@@ -213,7 +211,7 @@ class FloatProperty(IntProperty):
 
     def _init_signals(self) -> None:
         super()._init_signals()
-        self.setter_signal('decimals', self.line.setDecimals)
+        self.setter_signal('decimals', partial(setattr, self.line, 'decimals'))
 
 
 class StringProperty(PropertyWidget):
@@ -238,17 +236,6 @@ class StringProperty(PropertyWidget):
         super()._init_signals()
         self.setter_signal('area', lambda _: self.update_layout())
 
-    def _text_change(self, value: str = '') -> None:
-        if self.area:
-            self._value = self.text.toPlainText()
-        else:
-            self._value = value
-
-    def update_layout(self) -> None:
-        for i in reversed(range(self.layout().count())):
-            self.layout().itemAt(i).widget().deleteLater()
-        self._init_ui()
-
     def set_value(self, value: str) -> None:
         super().set_value(value)
         self.text.blockSignals(True)
@@ -257,6 +244,17 @@ class StringProperty(PropertyWidget):
         else:
             self.text.setText(value)
         self.text.blockSignals(False)
+
+    def update_layout(self) -> None:
+        for i in reversed(range(self.layout().count())):
+            self.layout().itemAt(i).widget().deleteLater()
+        self._init_ui()
+
+    def _text_change(self, value: str = '') -> None:
+        if self.area:
+            self._value = self.text.toPlainText()
+        else:
+            self._value = value
 
 
 class PathProperty(PropertyWidget):
@@ -283,9 +281,6 @@ class PathProperty(PropertyWidget):
 
         self.layout().setStretch(0, 1)
         self.setFocusProxy(self.line)
-
-    def _text_change(self, value: str) -> None:
-        self._value = value
 
     def browse(self) -> None:
         match self.method:
@@ -320,18 +315,21 @@ class PathProperty(PropertyWidget):
         self.line.setText(value)
         self.line.blockSignals(False)
 
+    def _text_change(self, value: str) -> None:
+        self._value = value
+
 
 class EnumProperty(PropertyWidget):
     value_changed: QtCore.Signal = QtCore.Signal(Enum)
 
     value: Enum | None = None
     default: Enum | None = None
-    formatter: typing.Callable = helper.title
+    formatter: typing.Callable = staticmethod(helper.title)
     enum: Enum | None = None
 
     def _init_ui(self) -> None:
         self.combo = QtWidgets.QComboBox()
-        self.combo.currentIndexChanged.connect(self.current_index_change)
+        self.combo.currentIndexChanged.connect(self._current_index_change)
 
         self.layout().addWidget(self.combo)
         # self.layout().addStretch()
@@ -339,17 +337,15 @@ class EnumProperty(PropertyWidget):
 
     def _init_signals(self) -> None:
         super()._init_signals()
-        self.setter_signal('formatter', self.set_formatter)
-        self.setter_signal('enum', self.set_enum)
+        self.setter_signal('formatter', lambda _: self.update_items())
+        self.setter_signal('enum', lambda _: self.update_items())
 
-    def set_formatter(self, formatter: typing.Callable):
-        func = formatter.__func__
-        QtWidgets.QWidget.__setattr__(self, 'formatter', func)
-        self.update_items()
+    def set_value(self, value: Enum | None) -> None:
+        super().set_value(value)
 
-    def set_enum(self, enum):
-        print(self.enum)
-        self.update_items()
+        if value is not None and isinstance(value, self.enum):
+            index = self.combo.findData(value.value)
+            self.combo.setCurrentIndex(index)
 
     def update_items(self) -> None:
         for index in reversed(range(self.combo.count())):
@@ -357,19 +353,11 @@ class EnumProperty(PropertyWidget):
 
         if self.enum is not None:
             for member in self.enum:
-                print(self.formatter)
                 label = self.formatter(member.name)
                 self.combo.addItem(label, member.value)
 
-    def current_index_change(self, index: int) -> None:
+    def _current_index_change(self, index: int) -> None:
         self._value = self.combo.itemData(index)
-
-    def set_value(self, value: Enum | None) -> None:
-        super().set_value(value)
-
-        if self.enum is not None and value in self.enum:
-            index = self.combo.findText(value.name)
-            self.combo.setCurrentIndex(index)
 
 
 class BoolProperty(PropertyWidget):
@@ -423,22 +411,22 @@ class PointProperty(PropertyWidget):
         value = QtCore.QPoint(self.line1.value, self.line2.value)
         self._value = value
 
-    def update_lines(self) -> None:
-        self.line1.setMinimum(self.line_min)
-        self.line1.setMaximum(self.line_max)
-        self.line2.setMinimum(self.line_min)
-        self.line2.setMaximum(self.line_max)
-
     def set_value(self, value: QtCore.QPoint | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
             value = QtCore.QPoint(value[0], value[1])
         super().set_value(value)
         self.line1.blockSignals(True)
-        self.line1.setValue(value.x())
+        self.line1.value = value.x()
         self.line1.blockSignals(False)
         self.line2.blockSignals(True)
-        self.line2.setValue(value.y())
+        self.line2.value = value.y()
         self.line2.blockSignals(False)
+
+    def update_lines(self) -> None:
+        self.line1.minimum = self.line_min
+        self.line1.maximum = self.line_max
+        self.line2.minimum = self.line_min
+        self.line2.maximum = self.line_max
 
 
 class PointFProperty(PointProperty):
@@ -517,8 +505,49 @@ class SizeProperty(IntProperty):
         self.setter_signal('slider_min', self.slider.setMinimum)
         self.setter_signal('slider_max', self.slider.setMaximum)
         self.setter_signal('slider_visible', self.toggle_slider)
-        self.setter_signal('keep_ratio', self.keep_ratio_toggle)
+        self.setter_signal('keep_ratio', self._keep_ratio_toggle)
         self.setter_signal('ratio_visible', self.toggle_ratio)
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        QtWidgets.QWidget.resizeEvent(self, event)
+        if self.keep_ratio:
+            self.toggle_slider(True)
+
+    def set_line_value(self, value: QtCore.QSize) -> None:
+        self.line1.blockSignals(True)
+        self.line1.value = value.width()
+        self.line1.blockSignals(False)
+        self.line2.blockSignals(True)
+        self.line2.value = value.height()
+        self.line2.blockSignals(False)
+
+    def set_slider_value(self, value: QtCore.QSize) -> None:
+        self.slider.blockSignals(True)
+        self.slider.setSliderPosition(value.width())
+        self.slider.blockSignals(False)
+
+    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
+        if isinstance(value, (list, tuple)):
+            value = QtCore.QSize(value[0], value[1])
+        if self.keep_ratio:
+            value.setHeight(value.width())
+        super().set_value(value)
+
+    def toggle_ratio(self, value: bool) -> None:
+        self.keep_ratio_button.setVisible(value)
+        if not value:
+            self.keep_ratio = False
+
+    def update_lines(self) -> None:
+        self.line1.minimum = self.line_min
+        self.line1.maximum = self.line_max
+        self.line2.minimum = self.line_min
+        self.line2.maximum = self.line_max
+
+    def _keep_ratio_toggle(self, value: QtCore.QSize) -> None:
+        self.keep_ratio_button.setChecked(value)
+        self.line2.setVisible(not value)
+        self.toggle_slider(value)
 
     def _line_value_change(self, _) -> None:
         value = QtCore.QSize(self.line1.value, self.line2.value)
@@ -529,47 +558,6 @@ class SizeProperty(IntProperty):
         value = QtCore.QSize(value, value)
         self._value = value
         self.set_line_value(value)
-
-    def update_lines(self) -> None:
-        self.line1.setMinimum(self.line_min)
-        self.line1.setMaximum(self.line_max)
-        self.line2.setMinimum(self.line_min)
-        self.line2.setMaximum(self.line_max)
-
-    def keep_ratio_toggle(self, value: QtCore.QSize) -> None:
-        self.keep_ratio_button.setChecked(value)
-        self.line2.setVisible(not value)
-        self.toggle_slider(value)
-
-    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QSize(value[0], value[1])
-        if self.keep_ratio:
-            value.setHeight(value.width())
-        super().set_value(value)
-
-    def set_line_value(self, value: QtCore.QSize) -> None:
-        self.line1.blockSignals(True)
-        self.line1.setValue(value.width())
-        self.line1.blockSignals(False)
-        self.line2.blockSignals(True)
-        self.line2.setValue(value.height())
-        self.line2.blockSignals(False)
-
-    def set_slider_value(self, value: QtCore.QSize) -> None:
-        self.slider.blockSignals(True)
-        self.slider.setSliderPosition(value.width())
-        self.slider.blockSignals(False)
-
-    def toggle_ratio(self, value: bool) -> None:
-        self.keep_ratio_button.setVisible(value)
-        if not value:
-            self.keep_ratio = False
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        QtWidgets.QWidget.resizeEvent(self, event)
-        if self.keep_ratio:
-            self.toggle_slider(True)
 
 
 class SizeFProperty(SizeProperty):
@@ -615,6 +603,16 @@ class SizeFProperty(SizeProperty):
         super()._init_signals()
         self.setter_signal('decimals', lambda _: self.update_lines())
 
+    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
+        if isinstance(value, (list, tuple)):
+            value = QtCore.QSizeF(value[0], value[1])
+        super().set_value(value)
+
+    def update_lines(self) -> None:
+        super().update_lines()
+        self.line1.decimals = self.decimals
+        self.line2.decimals = self.decimals
+
     def _line_value_change(self, _) -> None:
         value = QtCore.QSizeF(self.line1.value, self.line2.value)
         self._value = value
@@ -624,16 +622,6 @@ class SizeFProperty(SizeProperty):
         value = QtCore.QSizeF(value, value)
         self._value = value
         self.set_line_value(value)
-
-    def update_lines(self) -> None:
-        super().update_lines()
-        self.line1.setDecimals(self.decimals)
-        self.line2.setDecimals(self.decimals)
-
-    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QSizeF(value[0], value[1])
-        super().set_value(value)
 
 
 class ColorProperty(PropertyWidget):
@@ -666,19 +654,6 @@ class ColorProperty(PropertyWidget):
         self.setter_signal('color_max', lambda _: self.update_lines())
         self.setter_signal('decimals', lambda _: self.update_lines())
 
-    def _line_value_change(self, _) -> None:
-        color = QtGui.QColor.fromRgbF(
-            self.lines[0].value, self.lines[1].value, self.lines[2].value
-        )
-        self._value = color
-        self.set_button_value(color)
-
-    def update_lines(self) -> None:
-        for line in self.lines:
-            line.setMinimum(self.color_min)
-            line.setMaximum(self.color_max)
-            line.setDecimals(self.decimals)
-
     def select_color(self) -> None:
         color = QtWidgets.QColorDialog.getColor(
             initial=self.value, options=QtWidgets.QColorDialog.DontUseNativeDialog
@@ -688,15 +663,15 @@ class ColorProperty(PropertyWidget):
             self.set_line_value(color)
             self.set_button_value(color)
 
+    def set_button_value(self, value: QtGui.QColor) -> None:
+        self.button.setPalette(QtGui.QPalette(value))
+
     def set_line_value(self, value: QtGui.QColor) -> None:
         rgb = value.getRgbF()
         for i, line in enumerate(self.lines):
             line.blockSignals(True)
-            line.setValue(rgb[i])
+            line.value = rgb[i]
             line.blockSignals(False)
-
-    def set_button_value(self, value: QtGui.QColor) -> None:
-        self.button.setPalette(QtGui.QPalette(value))
 
     def set_value(self, value: QtGui.QColor | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
@@ -705,74 +680,116 @@ class ColorProperty(PropertyWidget):
         self.set_button_value(value)
         self.set_line_value(value)
 
+    def update_lines(self) -> None:
+        for line in self.lines:
+            line.minimum = self.color_min
+            line.maximum = self.color_max
+            line.decimals = self.decimals
+
+    def _line_value_change(self, _) -> None:
+        color = QtGui.QColor.fromRgbF(
+            self.lines[0].value, self.lines[1].value, self.lines[2].value
+        )
+        self._value = color
+        self.set_button_value(color)
+
 
 class IntLineEdit(QtWidgets.QLineEdit):
     value_changed = QtCore.Signal(int)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+
+        self._init_validator()
+
+        self._abs_minimum = self.validator().bottom()
+        self._abs_maximum = self.validator().top()
+        self._minimum = self._abs_minimum
+        self._maximum = self._abs_maximum
         self._value = 0
-        self.editingFinished.connect(self.strip_padding)
-        self.setValidator(IntValidator())
 
-    def keyPressEvent(self, event: QtGui.QResizeEvent) -> None:
-        if event.key() == QtCore.Qt.Key_Up:
-            self.step(add=True)
-            event.accept()
-        elif event.key() == QtCore.Qt.Key_Down:
-            self.step(add=False)
-            event.accept()
-        else:
-            return super().keyPressEvent(event)
+        self.editingFinished.connect(self._strip_padding)
 
-    def wheelEvent(self, event) -> None:
-        delta = event.angleDelta()
-        if delta.y() > 0:
-            self.step(add=True)
-        elif delta.y() < 0:
-            self.step(add=False)
-        event.accept()
+    def _init_validator(self) -> None:
+        validator = IntValidator()
+        self.setValidator(validator)
+
+    @property
+    def maximum(self) -> int:
+        return self._maximum
+
+    @maximum.setter
+    def maximum(self, maximum: int | None) -> None:
+        maximum = maximum or self._abs_maximum
+        self._maximum = maximum
+        self.validator().setTop(maximum)
+
+    @property
+    def minimum(self) -> int:
+        return self._minimum
+
+    @minimum.setter
+    def minimum(self, minimum: int | None) -> None:
+        minimum = minimum or self._abs_minimum
+        self._minimum = minimum
+        self.validator().setBottom(minimum)
 
     @property
     def value(self) -> int:
-        try:
-            return int(self.text())
-        except ValueError:
-            return 0
+        return self._value
 
     @value.setter
     def value(self, value: int) -> None:
-        if value != self._value:
-            self.value_changed.emit(value)
-        self._value = value
-
-    def setValue(self, value: int) -> None:
         text = self.validator().fixup(str(value))
-
         state, text_, pos_ = self.validator().validate(text, 0)
         if state == QtGui.QValidator.State.Acceptable:
             self.setText(text)
-            self.strip_padding()
+            self._strip_padding()
 
-    def sizeHint(self) -> QtCore.QSize:
-        size = super().sizeHint()
-        size.setWidth(60)
-        return size
+    def keyPressEvent(self, event: QtGui.QResizeEvent) -> None:
+        if event.key() == QtCore.Qt.Key_Up:
+            self._step(add=True)
+            event.accept()
+        elif event.key() == QtCore.Qt.Key_Down:
+            self._step(add=False)
+            event.accept()
+        else:
+            return super().keyPressEvent(event)
 
     def minimumSizeHint(self) -> QtCore.QSize:
         size = super().minimumSizeHint()
         size.setWidth(24)
         return size
 
-    def setMinimum(self, minimum: int | None) -> None:
-        minimum = minimum or -(1 << 31)
-        self.validator().setBottom(minimum)
+    def sizeHint(self) -> QtCore.QSize:
+        size = super().sizeHint()
+        size.setWidth(60)
+        return size
 
-    def setMaximum(self, maximum: int | None) -> None:
-        maximum = maximum or (1 << 31) - 1
-        self.validator().setTop(maximum)
+    def wheelEvent(self, event) -> None:
+        delta = event.angleDelta()
+        if delta.y() > 0:
+            self._step(add=True)
+        elif delta.y() < 0:
+            self._step(add=False)
+        event.accept()
 
-    def step(self, add: int) -> bool:
+    @staticmethod
+    def _text_to_value(text: str) -> int:
+        try:
+            return int(text)
+        except ValueError:
+            return 0
+
+    def _match_value_to_text(self, value: int, text: str, exponent: int) -> str:
+        # exponent is for subclasses
+        padding = len([t for t in text if t.isdigit()])
+        if value < 0:
+            padding += 1
+        text = f'{value:0{padding}}'
+        return text
+
+    def _step(self, add: int) -> bool:
         self.setFocus()
         text = self.text() or '0'
         position = self.cursorPosition()
@@ -783,8 +800,8 @@ class IntLineEdit(QtWidgets.QLineEdit):
         if position < len(text) and not text[position].isdigit():
             return False
 
-        step_index = self.step_index(text, position)
-        exponent = self.step_exponent(step_index)
+        step_index = self._step_index(text, position)
+        exponent = self._step_exponent(step_index)
 
         # perform step
         amount = 1 if add else -1
@@ -792,7 +809,7 @@ class IntLineEdit(QtWidgets.QLineEdit):
         value = self.value + step
 
         # preserve padding
-        text = self.match_value_to_text(value, text, exponent)
+        text = self._match_value_to_text(value, text, exponent)
 
         # validate before setting new text
         state, text_, pos_ = self.validator().validate(text, 0)
@@ -802,19 +819,16 @@ class IntLineEdit(QtWidgets.QLineEdit):
         self.value = value
 
         # get new position and set selection
-        position = self.step_index_to_position(step_index, text)
+        position = self._step_index_to_position(step_index, text)
         self.setSelection(position, 1)
         return True
 
-    def match_value_to_text(self, value: int, text: str, exponent: int) -> str:
-        # exponent is for subclasses
-        padding = len([t for t in text if t.isdigit()])
-        if value < 0:
-            padding += 1
-        text = f'{value:0{padding}}'
-        return text
+    def _step_exponent(self, step_index: int) -> int:
+        # convert cursor position to exponent
+        exponent = step_index - 1
+        return exponent
 
-    def step_index(self, text: str, position: int) -> int:
+    def _step_index(self, text: str, position: int) -> int:
         # get step index relative to decimal point
         # this preserves position when number gets larger or changes plus/minus sign
         step_index = len(text) - position
@@ -822,20 +836,18 @@ class IntLineEdit(QtWidgets.QLineEdit):
         step_index = max(1, step_index)
         return step_index
 
-    def step_exponent(self, step_index: int) -> int:
-        # convert cursor position to exponent
-        exponent = step_index - 1
-        return exponent
-
-    def step_index_to_position(self, step_index: int, text: str) -> int:
+    def _step_index_to_position(self, step_index: int, text: str) -> int:
         position = len(text) - step_index
         return position
 
-    def strip_padding(self) -> None:
-        value = self.value
-        self.value = value  # emit signal
+    def _strip_padding(self) -> None:
+        value = self._text_to_value(self.text())
         if int(value) == value:
             value = int(value)
+        if self._value != value:
+            self.value_changed.emit(value)
+            self._value = value
+
         self.setText(str(value))
 
 
@@ -844,40 +856,31 @@ class FloatLineEdit(IntLineEdit):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+
+        self._decimals = self.validator().decimals()
+
+    def _init_validator(self) -> None:
         validator = DoubleValidator()
         validator.setNotation(QtGui.QDoubleValidator.StandardNotation)
         self.setValidator(validator)
 
-    def setDecimals(self, decimals: int) -> None:
-        self.validator().setDecimals(decimals)
+    @property
+    def decimals(self) -> int:
+        return self._decimals
 
-    @IntLineEdit.value.getter
-    def value(self) -> float:
+    @decimals.setter
+    def decimals(self, value: int) -> None:
+        self._decimals = value
+        self.validator().setDecimals(value)
+
+    @staticmethod
+    def _text_to_value(text: str) -> float:
         try:
-            return float(self.text())
+            return float(text)
         except ValueError:
             return float(0)
 
-    def step_index(self, text: str, position: int) -> int:
-        # get step index relative to decimal point
-        # this preserves position when number gets larger or changes plus/minus sign
-        decimal_index = text.find('.')
-        if decimal_index == -1:
-            step_index = len(text) - position
-        else:
-            step_index = decimal_index - position
-        return step_index
-
-    def step_exponent(self, step_index: int) -> int:
-        # convert cursor position to exponent
-        exponent = step_index
-        # if cursor is on the decimal then edit the first decimal
-        if step_index >= 0:
-            exponent = step_index - 1
-
-        return exponent
-
-    def match_value_to_text(self, value: int, text: str, exponent: int) -> str:
+    def _match_value_to_text(self, value: int, text: str, exponent: int) -> str:
         decimal_index = text.find('.')
 
         # preserve padding
@@ -894,7 +897,7 @@ class FloatLineEdit(IntLineEdit):
         if value < 0:
             padding_int += 1
 
-        # padding_int needs to contain both padding for in and decimals
+        # padding_int needs to contain both padding for int and decimals
         padding_int += padding_decimal + 1 * bool(padding_decimal)
 
         value = round(value, padding_decimal)
@@ -902,7 +905,26 @@ class FloatLineEdit(IntLineEdit):
 
         return text
 
-    def step_index_to_position(self, step_index: int, text: str) -> int:
+    def _step_exponent(self, step_index: int) -> int:
+        # convert cursor position to exponent
+        exponent = step_index
+        # if cursor is on the decimal then edit the first decimal
+        if step_index >= 0:
+            exponent = step_index - 1
+
+        return exponent
+
+    def _step_index(self, text: str, position: int) -> int:
+        # get step index relative to decimal point
+        # this preserves position when number gets larger or changes plus/minus sign
+        decimal_index = text.find('.')
+        if decimal_index == -1:
+            step_index = len(text) - position
+        else:
+            step_index = decimal_index - position
+        return step_index
+
+    def _step_index_to_position(self, step_index: int, text: str) -> int:
         decimal_index = text.find('.')
         position = len(text) - step_index
         if decimal_index > -1:
@@ -911,14 +933,6 @@ class FloatLineEdit(IntLineEdit):
                 step_index = -1
             position = decimal_index - step_index
         return position
-
-    def setMinimum(self, minimum: float | None) -> None:
-        minimum = minimum or -float('inf')
-        self.validator().setBottom(minimum)
-
-    def setMaximum(self, maximum: float | None) -> None:
-        maximum = maximum or float('inf')
-        self.validator().setTop(maximum)
 
 
 class IntValidator(QtGui.QIntValidator):
@@ -958,27 +972,6 @@ class IntSlider(QtWidgets.QSlider):
         self._slider_min = self.minimum()
         self._slider_max = self.maximum()
 
-    def _exponent(self) -> int:
-        # automatically adjust step size and tick interval based on slider range
-        num_range = abs(self._slider_max - self._slider_min)
-        if num_range == 0:
-            num_range = 1
-        exponent = math.log10(num_range)
-
-        # round exponent up or down with weighting towards down
-        if exponent % 1 > 0.8:
-            exponent = math.ceil(exponent)
-        else:
-            exponent = math.floor(exponent)
-        return exponent
-
-    def _update_steps(self) -> None:
-        step = pow(10, max(self._exponent() - 2, 0))
-
-        self.setSingleStep(step)
-        self.setPageStep(step * 10)
-        self.setTickInterval(step * 10)
-
     def setMinimum(self, value: int) -> None:
         # setting the minimum and maximum to the same value results in the QSlider
         # adjusting the value and min/max in order to stay valid.
@@ -1001,6 +994,27 @@ class IntSlider(QtWidgets.QSlider):
         self._slider_max = self.maximum()
         self._update_steps()
 
+    def _exponent(self) -> int:
+        # automatically adjust step size and tick interval based on slider range
+        num_range = abs(self._slider_max - self._slider_min)
+        if num_range == 0:
+            num_range = 1
+        exponent = math.log10(num_range)
+
+        # round exponent up or down with weighting towards down
+        if exponent % 1 > 0.8:
+            exponent = math.ceil(exponent)
+        else:
+            exponent = math.floor(exponent)
+        return exponent
+
+    def _update_steps(self) -> None:
+        step = pow(10, max(self._exponent() - 2, 0))
+
+        self.setSingleStep(step)
+        self.setPageStep(step * 10)
+        self.setTickInterval(step * 10)
+
 
 class FloatSlider(IntSlider):
     valueChanged: QtCore.Signal = QtCore.Signal(float)
@@ -1020,33 +1034,6 @@ class FloatSlider(IntSlider):
         self.setPageStep(10)
         self.setTickInterval(10)
 
-    def _update_steps(self) -> None:
-        # find a value that brings the float range into an int range
-        # with step size locked to 1 and 10
-        normalize = pow(10, -(self._exponent() - 2))
-        self.blockSignals(True)
-        QtWidgets.QSlider.setMinimum(self, self._slider_min * normalize)
-        QtWidgets.QSlider.setMaximum(self, self._slider_max * normalize)
-        self.blockSignals(False)
-
-    def _value_change(self, value: float) -> None:
-        value = self.value()
-        if not math.isnan(value):
-            self.valueChanged.emit(value)
-
-    def value(self) -> float:
-        value = super().value()
-        # convert from int slider scale to float
-        slider_range = self.maximum() - self.minimum()
-        try:
-            percentage = (value - self.minimum()) / slider_range
-        except ZeroDivisionError:
-            return float('nan')
-        float_value = (
-            self._slider_min + (self._slider_max - self._slider_min) * percentage
-        )
-        return float_value
-
     def setSliderPosition(self, value: int) -> None:
         # convert from float to int in slider scale
         try:
@@ -1059,6 +1046,37 @@ class FloatSlider(IntSlider):
         clamped_value = min(max(percentage, 0), 1) * slider_range + self.minimum()
         int_value = int(clamped_value)
         super().setSliderPosition(int_value)
+
+    def value(self) -> float:
+        value = super().value()
+        float_value = self._float_value(value)
+        return float_value
+
+    def _float_value(self, value: int) -> float:
+        # convert from int slider scale to float
+        slider_range = self.maximum() - self.minimum()
+        try:
+            percentage = (value - self.minimum()) / slider_range
+        except ZeroDivisionError:
+            return float('nan')
+        float_value = (
+            self._slider_min + (self._slider_max - self._slider_min) * percentage
+        )
+        return float_value
+
+    def _update_steps(self) -> None:
+        # find a value that brings the float range into an int range
+        # with step size locked to 1 and 10
+        normalize = pow(10, -(self._exponent() - 2))
+        self.blockSignals(True)
+        QtWidgets.QSlider.setMinimum(self, self._slider_min * normalize)
+        QtWidgets.QSlider.setMaximum(self, self._slider_max * normalize)
+        self.blockSignals(False)
+
+    def _value_change(self, value: int) -> None:
+        value = self._float_value(value)
+        if not math.isnan(value):
+            self.valueChanged.emit(value)
 
 
 class LinkButton(QtWidgets.QToolButton):

@@ -37,16 +37,19 @@ class Footer(QtWidgets.QWidget):
         self.hsv_lbl = QtWidgets.QLabel('hsv')
         self.layout().addWidget(self.hsv_lbl)
 
-    def update_resolution(self, resolution: QtCore.QSize) -> None:
-        text = f'{resolution.width():.0f}x{resolution.height():.0f}'
-        self.resolution_lbl.setText(text)
+    @property
+    def background_color(self) -> QtGui.QColor:
+        return self._background_color
 
-    def update_pixel_position(self, position: QtCore.QPoint | None) -> None:
-        if position is not None:
-            coordinates = f'x={position.x()} y={position.y()}'
-        else:
-            coordinates = ''
-        self.coordinates_lbl.setText(coordinates)
+    @background_color.setter
+    def background_color(self, value: QtGui.QColor) -> None:
+        self._background_color = value
+        palette = self.palette()
+        palette.setColor(QtGui.QPalette.Window, value)
+        palette.setColor(
+            QtGui.QPalette.WindowText, palette.color(QtGui.QPalette.BrightText)
+        )
+        self.setPalette(palette)
 
     def update_pixel_color(self, color: QtGui.QColor | None) -> None:
         if color.isValid():
@@ -66,19 +69,16 @@ class Footer(QtWidgets.QWidget):
         self.rgb_lbl.setText(rgb)
         self.hsv_lbl.setText(hsv)
 
-    @property
-    def background_color(self) -> QtGui.QColor:
-        return self._background_color
+    def update_pixel_position(self, position: QtCore.QPoint | None) -> None:
+        if position is not None:
+            coordinates = f'x={position.x()} y={position.y()}'
+        else:
+            coordinates = ''
+        self.coordinates_lbl.setText(coordinates)
 
-    @background_color.setter
-    def background_color(self, value: QtGui.QColor) -> None:
-        self._background_color = value
-        palette = self.palette()
-        palette.setColor(QtGui.QPalette.Window, value)
-        palette.setColor(
-            QtGui.QPalette.WindowText, palette.color(QtGui.QPalette.BrightText)
-        )
-        self.setPalette(palette)
+    def update_resolution(self, resolution: QtCore.QSize) -> None:
+        text = f'{resolution.width():.0f}x{resolution.height():.0f}'
+        self.resolution_lbl.setText(text)
 
 
 class Viewer(QtWidgets.QWidget):
@@ -100,15 +100,12 @@ class Viewer(QtWidgets.QWidget):
         self._resolution = QtCore.QSize()
 
         self._init_ui()
+        self._init_toolbar()
 
     def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.layout().setSpacing(0)
-
-        # toolbar
-        self.toolbar = self._toolbar()
-        self.layout().addWidget(self.toolbar)
 
         # view
         self.scene = GraphicsScene()
@@ -119,7 +116,7 @@ class Viewer(QtWidgets.QWidget):
 
         self.view = GraphicsView()
         self.view.setScene(self.scene)
-        self.view.zoom_changed.connect(self.zoom_change)
+        self.view.zoom_changed.connect(self._zoom_change)
         self.layout().addWidget(self.view)
 
         # footer
@@ -132,7 +129,7 @@ class Viewer(QtWidgets.QWidget):
         self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
         self.view.position_changed.connect(self.position_changed.emit)
 
-    def _toolbar(self) -> QtWidgets.QToolBar:
+    def _init_toolbar(self) -> None:
         toolbar = QtWidgets.QToolBar()
 
         size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
@@ -142,7 +139,7 @@ class Viewer(QtWidgets.QWidget):
         exposure_slider = FloatProperty(parent=toolbar)
         exposure_slider.slider_min = -10
         exposure_slider.slider_max = 10
-        exposure_slider.value_changed.connect(self.exposure_change)
+        exposure_slider.value_changed.connect(self._exposure_change)
         palette = exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
         exposure_slider.slider.setPalette(palette)
@@ -170,7 +167,7 @@ class Viewer(QtWidgets.QWidget):
         for factor in reversed(factors):
             self.zoom_cmb.addItem(f'{factor:2.0%}', factor)
         self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
-        self.zoom_cmb.currentIndexChanged.connect(self.zoom_index_change)
+        self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
         toolbar.addWidget(self.zoom_cmb)
 
         # proxy resolution
@@ -185,14 +182,18 @@ class Viewer(QtWidgets.QWidget):
         #     )
         # header_lay.addWidget(self.proxy_cmb)
 
-        return toolbar
+        self.layout().insertWidget(0, self.toolbar)
 
-    def exposure_change(self, value: float) -> None:
-        if not self.paused:
-            self.item.exposure = value
+    @property
+    def resolution(self) -> QtCore.QSize:
+        return self._resolution
 
-    def refresh(self) -> None:
-        self.refreshed.emit()
+    @resolution.setter
+    def resolution(self, value: QtCore.QSize) -> None:
+        if self._resolution != value:
+            self._resolution = value
+            self.footer.update_resolution(value)
+            self.scene.update_frame(value)
 
     def pause(self, state=True) -> None:
         self.paused = state
@@ -210,31 +211,27 @@ class Viewer(QtWidgets.QWidget):
 
         self.pause_changed.emit(self.paused)
 
-    def zoom_index_change(self, index: int) -> None:
-        if self.zoom_cmb.currentText() == 'fit':
-            self.view.fit()
-        elif index > 0:
-            self.view.zoom(self.zoom_cmb.currentData())
-
-    def zoom_change(self, factor: float) -> None:
-        self.zoom_cmb.setCurrentIndex(-1)
-        self.zoom_cmb.setPlaceholderText(f'{factor:2.1%}')
+    def refresh(self) -> None:
+        self.refreshed.emit()
 
     def update_buffer(self, buffer):
         if not self.paused:
             self.item.array = buffer
             self.resolution = QtCore.QSize(buffer.shape[0], buffer.shape[1])
 
-    @property
-    def resolution(self) -> QtCore.QSize:
-        return self._resolution
+    def _exposure_change(self, value: float) -> None:
+        if not self.paused:
+            self.item.exposure = value
 
-    @resolution.setter
-    def resolution(self, value: QtCore.QSize) -> None:
-        if self._resolution != value:
-            self._resolution = value
-            self.footer.update_resolution(value)
-            self.scene.update_frame(value)
+    def _zoom_index_change(self, index: int) -> None:
+        if self.zoom_cmb.currentText() == 'fit':
+            self.view.fit()
+        elif index > 0:
+            self.view.zoom(self.zoom_cmb.currentData())
+
+    def _zoom_change(self, factor: float) -> None:
+        self.zoom_cmb.setCurrentIndex(-1)
+        self.zoom_cmb.setPlaceholderText(f'{factor:2.1%}')
 
 
 class GraphicsItem(QtWidgets.QGraphicsItem):
@@ -248,18 +245,6 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
         self._exposure: float = 0
         self._array = np.ndarray((0, 0, 3))
         self.image = QtGui.QImage()
-
-    def paint(
-        self,
-        painter: QtGui.QPainter,
-        option: QtWidgets.QStyleOptionGraphicsItem,
-        widget: QtWidgets.QWidget | None = None,
-    ) -> None:
-        painter.drawImage(option.rect, self.image)
-
-    def boundingRect(self) -> QtCore.QRectF:
-        rect = QtCore.QRectF(self.image.rect())
-        return rect
 
     @property
     def array(self) -> np.ndarray:
@@ -279,9 +264,9 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
         self._exposure = value
         self.update_image()
 
-    def update_image(self) -> None:
-        gain = pow(2, self.exposure)
-        self.image = image_from_buffer(self.array * gain)
+    def boundingRect(self) -> QtCore.QRectF:
+        rect = QtCore.QRectF(self.image.rect())
+        return rect
 
     def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
         height, width, channels = self.array.shape
@@ -294,6 +279,18 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
             rgb = self.array[y, x]
             color = QtGui.QColor.fromRgbF(*rgb)
         return color
+
+    def paint(
+        self,
+        painter: QtGui.QPainter,
+        option: QtWidgets.QStyleOptionGraphicsItem,
+        widget: QtWidgets.QWidget | None = None,
+    ) -> None:
+        painter.drawImage(option.rect, self.image)
+
+    def update_image(self) -> None:
+        gain = pow(2, self.exposure)
+        self.image = image_from_buffer(self.array * gain)
 
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
@@ -315,10 +312,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         self._frame = self.addRect(rect, pen, brush)
         self._frame.setZValue(1)
 
-    def update_frame(self, resolution: QtCore.QSize) -> None:
-        rect = QtCore.QRect(QtCore.QPoint(), resolution)
-        self._frame.setRect(rect)
-
     @property
     def background_color(self) -> QtGui.QColor:
         return self._background_color
@@ -338,6 +331,10 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
             self.removeItem(self._item)
         self._item = value
         self.addItem(value)
+
+    def update_frame(self, resolution: QtCore.QSize) -> None:
+        rect = QtCore.QRect(QtCore.QPoint(), resolution)
+        self._frame.setRect(rect)
 
 
 class GraphicsView(QtWidgets.QGraphicsView):
@@ -363,27 +360,28 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.viewport().setCursor(QtCore.Qt.CrossCursor)
 
-    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
-        zoom_in_factor = 1.25
-        zoom_out_factor = 1 / zoom_in_factor
+    @property
+    def absolute_scale(self) -> float:
+        # since there will never be rotation, and scale in x and y are the same,
+        # m11 can be used as scale
+        return self.transform().m11()
 
-        old_pos = self.mapToScene(event.pos())
+    @absolute_scale.setter
+    def absolute_scale(self, value):
+        self.setTransform(QtGui.QTransform.fromScale(value, value))
 
-        # zoom
-        if event.angleDelta().y() > 0:
-            zoom_factor = zoom_in_factor
-        else:
-            zoom_factor = zoom_out_factor
-        self.scale(zoom_factor, zoom_factor)
+    def fit(self) -> None:
+        item = self.scene().item
+        if item:
+            self.fitInView(item, QtCore.Qt.KeepAspectRatio)
+            self.zoom_changed.emit(self.absolute_scale)
 
-        new_pos = self.mapToScene(event.pos())
-
-        # move scene to old position
-        delta = new_pos - old_pos
-        self.translate(delta.x(), delta.y())
-
-        self.zoom_changed.emit(self.absolute_scale)
-        event.accept()
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() == QtCore.Qt.Key_F:
+            self.fit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.MidButton:
@@ -439,37 +437,36 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.pixel_color_changed.emit(color)
             self.pixel_position_changed.emit(position)
 
-    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key_F:
-            self.fit()
-            event.accept()
-            return
-        super().keyPressEvent(event)
+    def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
+        zoom_in_factor = 1.25
+        zoom_out_factor = 1 / zoom_in_factor
 
-    @property
-    def absolute_scale(self) -> float:
-        # since there will never be rotation, and scale in x and y are the same,
-        # m11 can be used as scale
-        return self.transform().m11()
+        old_pos = self.mapToScene(event.pos())
 
-    @absolute_scale.setter
-    def absolute_scale(self, value):
-        self.setTransform(QtGui.QTransform.fromScale(value, value))
+        # zoom
+        if event.angleDelta().y() > 0:
+            zoom_factor = zoom_in_factor
+        else:
+            zoom_factor = zoom_out_factor
+        self.scale(zoom_factor, zoom_factor)
+
+        new_pos = self.mapToScene(event.pos())
+
+        # move scene to old position
+        delta = new_pos - old_pos
+        self.translate(delta.x(), delta.y())
+
+        self.zoom_changed.emit(self.absolute_scale)
+        event.accept()
+
+    def setScene(self, scene: GraphicsScene) -> None:
+        super().setScene(scene)
 
     def zoom(self, factor: float) -> None:
         if factor == 0:
             self.fit()
         else:
             self.absolute_scale = factor
-
-    def fit(self) -> None:
-        item = self.scene().item
-        if item:
-            self.fitInView(item, QtCore.Qt.KeepAspectRatio)
-            self.zoom_changed.emit(self.absolute_scale)
-
-    def setScene(self, scene: GraphicsScene) -> None:
-        super().setScene(scene)
 
 
 def image_from_buffer(buffer: np.ndarray) -> QtGui.QImage:

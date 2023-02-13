@@ -53,98 +53,22 @@ class PropertyForm(QtWidgets.QWidget):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name)})'
 
+    @property
+    def grid_layout(self) -> QtWidgets.QGridLayout:
+        layout = self.layout()
+        if not isinstance(layout, QtWidgets.QGridLayout):
+            raise RuntimeError('Layout needs to be QGridLayout')
+        return layout
+
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
-
-    def validate_name(self, name: str) -> None:
-        if name is None:
-            raise ValueError(f'Cannot add widget with name {name}')
-
-        # check if name is unique relative to root
-        if self.root.unique_hierarchical_names:
-            hierarchical_names = self.root.hierarchical_names()
-        else:
-            hierarchical_names = list(self._widgets.keys())
-        if name in hierarchical_names:
-            raise ValueError(f'Cannot add widget {name} (name already exists)')
-
-    def hierarchical_names(self) -> list[str]:
-        # generate a flat list of all child widget names
-        names = []
-        for name, widget in self._widgets.items():
-            if isinstance(widget, self.__class__):
-                names.extend(widget.hierarchical_names())
-            else:
-                names.append(name)
-        return names
-
-    def create_form(self, name, link: Self | None = None) -> Self:
-        self.validate_name(name)
-
-        form = self.__class__(name=name, root=self)
-        self._widgets[name] = form
-
-        if link is not None:
-            form.link(link)
-
-        return form
-
-    def link(self, link: Self) -> None:
-        for name, widget in link._widgets.items():
-            if isinstance(widget, self.__class__):
-                # TODO: add support for linking nested groups
-                # this requires to keep track of group type and not just forms
-                pass
-            else:
-                new_widget = widget.__class__(widget.name)
-                new_widget.init_from(widget)
-                self.add_property(new_widget, link=widget)
-
-    def add_group(
-        self,
-        name: str,
-        label: str = None,
-        collapsible: bool = False,
-        style: CollapsibleBox.Style = None,
-        link: Self = None,
-    ) -> Self:
-        form = self.create_form(name, link)
-        form.property_changed.connect(self.property_changed.emit)
-        label = label or helper.title(name)
-        group = CollapsibleBox(label, collapsible, style)
-
-        group.setLayout(QtWidgets.QVBoxLayout(self))
-        group.layout().setContentsMargins(0, 0, 0, 0)
-        group.layout().setSpacing(0)
-        group.layout().addWidget(form)
-
-        # update CollapsibleBox with actions for the menu
-        form.actions_changed.connect(group.update_actions)
-
-        self.add_widget(group)
-        return form
-
-    def add_tab_group(
-        self, names: list[str], labels: list[str] = None, link: Self | None = None
-    ) -> QtWidgets.QTabWidget:
-        group = QtWidgets.QTabWidget(self)
-        group.tabs = {}
-        labels = labels or []
-        for name, label in itertools.zip_longest(names, labels):
-            form = self.create_form(name, link)
-            label = label or helper.title(name)
-            group.addTab(form, label)
-            group.tabs[name] = form
-
-        self.add_widget(group)
-        return group
 
     def add_property(
         self, widget: PropertyWidget, link: PropertyWidget | None = None
     ) -> PropertyWidget:
         name = widget.name
-        self.validate_name(name)
+        self._validate_name(name)
 
         self._widgets[name] = widget
 
@@ -167,12 +91,51 @@ class PropertyForm(QtWidgets.QWidget):
             widget.link = link
             checkbox = QtWidgets.QCheckBox(self)
             layout.addWidget(checkbox, row, 0)
-            checkbox.toggled.connect(partial(self.set_widget_row_enabled, checkbox))
+            checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
             checkbox.setChecked(False)
-            self.set_widget_row_enabled(checkbox, False)
+            self._set_widget_row_enabled(checkbox, False)
 
-        self.update_stretch()
+        self._update_stretch()
         return widget
+
+    def add_group(
+        self,
+        name: str,
+        label: str = None,
+        collapsible: bool = False,
+        style: CollapsibleBox.Style = None,
+        link: Self = None,
+    ) -> Self:
+        form = self._create_form(name, link)
+        form.property_changed.connect(self.property_changed.emit)
+        label = label or helper.title(name)
+        group = CollapsibleBox(label, collapsible, style)
+
+        group.setLayout(QtWidgets.QVBoxLayout(self))
+        group.layout().setContentsMargins(0, 0, 0, 0)
+        group.layout().setSpacing(0)
+        group.layout().addWidget(form)
+
+        # update CollapsibleBox with actions for the menu
+        form.actions_changed.connect(group.update_actions)
+
+        self.add_widget(group)
+        return form
+
+    def add_tab_group(
+        self, names: list[str], labels: list[str] = None, link: Self | None = None
+    ) -> QtWidgets.QTabWidget:
+        group = QtWidgets.QTabWidget(self)
+        group.tabs = {}
+        labels = labels or []
+        for name, label in itertools.zip_longest(names, labels):
+            form = self._create_form(name, link)
+            label = label or helper.title(name)
+            group.addTab(form, label)
+            group.tabs[name] = form
+
+        self.add_widget(group)
+        return group
 
     def add_separator(self) -> QtWidgets.QFrame:
         line = QtWidgets.QFrame(self)
@@ -187,29 +150,77 @@ class PropertyForm(QtWidgets.QWidget):
         layout = self.grid_layout
         row = layout.rowCount() - 1
         layout.addWidget(widget, row, 0, 1, 3)
-        self.update_stretch()
+        self._update_stretch()
         return widget
 
     def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
         grid_layout = self.grid_layout
         row = grid_layout.rowCount() - 1
         grid_layout.addLayout(layout, row, 0, 1, 3)
-        self.update_stretch()
+        self._update_stretch()
         return layout
 
-    def update_stretch(self) -> None:
-        layout = self.grid_layout
-        layout.setRowStretch(layout.rowCount() - 1, 0)
-        layout.setRowStretch(layout.rowCount(), 1)
+    def boxes(
+        self, layout: QtWidgets.QLayout | None = None
+    ) -> dict[CollapsibleBox, ...]:
+        # create nested dict of all boxes
+        if layout is None:
+            layout = self.grid_layout
 
-    @property
-    def grid_layout(self) -> QtWidgets.QGridLayout:
-        layout = self.layout()
-        if not isinstance(layout, QtWidgets.QGridLayout):
-            raise RuntimeError('Layout needs to be QGridLayout')
-        return layout
+        boxes = {}
+        for index in range(layout.count()):
+            widget = layout.itemAt(index).widget()
+            if isinstance(widget, CollapsibleBox):
+                if widget.layout():
+                    children = self.boxes(widget.layout())
+                    boxes[widget] = children
+            elif isinstance(widget, PropertyForm):
+                children = widget.boxes()
+                boxes.update(children)
+        return boxes
 
-    def set_widget_row_enabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
+    def values(self) -> dict[str, typing.Any]:
+        # create nested dictionary of all property values
+        values = {}
+        for name, widget in self._widgets.items():
+            if isinstance(widget, self.__class__):
+                if widget.create_hierarchy:
+                    values[name] = widget.values()
+                else:
+                    values.update(widget.values())
+            else:
+                values[name] = widget.value
+        return values
+
+    def widgets(self) -> dict[str, PropertyWidget]:
+        # create nested dictionary of all property widgets
+        widgets = {}
+        for name, widget in self._widgets.items():
+            if isinstance(widget, self.__class__):
+                if widget.create_hierarchy:
+                    widgets[name] = widget.widgets()
+                else:
+                    widgets.update(widget.widgets())
+            else:
+                widgets[name] = widget
+        return widgets
+
+    def update_widget_values(
+        self, values: dict, widgets: dict[str, PropertyWidget] | None = None
+    ) -> None:
+        if widgets is None:
+            widgets = self.widgets()
+        for key, value in values.items():
+            if key not in widgets:
+                continue
+            widget = widgets[key]
+            if isinstance(widget, dict):
+                self.update_widget_values(value, widget)
+            else:
+                widget.value = value
+
+    @staticmethod
+    def _set_widget_row_enabled(widget: QtWidgets.QWidget, enabled: bool) -> None:
         # get parent grid layout
         layout = widget.parentWidget().layout()
         if not isinstance(layout, QtWidgets.QGridLayout):
@@ -238,64 +249,54 @@ class PropertyForm(QtWidgets.QWidget):
                 widget.value = widget.link.value
                 widget.link.value_changed.connect(widget.set_value)
 
-    def update_widget_values(
-        self, values: dict, widgets: dict[str, PropertyWidget] | None = None
-    ) -> None:
-        if widgets is None:
-            widgets = self.widgets()
-        for key, value in values.items():
-            if key not in widgets:
-                continue
-            widget = widgets[key]
-            if isinstance(widget, dict):
-                self.update_widget_values(value, widget)
-            else:
-                widget.value = value
+    def _create_form(self, name, link: Self | None = None) -> Self:
+        self._validate_name(name)
 
-    def values(self) -> dict[str, typing.Any]:
-        # create nested dictionary of all property values
-        values = {}
+        form = self.__class__(name=name, root=self)
+        self._widgets[name] = form
+
+        if link is not None:
+            form._link(link)
+
+        return form
+
+    def _hierarchical_names(self) -> list[str]:
+        # generate a flat list of all child widget names
+        names = []
         for name, widget in self._widgets.items():
             if isinstance(widget, self.__class__):
-                if widget.create_hierarchy:
-                    values[name] = widget.values()
-                else:
-                    values.update(widget.values())
+                names.extend(widget.hierarchical_names())
             else:
-                values[name] = widget.value
-        return values
+                names.append(name)
+        return names
 
-    def widgets(self) -> dict[str, PropertyWidget]:
-        # create nested dictionary of all property widgets
-        widgets = {}
-        for name, widget in self._widgets.items():
+    def _validate_name(self, name: str) -> None:
+        if name is None:
+            raise ValueError(f'Cannot add widget with name {name}')
+
+        # check if name is unique relative to root
+        if self.root.unique_hierarchical_names:
+            hierarchical_names = self.root._hierarchical_names()
+        else:
+            hierarchical_names = list(self._widgets.keys())
+        if name in hierarchical_names:
+            raise ValueError(f'Cannot add widget {name} (name already exists)')
+
+    def _link(self, link: Self) -> None:
+        for name, widget in link._widgets.items():
             if isinstance(widget, self.__class__):
-                if widget.create_hierarchy:
-                    widgets[name] = widget.widgets()
-                else:
-                    widgets.update(widget.widgets())
+                # TODO: add support for linking nested groups
+                # this requires to keep track of group type and not just forms
+                pass
             else:
-                widgets[name] = widget
-        return widgets
+                new_widget = widget.__class__(widget.name)
+                new_widget.init_from(widget)
+                self.add_property(new_widget, link=widget)
 
-    def boxes(
-        self, layout: QtWidgets.QLayout | None = None
-    ) -> dict[CollapsibleBox, ...]:
-        # create nested dict of all boxes
-        if layout is None:
-            layout = self.grid_layout
-
-        boxes = {}
-        for index in range(layout.count()):
-            widget = layout.itemAt(index).widget()
-            if isinstance(widget, CollapsibleBox):
-                if widget.layout():
-                    children = self.boxes(widget.layout())
-                    boxes[widget] = children
-            elif isinstance(widget, PropertyForm):
-                children = widget.boxes()
-                boxes.update(children)
-        return boxes
+    def _update_stretch(self) -> None:
+        layout = self.grid_layout
+        layout.setRowStretch(layout.rowCount() - 1, 0)
+        layout.setRowStretch(layout.rowCount(), 1)
 
 
 def main():

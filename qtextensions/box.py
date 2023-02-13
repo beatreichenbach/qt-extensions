@@ -27,12 +27,8 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self.menu_button = None
 
         self._init_ui()
-        self._update_icon()
 
         self.collapsible = collapsible
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.title)})'
 
     def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QHBoxLayout(self))
@@ -55,7 +51,12 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self.menu_button.setMaximumSize(QtCore.QSize(size, size))
         self.layout().addWidget(self.menu_button)
 
+        self._update_icon()
+
         self.setFocusPolicy(QtCore.Qt.ClickFocus)
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({repr(self.title)})'
 
     @property
     def collapsible(self) -> bool:
@@ -76,19 +77,6 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self.layout().setContentsMargins(margins)
         self.expand_label.setVisible(self.collapsible)
 
-    def request_menu(self) -> None:
-        relative_pos = self.menu_button.rect().topRight()
-        relative_pos.setX(relative_pos.x() + 2)
-        position = self.menu_button.mapToGlobal(relative_pos)
-
-        self.menu_requested.emit(position)
-
-    def _update_icon(self) -> None:
-        icon = self._expand_more_icon if self.collapsed else self._expand_less_icon
-        style = self.style()
-        size = style.pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
-        self.expand_label.setPixmap(icon.pixmap(size))
-
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.collapsible:
             self.setAutoFillBackground(True)
@@ -104,10 +92,23 @@ class CollapsibleHeader(QtWidgets.QWidget):
 
         super().mouseReleaseEvent(event)
 
+    def request_menu(self) -> None:
+        relative_pos = self.menu_button.rect().topRight()
+        relative_pos.setX(relative_pos.x() + 2)
+        position = self.menu_button.mapToGlobal(relative_pos)
+
+        self.menu_requested.emit(position)
+
     def toggle_collapsed(self) -> None:
         self.collapsed = not self.collapsed
         self._update_icon()
         self.toggled.emit(self.collapsed)
+
+    def _update_icon(self) -> None:
+        icon = self._expand_more_icon if self.collapsed else self._expand_less_icon
+        style = self.style()
+        size = style.pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
+        self.expand_label.setPixmap(icon.pixmap(size))
 
 
 class CollapsibleBox(QtWidgets.QFrame):
@@ -137,9 +138,6 @@ class CollapsibleBox(QtWidgets.QFrame):
 
         self._init_ui()
 
-    def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.title)})'
-
     def _init_ui(self) -> None:
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum
@@ -150,7 +148,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         super().setLayout(self._layout)
 
         self.header = CollapsibleHeader(self.title, self.collapsible)
-        self.header.toggled.connect(self.update_collapsed)
+        self.header.toggled.connect(self._update_collapsed)
         self.header.menu_requested.connect(self.show_menu)
         self._layout.addWidget(self.header)
 
@@ -165,18 +163,22 @@ class CollapsibleBox(QtWidgets.QFrame):
         else:
             self._layout.setContentsMargins(0, 0, 0, 0)
 
-    def update_actions(self, actions: list[QtWidgets.QAction]) -> None:
-        self._actions = actions
+    def __repr__(self):
+        return f'{self.__class__.__name__}({repr(self.title)})'
 
-        # hide menu button if there are no actions
-        self.header.menu_button.setVisible(bool(self._actions))
+    def enterEvent(self, event: QtCore.QEvent) -> None:
+        self.update()
+        super().enterEvent(event)
 
-    def show_menu(self, position: QtCore.QPoint) -> None:
-        menu = QtWidgets.QMenu(self)
-        menu.addActions(self._actions)
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        self.update()
+        super().leaveEvent(event)
 
-        menu.exec_(position)
-        self.header.menu_button.setDown(False)
+    def layout(self) -> QtWidgets.QLayout:
+        return self.frame.layout()
+
+    def setLayout(self, layout: QtWidgets.QLayout) -> None:
+        self.frame.setLayout(layout)
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         if not self.frame_style == CollapsibleBox.Style.BUTTON:
@@ -196,23 +198,22 @@ class CollapsibleBox(QtWidgets.QFrame):
             QtWidgets.QStyle.PE_PanelButtonCommand, option, painter, self
         )
 
-    def enterEvent(self, event: QtCore.QEvent) -> None:
-        self.update()
-        super().enterEvent(event)
+    def update_actions(self, actions: list[QtWidgets.QAction]) -> None:
+        self._actions = actions
 
-    def leaveEvent(self, event: QtCore.QEvent) -> None:
-        self.update()
-        super().leaveEvent(event)
+        # hide menu button if there are no actions
+        self.header.menu_button.setVisible(bool(self._actions))
 
-    def update_collapsed(self, collapsed: bool) -> None:
+    def show_menu(self, position: QtCore.QPoint) -> None:
+        menu = QtWidgets.QMenu(self)
+        menu.addActions(self._actions)
+
+        menu.exec_(position)
+        self.header.menu_button.setDown(False)
+
+    def _update_collapsed(self, collapsed: bool) -> None:
         self.collapsed = collapsed
         self.frame.setMaximumHeight(0 if collapsed else self._maximum_height)
-
-    def setLayout(self, layout: QtWidgets.QLayout) -> None:
-        self.frame.setLayout(layout)
-
-    def layout(self) -> QtWidgets.QLayout:
-        return self.frame.layout()
 
 
 def main():
