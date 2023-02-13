@@ -8,230 +8,21 @@ from qtextensions.properties import FloatProperty
 from qtextensions.combobox import QComboBox
 
 
-class Footer(QtWidgets.QWidget):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
+def image_from_buffer(buffer: np.ndarray) -> QtGui.QImage:
+    # TODO: check speed on [:3]
+    # TODO: overall profile this
 
-        self._background_color = None
-
-        self._init_ui()
-
-        self.background_color = QtGui.QColor(0, 0, 0)
-
-    def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QHBoxLayout())
-
-        self.setAutoFillBackground(True)
-
-        self.resolution_lbl = QtWidgets.QLabel('resolution')
-        self.layout().addWidget(self.resolution_lbl)
-
-        self.layout().addStretch()
-
-        self.coordinates_lbl = QtWidgets.QLabel('coordinates')
-        self.layout().addWidget(self.coordinates_lbl)
-
-        self.rgb_lbl = QtWidgets.QLabel('rgb')
-        self.layout().addWidget(self.rgb_lbl)
-
-        self.hsv_lbl = QtWidgets.QLabel('hsv')
-        self.layout().addWidget(self.hsv_lbl)
-
-    @property
-    def background_color(self) -> QtGui.QColor:
-        return self._background_color
-
-    @background_color.setter
-    def background_color(self, value: QtGui.QColor) -> None:
-        self._background_color = value
-        palette = self.palette()
-        palette.setColor(QtGui.QPalette.Window, value)
-        palette.setColor(
-            QtGui.QPalette.WindowText, palette.color(QtGui.QPalette.BrightText)
-        )
-        self.setPalette(palette)
-
-    def update_pixel_color(self, color: QtGui.QColor | None) -> None:
-        if color.isValid():
-            r, g, b, a = color.getRgbF()
-            rgb = (
-                f'<font color="#ff2222">{r:.4f}</font> '
-                f'<font color="#00ff22">{g:.4f}</font> '
-                f'<font color="#0088ff">{b:.4f}</font>'
-            )
-            h, s, v, a = color.getHsvF()
-            h = max(h, 0)
-        else:
-            rgb = ''
-            h, s, v = 0, 0, 0
-        hsv = f'H: {h:.2f} S: {s:.2f} V: {v:.2f}'
-
-        self.rgb_lbl.setText(rgb)
-        self.hsv_lbl.setText(hsv)
-
-    def update_pixel_position(self, position: QtCore.QPoint | None) -> None:
-        if position is not None:
-            coordinates = f'x={position.x()} y={position.y()}'
-        else:
-            coordinates = ''
-        self.coordinates_lbl.setText(coordinates)
-
-    def update_resolution(self, resolution: QtCore.QSize) -> None:
-        text = f'{resolution.width():.0f}x{resolution.height():.0f}'
-        self.resolution_lbl.setText(text)
-
-
-class Viewer(QtWidgets.QWidget):
-    # https://cyrille.rossant.net/a-tutorial-on-openglopencl-interoperability-in-python/
-    # Using OpenGL/OpenCL interoperability is currently not feasible as pyopencl
-    # needs to be built with opengl support. There is no pip package with it enabled
-
-    refreshed: QtCore.Signal = QtCore.Signal()
-    pause_changed: QtCore.Signal = QtCore.Signal(bool)
-    position_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
-
-    background_color = QtGui.QColor(0, 0, 0)
-    pause_color = QtGui.QColor(217, 33, 33)
-
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self.paused = False
-        self._resolution = QtCore.QSize()
-
-        self._init_ui()
-        self._init_toolbar()
-
-    def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.layout().setSpacing(0)
-
-        # view
-        self.scene = GraphicsScene()
-        self.scene.background_color = self.background_color
-
-        self.item = GraphicsItem()
-        self.scene.item = self.item
-
-        self.view = GraphicsView()
-        self.view.setScene(self.scene)
-        self.view.zoom_changed.connect(self._zoom_change)
-        self.layout().addWidget(self.view)
-
-        # footer
-        self.footer = Footer()
-        self.footer.background_color = self.background_color
-        self.layout().addWidget(self.footer)
-
-        # signals
-        self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
-        self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
-        self.view.position_changed.connect(self.position_changed.emit)
-
-    def _init_toolbar(self) -> None:
-        toolbar = QtWidgets.QToolBar()
-
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
-        toolbar.setIconSize(QtCore.QSize(size, size))
-
-        # exposure
-        exposure_slider = FloatProperty(parent=toolbar)
-        exposure_slider.slider_min = -10
-        exposure_slider.slider_max = 10
-        exposure_slider.value_changed.connect(self._exposure_change)
-        palette = exposure_slider.slider.palette()
-        palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
-        exposure_slider.slider.setPalette(palette)
-        toolbar.addWidget(exposure_slider)
-
-        # refresh
-        icon = MaterialIcon('refresh')
-        refresh_action = QtWidgets.QAction(icon, 'refresh', self)
-        refresh_action.triggered.connect(self.refresh)
-        toolbar.addAction(refresh_action)
-
-        # pause
-        icon = MaterialIcon('pause')
-        color = self.pause_color
-        icon.set_color(color, QtGui.QIcon.Active, QtGui.QIcon.On)
-        pause_action = QtWidgets.QAction(icon, 'pause', self)
-        pause_action.setCheckable(True)
-        pause_action.toggled.connect(self.pause)
-        toolbar.addAction(pause_action)
-
-        # zoom
-        self.zoom_cmb = QComboBox()
-        self.zoom_cmb.addItem('fit')
-        factors = [0.10, 0.25, 0.33, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5]
-        for factor in reversed(factors):
-            self.zoom_cmb.addItem(f'{factor:2.0%}', factor)
-        self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
-        self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
-        toolbar.addWidget(self.zoom_cmb)
-
-        # proxy resolution
-        # proxy_items = OrderedDict()
-        # for i in range(6):
-        #     ratio = 2**i
-        #     proxy_items[f'1:{ratio}'] = ratio
-        # proxy_enum = Enum('Proxy_Resolution', proxy_items)
-        # self.proxy_cmb = EnumProperty(
-        #     name='proxy',
-        #     enum=proxy_enum
-        #     )
-        # header_lay.addWidget(self.proxy_cmb)
-
-        self.layout().insertWidget(0, self.toolbar)
-
-    @property
-    def resolution(self) -> QtCore.QSize:
-        return self._resolution
-
-    @resolution.setter
-    def resolution(self, value: QtCore.QSize) -> None:
-        if self._resolution != value:
-            self._resolution = value
-            self.footer.update_resolution(value)
-            self.scene.update_frame(value)
-
-    def pause(self, state=True) -> None:
-        self.paused = state
-
-        if self.paused:
-            self.view.setFrameShape(QtWidgets.QFrame.Box)
-            self.view.setStyleSheet(
-                f'QFrame {{ border: 1px solid {self.pause_color.name()}; }}'
-            )
-            self.view.setEnabled(False)
-        else:
-            self.view.setFrameShape(QtWidgets.QFrame.NoFrame)
-            self.view.setStyleSheet('')
-            self.view.setEnabled(True)
-
-        self.pause_changed.emit(self.paused)
-
-    def refresh(self) -> None:
-        self.refreshed.emit()
-
-    def update_buffer(self, buffer):
-        if not self.paused:
-            self.item.array = buffer
-            self.resolution = QtCore.QSize(buffer.shape[0], buffer.shape[1])
-
-    def _exposure_change(self, value: float) -> None:
-        if not self.paused:
-            self.item.exposure = value
-
-    def _zoom_index_change(self, index: int) -> None:
-        if self.zoom_cmb.currentText() == 'fit':
-            self.view.fit()
-        elif index > 0:
-            self.view.zoom(self.zoom_cmb.currentData())
-
-    def _zoom_change(self, factor: float) -> None:
-        self.zoom_cmb.setCurrentIndex(-1)
-        self.zoom_cmb.setPlaceholderText(f'{factor:2.1%}')
+    buffer = buffer[:, :, :3]
+    buffer = np.clip(buffer, 0, 1)
+    buffer *= 255
+    buffer = buffer.astype(np.uint8)
+    height, width, channels = buffer.shape
+    bytes_per_line = 3 * width
+    image = QtGui.QImage(
+        buffer.data, width, height, bytes_per_line, QtGui.QImage.Format_BGR888
+    )
+    image = image.rgbSwapped()
+    return image
 
 
 class GraphicsItem(QtWidgets.QGraphicsItem):
@@ -469,21 +260,278 @@ class GraphicsView(QtWidgets.QGraphicsView):
             self.absolute_scale = factor
 
 
-def image_from_buffer(buffer: np.ndarray) -> QtGui.QImage:
-    # TODO: check speed on [:3]
-    # TODO: overall profile this
+class Footer(QtWidgets.QWidget):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
 
-    buffer = buffer[:, :, :3]
-    buffer = np.clip(buffer, 0, 1)
-    buffer *= 255
-    buffer = buffer.astype(np.uint8)
-    height, width, channels = buffer.shape
-    bytes_per_line = 3 * width
-    image = QtGui.QImage(
-        buffer.data, width, height, bytes_per_line, QtGui.QImage.Format_BGR888
-    )
-    image = image.rgbSwapped()
-    return image
+        self._background_color = None
+
+        self._init_ui()
+
+        self.background_color = QtGui.QColor(0, 0, 0)
+
+    def _init_ui(self) -> None:
+        self.setLayout(QtWidgets.QHBoxLayout())
+
+        self.setAutoFillBackground(True)
+
+        self.resolution_lbl = QtWidgets.QLabel('resolution')
+        self.layout().addWidget(self.resolution_lbl)
+
+        self.layout().addStretch()
+
+        self.coordinates_lbl = QtWidgets.QLabel('coordinates')
+        self.layout().addWidget(self.coordinates_lbl)
+
+        self.rgb_lbl = QtWidgets.QLabel('rgb')
+        self.layout().addWidget(self.rgb_lbl)
+
+        self.hsv_lbl = QtWidgets.QLabel('hsv')
+        self.layout().addWidget(self.hsv_lbl)
+
+    @property
+    def background_color(self) -> QtGui.QColor:
+        return self._background_color
+
+    @background_color.setter
+    def background_color(self, value: QtGui.QColor) -> None:
+        self._background_color = value
+        palette = self.palette()
+        palette.setColor(QtGui.QPalette.Window, value)
+        palette.setColor(
+            QtGui.QPalette.WindowText, palette.color(QtGui.QPalette.BrightText)
+        )
+        self.setPalette(palette)
+
+    def update_pixel_color(self, color: QtGui.QColor | None) -> None:
+        if color.isValid():
+            r, g, b, a = color.getRgbF()
+            rgb = (
+                f'<font color="#ff2222">{r:.4f}</font> '
+                f'<font color="#00ff22">{g:.4f}</font> '
+                f'<font color="#0088ff">{b:.4f}</font>'
+            )
+            h, s, v, a = color.getHsvF()
+            h = max(h, 0)
+        else:
+            rgb = ''
+            h, s, v = 0, 0, 0
+        hsv = f'H: {h:.2f} S: {s:.2f} V: {v:.2f}'
+
+        self.rgb_lbl.setText(rgb)
+        self.hsv_lbl.setText(hsv)
+
+    def update_pixel_position(self, position: QtCore.QPoint | None) -> None:
+        if position is not None:
+            coordinates = f'x={position.x()} y={position.y()}'
+        else:
+            coordinates = ''
+        self.coordinates_lbl.setText(coordinates)
+
+    def update_resolution(self, resolution: QtCore.QSize) -> None:
+        text = f'{resolution.width():.0f}x{resolution.height():.0f}'
+        self.resolution_lbl.setText(text)
+
+
+class ToolBar(QtWidgets.QToolBar):
+    refreshed: QtCore.Signal = QtCore.Signal()
+    paused: QtCore.Signal = QtCore.Signal(bool)
+    exposure_changed: QtCore.Signal = QtCore.Signal(float)
+    zoom_changed: QtCore.Signal = QtCore.Signal(float)
+
+    pause_color = QtGui.QColor(217, 33, 33)
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._zoom = 0
+
+        self._init_actions()
+
+    def _init_actions(self) -> None:
+        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
+        self.setIconSize(QtCore.QSize(size, size))
+
+        # exposure
+        exposure_slider = FloatProperty(parent=self)
+        exposure_slider.slider_min = -10
+        exposure_slider.slider_max = 10
+        exposure_slider.value_changed.connect(self.exposure_changed.emit)
+        palette = exposure_slider.slider.palette()
+        palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
+        exposure_slider.slider.setPalette(palette)
+
+        exposure_action = QtWidgets.QWidgetAction(self)
+        exposure_action.setText('exposure')
+        exposure_action.setDefaultWidget(exposure_slider)
+        self.addAction(exposure_action)
+
+        # refresh
+        icon = MaterialIcon('refresh')
+        refresh_action = QtWidgets.QAction(icon, 'refresh', self)
+        refresh_action.triggered.connect(self.refreshed.emit)
+        self.addAction(refresh_action)
+
+        # pause
+        icon = MaterialIcon('pause')
+        color = self.pause_color
+        icon.set_color(color, QtGui.QIcon.Active, QtGui.QIcon.On)
+        pause_action = QtWidgets.QAction(icon, 'pause', self)
+        pause_action.setCheckable(True)
+        pause_action.toggled.connect(self.paused.emit)
+        self.addAction(pause_action)
+
+        # zoom
+        self.zoom_cmb = QComboBox()
+        self.zoom_cmb.addItem('fit')
+        factors = [0.10, 0.25, 0.33, 0.5, 0.75, 1, 1.5, 2, 3, 4, 5]
+        for factor in reversed(factors):
+            self.zoom_cmb.addItem(f'{factor:2.0%}', factor)
+        self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
+        self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
+
+        zoom_action = QtWidgets.QWidgetAction(self)
+        zoom_action.setText('zoom')
+        zoom_action.setDefaultWidget(self.zoom_cmb)
+        self.addAction(zoom_action)
+
+        # proxy resolution
+        # proxy_items = OrderedDict()
+        # for i in range(6):
+        #     ratio = 2**i
+        #     proxy_items[f'1:{ratio}'] = ratio
+        # proxy_enum = Enum('Proxy_Resolution', proxy_items)
+        # self.proxy_cmb = EnumProperty(
+        #     name='proxy',
+        #     enum=proxy_enum
+        #     )
+        # header_lay.addWidget(self.proxy_cmb)
+
+    @property
+    def zoom(self) -> float:
+        return self._zoom
+
+    @zoom.setter
+    def zoom(self, value: float) -> None:
+        self._zoom = value
+        self.zoom_cmb.setCurrentIndex(-1)
+        self.zoom_cmb.setPlaceholderText(f'{value:2.1%}')
+
+    def find_action(self, text: str) -> QtWidgets.QAction | None:
+        for action in self.actions():
+            if action.text() == text:
+                return action
+
+    def _zoom_index_change(self, index: int) -> None:
+        if self.zoom_cmb.currentText() == 'fit':
+            self._zoom = 0
+        elif index > 0:
+            self._zoom = self.zoom_cmb.currentData()
+        else:
+            return
+        self.zoom_changed.emit(self._zoom)
+
+
+class Viewer(QtWidgets.QWidget):
+    # https://cyrille.rossant.net/a-tutorial-on-openglopencl-interoperability-in-python/
+    # Using OpenGL/OpenCL interoperability is currently not feasible as pyopencl
+    # needs to be built with opengl support. There is no pip package with it enabled
+
+    refreshed: QtCore.Signal = QtCore.Signal()
+    pause_changed: QtCore.Signal = QtCore.Signal(bool)
+    position_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+
+    background_color = QtGui.QColor(0, 0, 0)
+    pause_color = QtGui.QColor(217, 33, 33)
+
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.paused = False
+        self._resolution = QtCore.QSize()
+
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().setSpacing(0)
+
+        # toolbar
+        self.toolbar = ToolBar()
+        self.toolbar.pause_color = self.pause_color
+        self.toolbar.refreshed.connect(self.refresh)
+        self.toolbar.paused.connect(self.pause)
+        self.toolbar.exposure_changed.connect(self._exposure_change)
+        self.toolbar.zoom_changed.connect(self._toolbar_zoom_change)
+        self.layout().addWidget(self.toolbar)
+
+        # view
+        self.scene = GraphicsScene()
+        self.scene.background_color = self.background_color
+
+        self.item = GraphicsItem()
+        self.scene.item = self.item
+
+        self.view = GraphicsView()
+        self.view.setScene(self.scene)
+        self.view.zoom_changed.connect(self._view_zoom_change)
+        self.layout().addWidget(self.view)
+
+        # footer
+        self.footer = Footer()
+        self.footer.background_color = self.background_color
+        self.layout().addWidget(self.footer)
+
+        # signals
+        self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
+        self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
+        self.view.position_changed.connect(self.position_changed.emit)
+
+    @property
+    def resolution(self) -> QtCore.QSize:
+        return self._resolution
+
+    @resolution.setter
+    def resolution(self, value: QtCore.QSize) -> None:
+        if self._resolution != value:
+            self._resolution = value
+            self.footer.update_resolution(value)
+            self.scene.update_frame(value)
+
+    def pause(self, state=True) -> None:
+        self.paused = state
+
+        if self.paused:
+            self.view.setFrameShape(QtWidgets.QFrame.Box)
+            self.view.setStyleSheet(
+                f'QFrame {{ border: 1px solid {self.pause_color.name()}; }}'
+            )
+            self.view.setEnabled(False)
+        else:
+            self.view.setFrameShape(QtWidgets.QFrame.NoFrame)
+            self.view.setStyleSheet('')
+            self.view.setEnabled(True)
+
+        self.pause_changed.emit(self.paused)
+
+    def refresh(self) -> None:
+        self.refreshed.emit()
+
+    def update_buffer(self, buffer):
+        if not self.paused:
+            self.item.array = buffer
+            self.resolution = QtCore.QSize(buffer.shape[0], buffer.shape[1])
+
+    def _exposure_change(self, value: float) -> None:
+        if not self.paused:
+            self.item.exposure = value
+
+    def _toolbar_zoom_change(self, zoom: float) -> None:
+        self.view.zoom(zoom)
+
+    def _view_zoom_change(self, zoom: float) -> None:
+        self.toolbar.zoom = zoom
 
 
 def main():

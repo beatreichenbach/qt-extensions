@@ -71,12 +71,12 @@ modern_dark = ColorScheme(
 )
 
 monokai = ColorScheme(
-    primary=QColor(92, 195, 204),
+    primary=QColor(73, 174, 238),
     secondary=QColor(62, 113, 179),
     black1=QColor(20, 20, 20),
     dark1=QColor(32, 33, 36),
     dark2=QColor(41, 42, 46),
-    dark3=QColor(50, 52, 56),
+    dark3=QColor(50, 51, 56),
     medium1=QColor(60, 61, 66),
     medium2=QColor(73, 75, 82),
     medium3=QColor(80, 83, 89),
