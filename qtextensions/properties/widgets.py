@@ -973,25 +973,19 @@ class IntSlider(QtWidgets.QSlider):
         self._slider_max = self.maximum()
 
     def setMinimum(self, value: int) -> None:
-        # setting the minimum and maximum to the same value results in the QSlider
-        # adjusting the value and min/max in order to stay valid.
-        # This is the reason for blocking the signals and reassigning the internal vars.
         self.blockSignals(True)
         super().setMinimum(value)
         self.blockSignals(False)
-        self._slider_min = self.minimum()
-        self._slider_max = self.maximum()
+        self._slider_min = value
+        self._slider_max = max(self._slider_max, value)
         self._update_steps()
 
     def setMaximum(self, value: int) -> None:
-        # setting the minimum and maximum to the same value results in the QSlider
-        # adjusting the value and min/max in order to stay valid.
-        # This is the reason for blocking the signals and reassigning the internal vars.
         self.blockSignals(True)
         super().setMaximum(value)
         self.blockSignals(False)
-        self._slider_min = self.minimum()
-        self._slider_max = self.maximum()
+        self._slider_min = min(self._slider_min, value)
+        self._slider_max = value
         self._update_steps()
 
     def _exponent(self) -> int:
@@ -1026,9 +1020,6 @@ class FloatSlider(IntSlider):
     ) -> None:
         super().__init__(orientation, parent)
         super().valueChanged.connect(self._value_change)
-
-        self._slider_min = self.minimum()
-        self._slider_max = self.maximum()
 
         self.setSingleStep(1)
         self.setPageStep(10)
@@ -1112,10 +1103,11 @@ def main():
     float_property = FloatProperty('float')
     float_property.decimals = 2
     float_property.value = 13.5234
+    float_property.slider_max = 700
+    float_property.slider_min = 300
     widget.layout().addWidget(float_property)
 
     string_property = StringProperty('string')
-
     string_property.value = 'asd'
     string_property.area = True
     widget.layout().addWidget(string_property)
@@ -1140,9 +1132,9 @@ def main():
 
     widget.layout().addWidget(BoolProperty('bool'))
 
-    #  widget.layout().addWidget(
-    #     EnumProperty('enum', enum=Enum('Number', ('one', 'two', 'three')))
-    # )
+    enum_property = EnumProperty('enum')
+    enum_property.enum = Enum('Number', ('one', 'two', 'three'))
+    widget.layout().addWidget(enum_property)
 
     widget.show()
 

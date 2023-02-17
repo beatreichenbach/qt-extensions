@@ -206,7 +206,10 @@ class PropertyForm(QtWidgets.QWidget):
         return widgets
 
     def update_widget_values(
-        self, values: dict, widgets: dict[str, PropertyWidget] | None = None
+        self,
+        values: dict,
+        widgets: dict[str, PropertyWidget] | None = None,
+        attr: str = 'value',
     ) -> None:
         if widgets is None:
             widgets = self.widgets()
@@ -217,7 +220,7 @@ class PropertyForm(QtWidgets.QWidget):
             if isinstance(widget, dict):
                 self.update_widget_values(value, widget)
             else:
-                widget.value = value
+                setattr(widget, attr, value)
 
     @staticmethod
     def _set_widget_row_enabled(widget: QtWidgets.QWidget, enabled: bool) -> None:
