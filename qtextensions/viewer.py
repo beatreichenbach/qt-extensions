@@ -8,28 +8,42 @@ from qtextensions.properties import FloatProperty
 from qtextensions.combobox import QComboBox
 
 
-def image_from_buffer(buffer: np.ndarray) -> QtGui.QImage:
-    # TODO: check speed on [:3]
-    # TODO: overall profile this
+def image_from_array(array: np.ndarray) -> QtGui.QImage:
+    # TODO: profile this
 
-    buffer = buffer[:, :, :3]
-    buffer = np.clip(buffer, 0, 1)
-    buffer *= 255
-    buffer = buffer.astype(np.uint8)
-    height, width, channels = buffer.shape
-    bytes_per_line = 3 * width
-    image = QtGui.QImage(
-        buffer.data, width, height, bytes_per_line, QtGui.QImage.Format_BGR888
-    )
+    array = np.clip(array, 0, 1)
+    array = array * 255
+    array = array.astype(np.uint8)
+
+    height, width, channels = array.shape
+    bytes_per_line = width * channels
+    image_format = QtGui.QImage.Format_BGR888
+    image = QtGui.QImage(array.data, width, height, bytes_per_line, image_format)
     image = image.rgbSwapped()
+
     return image
 
 
-class GraphicsItem(QtWidgets.QGraphicsItem):
-    # TODO: not sure if bad idea:
-    # converting to pixmap is slower but on every drag/zoom we are repainting
-    # however when changing sliders, we might prefer faster I/O
+def convert_array(array: np.ndarray) -> np.ndarray:
+    # checks whether the array has either 1, 3 or 4 channels and converts
+    # it to a 3 channel array while this is the only supported format
 
+    # TODO: this whole function would be nice to turn into some sort of a type hint
+    # so that it is clear that functions expect an image like array.
+
+    if len(array.shape) == 2:
+        array = np.dstack((array, array, array))
+        return array
+    elif len(array.shape) == 3:
+        if array.shape[2] == 4:
+            array = array[:, :, :3]
+            return array
+        elif array.shape[2] == 3:
+            return array
+    raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
+
+
+class GraphicsItem(QtWidgets.QGraphicsItem):
     def __init__(self, parent: QtWidgets.QGraphicsItem | None = None) -> None:
         super().__init__(parent)
 
@@ -43,7 +57,8 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
 
     @array.setter
     def array(self, value: np.ndarray) -> None:
-        self._array = value
+        array = convert_array(value)
+        self._array = array
         self.update_image()
 
     @property
@@ -60,7 +75,7 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
         return rect
 
     def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
-        height, width, channels = self.array.shape
+        height, width = self.array.shape[:2]
         x = position.x()
         y = position.y()
         if x < 0 or x >= width or y < 0 or y >= height:
@@ -81,7 +96,8 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
 
     def update_image(self) -> None:
         gain = pow(2, self.exposure)
-        self.image = image_from_buffer(self.array * gain)
+        self.image = image_from_array(self.array * gain)
+        self.update()
 
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
@@ -149,6 +165,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.setSceneRect(self.scene_rect)
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.viewport().setCursor(QtCore.Qt.CrossCursor)
 
     @property
@@ -232,20 +249,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
         zoom_in_factor = 1.25
         zoom_out_factor = 1 / zoom_in_factor
 
-        old_pos = self.mapToScene(event.pos())
-
         # zoom
         if event.angleDelta().y() > 0:
             zoom_factor = zoom_in_factor
         else:
             zoom_factor = zoom_out_factor
         self.scale(zoom_factor, zoom_factor)
-
-        new_pos = self.mapToScene(event.pos())
-
-        # move scene to old position
-        delta = new_pos - old_pos
-        self.translate(delta.x(), delta.y())
 
         self.zoom_changed.emit(self.absolute_scale)
         event.accept()
@@ -390,6 +399,12 @@ class ToolBar(QtWidgets.QToolBar):
         self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
         self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
 
+        # currently AdjustToContents doesn't do anything, but this might be because
+        # the placeholder text is broken, thus setting minimContentsLength works for
+        # ensuring that the full placeholder text is visible.
+        self.zoom_cmb.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+        self.zoom_cmb.setMinimumContentsLength(6)
+
         zoom_action = QtWidgets.QWidgetAction(self)
         zoom_action.setText('zoom')
         zoom_action.setDefaultWidget(self.zoom_cmb)
@@ -476,6 +491,7 @@ class Viewer(QtWidgets.QWidget):
         self.view = GraphicsView()
         self.view.setScene(self.scene)
         self.view.zoom_changed.connect(self._view_zoom_change)
+        self.view.fit()
         self.layout().addWidget(self.view)
 
         # footer

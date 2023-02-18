@@ -14,3 +14,6 @@ readme = "README.md"
 
 [tool.setuptools]
 packages = ["qtextensions"]
+
+[tool.pytest]
+norecursedirs = '.*'
