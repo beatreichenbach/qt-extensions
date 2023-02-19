@@ -109,8 +109,8 @@ class PropertyWidget(QtWidgets.QWidget):
 
     def _set_value(self, value: typing.Any) -> None:
         # this is only used internally to not trigger any recursive loops
-        self.value_changed.emit(value)
         super().__setattr__('value', value)
+        self.value_changed.emit(value)
 
 
 class IntProperty(PropertyWidget):
@@ -223,12 +223,12 @@ class StringProperty(PropertyWidget):
 
     def _init_ui(self) -> None:
         if self.area:
-            self.text = QtWidgets.QPlainTextEdit()
-            self.text.textChanged.connect(self._text_change)
+            self.text = TextEdit()
+            self.text.editing_finished.connect(self._editing_finish)
             ResizeGrip(self.text)
         else:
             self.text = QtWidgets.QLineEdit()
-            self.text.textChanged.connect(self._text_change)
+            self.text.editingFinished.connect(self._editing_finish)
         self.layout().addWidget(self.text)
         self.setFocusProxy(self.text)
 
@@ -250,11 +250,12 @@ class StringProperty(PropertyWidget):
             self.layout().itemAt(i).widget().deleteLater()
         self._init_ui()
 
-    def _text_change(self, value: str = '') -> None:
+    def _editing_finish(self) -> None:
         if self.area:
-            self._value = self.text.toPlainText()
+            value = self.text.toPlainText()
         else:
-            self._value = value
+            value = self.text.text()
+        self._value = value
 
 
 class PathProperty(PropertyWidget):
@@ -271,7 +272,7 @@ class PathProperty(PropertyWidget):
 
     def _init_ui(self) -> None:
         self.line = QtWidgets.QLineEdit()
-        self.line.textChanged.connect(self._text_change)
+        self.line.editingFinished.connect(self._editing_finish)
         self.layout().addWidget(self.line)
 
         self.button = QtWidgets.QToolButton()
@@ -315,7 +316,8 @@ class PathProperty(PropertyWidget):
         self.line.setText(value)
         self.line.blockSignals(False)
 
-    def _text_change(self, value: str) -> None:
+    def _editing_finish(self) -> None:
+        value = self.line.text()
         self._value = value
 
 
@@ -436,6 +438,7 @@ class PointFProperty(PointProperty):
     default: QtCore.QPointF = QtCore.QPointF(0, 0)
     line_min: float | None = None
     line_max: float | None = None
+    decimals: int = 4
 
     def _init_ui(self) -> None:
         self.line1 = FloatLineEdit()
@@ -448,6 +451,10 @@ class PointFProperty(PointProperty):
 
         self.setFocusProxy(self.line1)
 
+    def _init_signals(self) -> None:
+        super()._init_signals()
+        self.setter_signal('decimals', self.update_decimals)
+
     def _line_value_change(self, _) -> None:
         value = QtCore.QPointF(self.line1.value, self.line2.value)
         self._value = value
@@ -456,6 +463,10 @@ class PointFProperty(PointProperty):
         if isinstance(value, (list, tuple)):
             value = QtCore.QPointF(value[0], value[1])
         super().set_value(value)
+
+    def update_decimals(self, decimals):
+        self.line1.decimals = decimals
+        self.line2.decimals = decimals
 
 
 class SizeProperty(IntProperty):
@@ -1080,6 +1091,14 @@ class LinkButton(QtWidgets.QToolButton):
         icon_size = QtCore.QSize(size, size)
         self.setMaximumSize(icon_size)
         self.setCheckable(True)
+
+
+class TextEdit(QtWidgets.QPlainTextEdit):
+    editing_finished: QtCore.Signal = QtCore.Signal()
+
+    def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
+        self.editing_finished.emit()
+        return super().focusOutEvent(event)
 
 
 __all__ = [

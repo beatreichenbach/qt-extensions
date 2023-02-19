@@ -1,4 +1,5 @@
 import re
+from collections.abc import Iterable
 
 
 def title(text: str) -> str:
@@ -6,7 +7,7 @@ def title(text: str) -> str:
     return text
 
 
-def unique_name(name: str, existing_names: list[str]) -> str:
+def unique_name(name: str, existing_names: Iterable[str]) -> str:
     for existing_name in existing_names:
         if name.lower() == existing_name.lower():
             match = re.search(r'(.*?)(\d+)$', name)

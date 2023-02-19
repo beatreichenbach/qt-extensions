@@ -1,6 +1,7 @@
 import logging
 import numbers
 import typing
+from collections.abc import Iterable
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
@@ -101,7 +102,7 @@ class TabDataProperty(PropertyWidget):
         labels = list(map(str, rows))
         self.model.setVerticalHeaderLabels(labels)
 
-    def set_types(self, types: list[typing.Type] | None) -> None:
+    def set_types(self, types: Iterable[typing.Type] | None) -> None:
         if types is None:
             return
         for i, type_ in enumerate(types):

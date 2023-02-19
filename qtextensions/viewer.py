@@ -514,6 +514,7 @@ class Viewer(QtWidgets.QWidget):
             self._resolution = value
             self.footer.update_resolution(value)
             self.scene.update_frame(value)
+            self.view.fit()
 
     def pause(self, state=True) -> None:
         self.paused = state

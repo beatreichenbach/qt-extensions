@@ -1,10 +1,33 @@
 import logging
 import sys
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from functools import partial
 
 from PySide2 import QtCore, QtGui, QtWidgets
+from typing_extensions import Self
+
 from qtextensions.icons import MaterialIcon
+
+
+@dataclass()
+class WidgetState:
+    cls: type
+    geometry: QtCore.QRect = field(default=QtCore.QRect(), init=False)
+    flags: QtCore.Qt.WindowFlags | None = field(default=None, init=False)
+
+
+@dataclass()
+class DockWidgetState(WidgetState):
+    current_index: int
+    widgets: list[str]
+
+
+@dataclass()
+class SplitterState(WidgetState):
+    sizes: list[int]
+    orientation: QtCore.Qt.Orientation
+    states: list[Self]
 
 
 class DockTabBar(QtWidgets.QTabBar):
@@ -160,9 +183,10 @@ class DockWidget(QtWidgets.QTabWidget):
                     parent.setOrientation(orientation)
                 else:
                     splitter = Splitter(orientation)
+                    child = parent.widget(index)
                     parent.replaceWidget(index, splitter)
                     splitter.setParent(parent)
-                    splitter.addWidget(self)
+                    splitter.addWidget(child)
                     parent = splitter
                     index = 0
 
@@ -311,13 +335,14 @@ class DockWindow(QtWidgets.QWidget):
         # center widget
         self.center_widget = DockWidget(self, self)
         self.center_widget.auto_delete = False
-        splitter = Splitter(QtCore.Qt.Vertical)
-        splitter.addWidget(self.center_widget)
-        splitter.setCollapsible(0, False)
-        self.layout().addWidget(splitter)
+        self.center_splitter = Splitter(QtCore.Qt.Vertical)
+        self.center_splitter.addWidget(self.center_widget)
+        self.center_splitter.setCollapsible(0, False)
+        self.layout().addWidget(self.center_splitter)
 
         # status bar
-        self.layout().addWidget(QtWidgets.QStatusBar(self))
+        self.status_bar = QtWidgets.QStatusBar(self)
+        self.layout().addWidget(self.status_bar)
         self.layout().setStretch(0, 1)
 
     @property
@@ -384,6 +409,46 @@ class DockWindow(QtWidgets.QWidget):
         children = reversed(children)
 
         return list(children)
+
+    def states(self, widget: QtWidgets.QWidget | None = None) -> list[WidgetState]:
+        if widget is None:
+            widget = self
+
+        states = []
+        # floating widgets
+        options = QtCore.Qt.FindDirectChildrenOnly
+
+        children = widget.findChildren(Splitter)
+        logging.debug(children)
+        children.extend(widget.findChildren(DockWidget, options=options))
+
+        for child in children:
+            if isinstance(child, Splitter):
+                state = SplitterState(
+                    cls=Splitter,
+                    sizes=child.sizes(),
+                    orientation=child.orientation(),
+                    states=self.states(child),
+                )
+
+            elif isinstance(child, DockWidget):
+                widgets = [child.tabText(i) for i in range(child.count())]
+                state = DockWidgetState(
+                    cls=DockWidget,
+                    current_index=child.currentIndex(),
+                    widgets=widgets,
+                )
+
+            else:
+                # ignore other widget classes
+                continue
+
+            if child.isWindow():
+                state.geometry = child.geometry()
+                state.flags = child.windowFlags()
+
+            states.append(state)
+        return states
 
     def _dock_rects(self) -> OrderedDict:
         rects = OrderedDict()

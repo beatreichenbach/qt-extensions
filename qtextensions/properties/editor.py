@@ -1,4 +1,5 @@
 import itertools
+from collections.abc import Iterable
 from functools import partial
 import typing
 from typing_extensions import Self
@@ -123,7 +124,10 @@ class PropertyForm(QtWidgets.QWidget):
         return form
 
     def add_tab_group(
-        self, names: list[str], labels: list[str] = None, link: Self | None = None
+        self,
+        names: Iterable[str],
+        labels: Iterable[str] = None,
+        link: Self | None = None,
     ) -> QtWidgets.QTabWidget:
         group = QtWidgets.QTabWidget(self)
         group.tabs = {}

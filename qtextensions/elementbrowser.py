@@ -2,6 +2,7 @@ import logging
 import os
 import dataclasses
 import typing
+from collections.abc import Iterable
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
@@ -48,7 +49,7 @@ class ElementModel(QtGui.QStandardItemModel):
     def columns_insert(self, parent: QtCore.QModelIndex, first: int, last: int) -> None:
         super().setHorizontalHeaderLabels(self.header_labels)
 
-    def setHorizontalHeaderLabels(self, labels: list[str]) -> None:
+    def setHorizontalHeaderLabels(self, labels: Iterable[str]) -> None:
         # remember header labels in case data gets reset
         self.header_labels = labels
         self.update_max_columns(len(labels))
