@@ -12,7 +12,6 @@ from qtextensions.icons import MaterialIcon
 
 @dataclass()
 class WidgetState:
-    cls: type
     geometry: QtCore.QRect = field(default=QtCore.QRect(), init=False)
     flags: QtCore.Qt.WindowFlags | None = field(default=None, init=False)
 
@@ -21,6 +20,9 @@ class WidgetState:
 class DockWidgetState(WidgetState):
     current_index: int
     widgets: list[str]
+    detachable: bool
+    auto_delete: bool
+    is_center_widget: bool
 
 
 @dataclass()
@@ -31,9 +33,9 @@ class SplitterState(WidgetState):
 
 
 class DockTabBar(QtWidgets.QTabBar):
-    detach_pressed: QtCore.Signal = QtCore.Signal(int)
+    detach_started: QtCore.Signal = QtCore.Signal(int)
     detach_moved: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
-    detach_released: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+    detach_finished: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -49,7 +51,7 @@ class DockTabBar(QtWidgets.QTabBar):
             self.detach_moved.emit(event.pos())
         elif not self.rect().contains(event.pos()) and self._drag_index is not None:
             # a tab is about to be detached
-            self.detach_pressed.emit(self._drag_index)
+            self.detach_started.emit(self._drag_index)
             self._detaching = True
         else:
             # no tab is detached
@@ -61,7 +63,7 @@ class DockTabBar(QtWidgets.QTabBar):
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseReleaseEvent(event)
         if self._detaching:
-            self.detach_released.emit(event.pos())
+            self.detach_finished.emit(event.pos())
         self._detaching = False
         self._drag_index = None
 
@@ -94,14 +96,6 @@ class DockTabBar(QtWidgets.QTabBar):
 
 
 class Splitter(QtWidgets.QSplitter):
-    def __init__(
-        self,
-        orientation: QtCore.Qt.Orientation,
-        parent: QtWidgets.QWidget | None = None,
-    ) -> None:
-        super().__init__(orientation, parent)
-        self.delete = False
-
     def childEvent(self, event: QtCore.QChildEvent) -> None:
         super().childEvent(event)
         if event.removed() and not self.count():
@@ -134,9 +128,9 @@ class DockWidget(QtWidgets.QTabWidget):
         self.setMovable(True)
         self.setTabsClosable(True)
 
-        self.tabBar().detach_pressed.connect(self._detach_press)
+        self.tabBar().detach_started.connect(self._detach_start)
         self.tabBar().detach_moved.connect(self._detach_move)
-        self.tabBar().detach_released.connect(self._detach_release)
+        self.tabBar().detach_finished.connect(self._detach_finish)
 
         self.tabCloseRequested.connect(self.close_tab)
         self.currentChanged.connect(self.update_window_title)
@@ -183,10 +177,9 @@ class DockWidget(QtWidgets.QTabWidget):
                     parent.setOrientation(orientation)
                 else:
                     splitter = Splitter(orientation)
-                    child = parent.widget(index)
-                    parent.replaceWidget(index, splitter)
+                    parent.insertWidget(index, splitter)
                     splitter.setParent(parent)
-                    splitter.addWidget(child)
+                    splitter.addWidget(self)
                     parent = splitter
                     index = 0
 
@@ -204,11 +197,12 @@ class DockWidget(QtWidgets.QTabWidget):
     def close_tab(self, index: int) -> None:
         self.removeTab(index)
 
-    def detach(self, index: int) -> None:
-        if index is None or not self.detachable:
+    def detach(self, index: int, interactive=False) -> None:
+        if index not in range(self.count()) or not self.detachable:
             return
 
         geometry = self.geometry()
+
         if not self.isWindow():
             top_left = self.parent().mapToGlobal(geometry.topLeft())
             geometry.moveTopLeft(top_left)
@@ -223,7 +217,8 @@ class DockWidget(QtWidgets.QTabWidget):
         # adding tab after setting window flag, triggers window title update
         self._drag_widget.addTab(widget, title)
         self._drag_widget.setGeometry(geometry)
-        self._drag_widget.setWindowOpacity(0.5)
+        if interactive:
+            self._drag_widget.setWindowOpacity(0.5)
         self._drag_widget.raise_()
         self._drag_widget.show()
         self._drag_widget.activateWindow()
@@ -253,8 +248,14 @@ class DockWidget(QtWidgets.QTabWidget):
             else:
                 self.deleteLater()
 
-    def _detach_press(self, index: int) -> None:
-        self.detach(index)
+    def widgets(self) -> OrderedDict[str, QtWidgets.QWidget]:
+        widgets = OrderedDict()
+        for i in range(self.count()):
+            widgets[self.tabText(i)] = self.widget(i)
+        return widgets
+
+    def _detach_start(self, index: int) -> None:
+        self.detach(index, interactive=True)
 
     def _detach_move(self, position: QtCore.QPoint) -> None:
         if self._drag_widget:
@@ -264,7 +265,7 @@ class DockWidget(QtWidgets.QTabWidget):
             self._drag_widget.move(offset)
             self.dock_window.add_widget(self._drag_widget, position, True)
 
-    def _detach_release(self, position: QtCore.QPoint) -> None:
+    def _detach_finish(self, position: QtCore.QPoint) -> None:
         if self._drag_widget:
             self._drag_widget.setWindowOpacity(1)
             position = QtGui.QCursor().pos()
@@ -333,11 +334,8 @@ class DockWindow(QtWidgets.QWidget):
         self.layout().setSpacing(0)
 
         # center widget
-        self.center_widget = DockWidget(self, self)
-        self.center_widget.auto_delete = False
         self.center_splitter = Splitter(QtCore.Qt.Vertical)
-        self.center_splitter.addWidget(self.center_widget)
-        self.center_splitter.setCollapsible(0, False)
+        self.center_widget = self._add_protected_dock_widget(self.center_splitter)
         self.layout().addWidget(self.center_splitter)
 
         # status bar
@@ -411,21 +409,16 @@ class DockWindow(QtWidgets.QWidget):
         return list(children)
 
     def states(self, widget: QtWidgets.QWidget | None = None) -> list[WidgetState]:
-        if widget is None:
-            widget = self
-
         states = []
-        # floating widgets
-        options = QtCore.Qt.FindDirectChildrenOnly
 
-        children = widget.findChildren(Splitter)
-        logging.debug(children)
-        children.extend(widget.findChildren(DockWidget, options=options))
+        if widget is None:
+            children = self.children()
+        else:
+            children = [widget.widget(i) for i in range(widget.count())]
 
         for child in children:
             if isinstance(child, Splitter):
                 state = SplitterState(
-                    cls=Splitter,
                     sizes=child.sizes(),
                     orientation=child.orientation(),
                     states=self.states(child),
@@ -434,11 +427,12 @@ class DockWindow(QtWidgets.QWidget):
             elif isinstance(child, DockWidget):
                 widgets = [child.tabText(i) for i in range(child.count())]
                 state = DockWidgetState(
-                    cls=DockWidget,
                     current_index=child.currentIndex(),
                     widgets=widgets,
+                    detachable=child.detachable,
+                    auto_delete=child.auto_delete,
+                    is_center_widget=(child == self.center_widget),
                 )
-
             else:
                 # ignore other widget classes
                 continue
@@ -449,6 +443,87 @@ class DockWindow(QtWidgets.QWidget):
 
             states.append(state)
         return states
+
+    def update_states(
+        self,
+        states: list[WidgetState],
+    ) -> None:
+        # store all current widgets for layout
+        widgets = OrderedDict()
+        for dock_widget in self.widgets():
+            child_widgets = dock_widget.widgets()
+            for child_widget in widgets.values():
+                child_widget.setParent(None)
+            widgets.update(child_widgets)
+            # undock all widgets to clear out layout
+            dock_widget.setParent(None)
+
+        self.center_widget = None
+        self._update_states_inner(states, self, widgets)
+        # make sure that there is always a center widget
+        if self.center_widget is None:
+            self._add_protected_dock_widget(self.center_splitter)
+
+    def _update_states_inner(
+        self,
+        states: list[WidgetState],
+        parent: QtWidgets.QWidget,
+        widgets: OrderedDict[str, QtWidgets.QWidget],
+    ) -> None:
+        for i, state in enumerate(states):
+            # create widget
+            if isinstance(state, SplitterState):
+                if parent == self:
+                    splitter = self.center_splitter
+                    splitter.setOrientation(state.orientation)
+                else:
+                    splitter = Splitter(state.orientation)
+                self._update_states_inner(state.states, splitter, widgets)
+                splitter.setSizes(state.sizes)
+
+                widget = splitter
+            elif isinstance(state, DockWidgetState):
+                if state.is_center_widget:
+                    dock_widget = self._add_protected_dock_widget(parent)
+                    self.center_widget = dock_widget
+                else:
+                    dock_widget = DockWidget(self)
+                    dock_widget.detachable = state.detachable
+                    dock_widget.auto_delete = state.auto_delete
+
+                for title in state.widgets:
+                    widget = widgets.get(title)
+                    if widget is not None:
+                        dock_widget.addTab(widget, title)
+                dock_widget.setCurrentIndex(state.current_index)
+
+                widget = dock_widget
+            else:
+                continue
+
+            # parent widget
+            if isinstance(parent, Splitter):
+                if parent.widget(i) is not None:
+                    parent.replaceWidget(i, widget)
+                    widget.setParent(parent)
+                    widget.show()
+                else:
+                    parent.addWidget(widget)
+            else:
+                widget.show()
+
+            # set window
+            if state.flags:
+                widget.setWindowFlags(state.flags)
+                widget.setGeometry(state.geometry)
+                widget.show()
+
+    def _add_protected_dock_widget(self, parent: Splitter) -> DockWidget:
+        dock_widget = DockWidget(self, self)
+        dock_widget.auto_delete = False
+        parent.addWidget(dock_widget)
+        parent.setCollapsible(parent.count() - 1, False)
+        return dock_widget
 
     def _dock_rects(self) -> OrderedDict:
         rects = OrderedDict()
