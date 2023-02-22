@@ -856,8 +856,8 @@ class IntLineEdit(QtWidgets.QLineEdit):
         if int(value) == value:
             value = int(value)
         if self._value != value:
-            self.value_changed.emit(value)
             self._value = value
+            self.value_changed.emit(value)
 
         self.setText(str(value))
 

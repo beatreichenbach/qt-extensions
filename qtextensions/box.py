@@ -14,16 +14,16 @@ class CollapsibleHeader(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self.collapsed = False
         self.title = title
 
+        self._collapsed = False
         self._collapsible = None
 
         self._expand_more_icon = MaterialIcon('expand_more')
         self._expand_less_icon = MaterialIcon('expand_less')
 
-        self.expand_label = None
-        self.title_label = None
+        self._expand_label = None
+        self._title_label = None
         self.menu_button = None
 
         self._init_ui()
@@ -33,11 +33,11 @@ class CollapsibleHeader(QtWidgets.QWidget):
     def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QHBoxLayout(self))
 
-        self.expand_label = QtWidgets.QLabel(self)
-        self.layout().addWidget(self.expand_label)
+        self._expand_label = QtWidgets.QLabel(self)
+        self.layout().addWidget(self._expand_label)
 
-        self.title_label = QtWidgets.QLabel(self.title, self)
-        self.layout().addWidget(self.title_label)
+        self._title_label = QtWidgets.QLabel(self.title, self)
+        self.layout().addWidget(self._title_label)
         self.layout().addStretch()
 
         self.menu_button = QtWidgets.QToolButton(self)
@@ -59,6 +59,17 @@ class CollapsibleHeader(QtWidgets.QWidget):
         return f'{self.__class__.__name__}({repr(self.title)})'
 
     @property
+    def collapsed(self) -> bool:
+        return self._collapsed
+
+    @collapsed.setter
+    def collapsed(self, value: bool) -> None:
+        if value != self._collapsed:
+            self._collapsed = value
+            self._update_icon()
+            self.toggled.emit(self.collapsed)
+
+    @property
     def collapsible(self) -> bool:
         return self._collapsible
 
@@ -75,7 +86,7 @@ class CollapsibleHeader(QtWidgets.QWidget):
             margins = QtCore.QMargins(left, top, right, bottom)
 
         self.layout().setContentsMargins(margins)
-        self.expand_label.setVisible(self.collapsible)
+        self._expand_label.setVisible(self.collapsible)
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.collapsible:
@@ -101,14 +112,12 @@ class CollapsibleHeader(QtWidgets.QWidget):
 
     def toggle_collapsed(self) -> None:
         self.collapsed = not self.collapsed
-        self._update_icon()
-        self.toggled.emit(self.collapsed)
 
     def _update_icon(self) -> None:
         icon = self._expand_more_icon if self.collapsed else self._expand_less_icon
         style = self.style()
         size = style.pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
-        self.expand_label.setPixmap(icon.pixmap(size))
+        self._expand_label.setPixmap(icon.pixmap(size))
 
 
 class CollapsibleBox(QtWidgets.QFrame):
@@ -127,10 +136,11 @@ class CollapsibleBox(QtWidgets.QFrame):
 
         self._maximum_height = self.maximumHeight()
         self._actions = []
+        self._collapsed = False
 
+        # TODO: make not read-only
         self.title = title
         self.collapsible = collapsible
-        self.collapsed = False
         self.frame_style = style
 
         self.header = None
@@ -165,6 +175,18 @@ class CollapsibleBox(QtWidgets.QFrame):
 
     def __repr__(self):
         return f'{self.__class__.__name__}({repr(self.title)})'
+
+    @property
+    def collapsed(self) -> bool:
+        return self._collapsed
+
+    @collapsed.setter
+    def collapsed(self, value: bool) -> None:
+        self.frame.setMaximumHeight(0 if value else self._maximum_height)
+        self._collapsed = value
+        self.header.blockSignals(True)
+        self.header.collapsed = value
+        self.header.blockSignals(False)
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
         self.update()
@@ -213,7 +235,6 @@ class CollapsibleBox(QtWidgets.QFrame):
 
     def _update_collapsed(self, collapsed: bool) -> None:
         self.collapsed = collapsed
-        self.frame.setMaximumHeight(0 if collapsed else self._maximum_height)
 
 
 def main():

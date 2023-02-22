@@ -111,6 +111,8 @@ class PropertyForm(QtWidgets.QWidget):
         form.property_changed.connect(self.property_changed.emit)
         label = label or helper.title(name)
         group = CollapsibleBox(label, collapsible, style)
+        if collapsible:
+            group.collapsed = True
 
         group.setLayout(QtWidgets.QVBoxLayout(self))
         group.layout().setContentsMargins(0, 0, 0, 0)

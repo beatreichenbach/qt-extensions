@@ -516,6 +516,14 @@ class Viewer(QtWidgets.QWidget):
             self.scene.update_frame(value)
             self.view.fit()
 
+    @property
+    def exposure(self) -> float:
+        return self.item.exposure
+
+    @exposure.setter
+    def exposure(self, value: float) -> None:
+        self._exposure_change(value)
+
     def pause(self, state=True) -> None:
         self.paused = state
 
