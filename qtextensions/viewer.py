@@ -1,3 +1,4 @@
+import dataclasses
 import logging
 
 import numpy as np
@@ -6,6 +7,11 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from qtextensions.icons import MaterialIcon
 from qtextensions.properties import FloatProperty
 from qtextensions.combobox import QComboBox
+
+
+@dataclasses.dataclass()
+class ViewerState:
+    exposure: float = 0
 
 
 def image_from_array(array: np.ndarray) -> QtGui.QImage:
@@ -539,6 +545,13 @@ class Viewer(QtWidgets.QWidget):
             self.view.setEnabled(True)
 
         self.pause_changed.emit(self.paused)
+
+    def state(self) -> ViewerState:
+        state = ViewerState(exposure=self.exposure)
+        return state
+
+    def update_state(self, state: ViewerState) -> None:
+        self.exposure = state.exposure
 
     def refresh(self) -> None:
         self.refreshed.emit()

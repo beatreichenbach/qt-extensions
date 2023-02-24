@@ -1,3 +1,4 @@
+import dataclasses
 import itertools
 from collections.abc import Iterable
 from functools import partial
@@ -10,6 +11,24 @@ from qtextensions import helper
 from qtextensions.scrollarea import VerticalScrollArea
 from qtextensions.properties import PropertyWidget
 from qtextensions.box import CollapsibleBox
+
+
+@dataclasses.dataclass()
+class BoxState:
+    child_states: dict[str, 'BoxState']
+    collapsed: bool
+
+
+@dataclasses.dataclass()
+class LinkState:
+    child_states: dict[str, 'LinkState'] = dataclasses.field(default_factory=dict)
+    linked: bool = False
+
+
+@dataclasses.dataclass()
+class EditorState:
+    box_states: dict[str, BoxState]
+    link_states: dict[str, LinkState]
 
 
 class PropertyEditor(VerticalScrollArea):
@@ -185,6 +204,16 @@ class PropertyForm(QtWidgets.QWidget):
                 boxes.update(children)
         return boxes
 
+    def state(self) -> EditorState:
+        box_states = self._box_states()
+        link_states = self._link_states()
+        state = EditorState(box_states=box_states, link_states=link_states)
+        return state
+
+    def update_state(self, state: EditorState) -> None:
+        self._update_box_states(state.box_states)
+        self._update_link_states(state.link_states)
+
     def values(self) -> dict[str, typing.Any]:
         # create nested dictionary of all property values
         values = {}
@@ -257,6 +286,71 @@ class PropertyForm(QtWidgets.QWidget):
             else:
                 widget.value = widget.link.value
                 widget.link.value_changed.connect(widget.set_value)
+
+    def _box_states(
+        self, boxes: dict[CollapsibleBox, ...] | None = None
+    ) -> dict[str, BoxState]:
+        # returns the state of all collapsible boxes
+        if boxes is None:
+            boxes = self.boxes()
+        # the collapsed state of all box widgets
+        states = {}
+        for box, children in boxes.items():
+            child_states = self._box_states(children)
+            state = BoxState(child_states=child_states, collapsed=box.collapsed)
+            states[box.title] = state
+        return states
+
+    def _update_box_states(
+        self,
+        values: dict[str, BoxState],
+        boxes: dict[CollapsibleBox, ...] | None = None,
+    ) -> None:
+        # updates the state of all collapsible boxes
+        if boxes is None:
+            boxes = self.boxes()
+        for box, children in boxes.items():
+            state = values.get(box.title)
+            if not state:
+                continue
+
+            box.collapsed = state.collapsed
+            self._update_box_states(state.child_states, children)
+
+    def _link_states(
+        self, widgets: dict[str, PropertyWidget] | None = None
+    ) -> dict[str, LinkState]:
+        if widgets is None:
+            widgets = self.widgets()
+        # the enabled state of linked widgets
+        states = {}
+        for key, widget in widgets.items():
+            if isinstance(widget, dict):
+                child_states = self._link_states(widget)
+                if child_states:
+                    states[key] = LinkState(child_states=child_states)
+            elif hasattr(widget, 'link'):
+                linked = not widget.isEnabled()
+                states[key] = LinkState(linked=linked)
+        return states
+
+    def _update_link_states(
+        self,
+        values: dict[str, LinkState],
+        widgets: dict[str, PropertyWidget] | None = None,
+    ) -> None:
+        if widgets is None:
+            widgets = self.widgets()
+        for key, value in values.items():
+            widget = widgets.get(key)
+            if not widget:
+                continue
+            if isinstance(value, dict):
+                self._update_link_states(values[key].child_states, widget)
+            elif hasattr(widget, 'link'):
+                # TODO: make safe
+                enabled = not value.linked
+                PropertyForm._set_widget_row_enabled(widget, enabled)
 
     def _create_form(self, name, link: Self | None = None) -> Self:
         self._validate_name(name)
@@ -401,6 +495,8 @@ def main():
     editor.property_changed.connect(logging.debug)
 
     editor.show()
+    state = editor.state()
+    editor.update_state(state)
 
     sys.exit(app.exec_())
 

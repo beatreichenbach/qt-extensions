@@ -11,6 +11,120 @@ from qtextensions.icons import MaterialIcon
 from qtextensions.resizegrip import ResizeGrip
 
 
+class IntegerDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
+        return str(value)
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+
+        editor = IntProperty(parent=parent)
+        editor.slider_visible = False
+        editor.line.setFrame(False)
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        value = index.model().data(index, QtCore.Qt.EditRole)
+        if value:
+            editor.value = value
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        value = editor.value
+        model.setData(index, value, QtCore.Qt.EditRole)
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class FloatDelegate(QtWidgets.QStyledItemDelegate):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.decimals = None
+
+    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
+        if self.decimals is not None:
+            return f'{value:.{self.decimals}f}'.rstrip('0').rstrip('.')
+        else:
+            return str(value)
+
+    def createEditor(
+        self,
+        parent: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> QtWidgets.QWidget:
+        editor = FloatProperty(parent=parent)
+        editor.slider_visible = False
+        editor.decimals = 6
+        editor.line.setFrame(False)
+        return editor
+
+    def setEditorData(
+        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
+    ) -> None:
+        value = index.model().data(index, QtCore.Qt.EditRole)
+        if value:
+            editor.value = value
+
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        value = editor.value
+        model.setData(index, value, QtCore.Qt.EditRole)
+
+    def updateEditorGeometry(
+        self,
+        editor: QtWidgets.QWidget,
+        option: QtWidgets.QStyleOptionViewItem,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        editor.setGeometry(option.rect)
+
+
+class DataTableView(QtWidgets.QTableView):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._init_ui()
+
+    def _init_ui(self):
+        self.setAlternatingRowColors(True)
+        self.setShowGrid(False)
+        self.setSortingEnabled(True)
+
+        self.horizontalHeader().setSortIndicatorShown(True)
+        self.horizontalHeader().setSectionsMovable(True)
+        self.horizontalHeader().setStretchLastSection(True)
+
+        # header.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
+        self.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
+        )
+
+
 class TabDataProperty(PropertyWidget):
     # https://pypi.org/project/tabulate/
     # property to display tabular data in a QTreeWidget
@@ -157,120 +271,6 @@ class TabDataProperty(PropertyWidget):
         for i in range(header.count()):
             size = max(self.view.sizeHintForColumn(i), header.sectionSizeHint(i))
             self.view.setColumnWidth(i, size)
-
-
-class DataTableView(QtWidgets.QTableView):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self._init_ui()
-
-    def _init_ui(self):
-        self.setAlternatingRowColors(True)
-        self.setShowGrid(False)
-        self.setSortingEnabled(True)
-
-        self.horizontalHeader().setSortIndicatorShown(True)
-        self.horizontalHeader().setSectionsMovable(True)
-        self.horizontalHeader().setStretchLastSection(True)
-
-        # header.setContextMenuPolicy(QtCore.Qt.ActionsContextMenu)
-        self.setSizePolicy(
-            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
-        )
-
-
-class IntegerDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
-        return str(value)
-
-    def createEditor(
-        self,
-        parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> QtWidgets.QWidget:
-
-        editor = IntProperty(parent=parent)
-        editor.slider_visible = False
-        editor.line.setFrame(False)
-        return editor
-
-    def setEditorData(
-        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
-    ) -> None:
-        value = index.model().data(index, QtCore.Qt.EditRole)
-        if value:
-            editor.value = value
-
-    def setModelData(
-        self,
-        editor: QtWidgets.QWidget,
-        model: QtCore.QAbstractItemModel,
-        index: QtCore.QModelIndex,
-    ) -> None:
-        value = editor.value
-        model.setData(index, value, QtCore.Qt.EditRole)
-
-    def updateEditorGeometry(
-        self,
-        editor: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> None:
-        editor.setGeometry(option.rect)
-
-
-class FloatDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self.decimals = None
-
-    def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
-        if self.decimals is not None:
-            return f'{value:.{self.decimals}f}'.rstrip('0').rstrip('.')
-        else:
-            return str(value)
-
-    def createEditor(
-        self,
-        parent: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> QtWidgets.QWidget:
-        editor = FloatProperty(parent=parent)
-        editor.slider_visible = False
-        editor.decimals = 6
-        editor.line.setFrame(False)
-        return editor
-
-    def setEditorData(
-        self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
-    ) -> None:
-        value = index.model().data(index, QtCore.Qt.EditRole)
-        if value:
-            editor.value = value
-
-    def setModelData(
-        self,
-        editor: QtWidgets.QWidget,
-        model: QtCore.QAbstractItemModel,
-        index: QtCore.QModelIndex,
-    ) -> None:
-        value = editor.value
-        model.setData(index, value, QtCore.Qt.EditRole)
-
-    def updateEditorGeometry(
-        self,
-        editor: QtWidgets.QWidget,
-        option: QtWidgets.QStyleOptionViewItem,
-        index: QtCore.QModelIndex,
-    ) -> None:
-        editor.setGeometry(option.rect)
 
 
 def main():

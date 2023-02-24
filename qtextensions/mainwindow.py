@@ -1,19 +1,19 @@
 import logging
 import sys
+import typing
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from functools import partial
 
 from PySide2 import QtCore, QtGui, QtWidgets
-from typing_extensions import Self
 
 from qtextensions.icons import MaterialIcon
 
 
 @dataclass()
 class WidgetState:
-    geometry: QtCore.QRect = field(default=QtCore.QRect(), init=False)
-    flags: QtCore.Qt.WindowFlags | None = field(default=None, init=False)
+    geometry: QtCore.QRect
+    flags: QtCore.Qt.WindowFlags
 
 
 @dataclass()
@@ -29,7 +29,7 @@ class DockWidgetState(WidgetState):
 class SplitterState(WidgetState):
     sizes: list[int]
     orientation: QtCore.Qt.Orientation
-    states: list[Self]
+    states: list[typing.Union[DockWidgetState, 'SplitterState']]
 
 
 class DockTabBar(QtWidgets.QTabBar):
@@ -408,7 +408,9 @@ class DockWindow(QtWidgets.QWidget):
 
         return list(children)
 
-    def states(self, widget: QtWidgets.QWidget | None = None) -> list[WidgetState]:
+    def states(
+        self, widget: QtWidgets.QWidget | None = None
+    ) -> list[DockWidgetState | SplitterState]:
         states = []
 
         if widget is None:
@@ -417,14 +419,26 @@ class DockWindow(QtWidgets.QWidget):
             children = [widget.widget(i) for i in range(widget.count())]
 
         for child in children:
+            if isinstance(child, QtWidgets.QWidget) and child.isWindow():
+                geometry = child.geometry()
+                flags = child.windowFlags()
+            else:
+                geometry = QtCore.QRect()
+                flags = 0
+
             if isinstance(child, Splitter):
                 state = SplitterState(
                     sizes=child.sizes(),
                     orientation=child.orientation(),
                     states=self.states(child),
+                    geometry=geometry,
+                    flags=flags,
                 )
 
             elif isinstance(child, DockWidget):
+                if child.isWindow():
+                    geometry = child.geometry()
+                    flags = child.windowFlags()
                 widgets = [child.tabText(i) for i in range(child.count())]
                 state = DockWidgetState(
                     current_index=child.currentIndex(),
@@ -432,14 +446,12 @@ class DockWindow(QtWidgets.QWidget):
                     detachable=child.detachable,
                     auto_delete=child.auto_delete,
                     is_center_widget=(child == self.center_widget),
+                    geometry=geometry,
+                    flags=flags,
                 )
             else:
                 # ignore other widget classes
                 continue
-
-            if child.isWindow():
-                state.geometry = child.geometry()
-                state.flags = child.windowFlags()
 
             states.append(state)
         return states
