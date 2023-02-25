@@ -15,8 +15,8 @@ from qtextensions.box import CollapsibleBox
 
 @dataclasses.dataclass()
 class BoxState:
-    child_states: dict[str, 'BoxState']
-    collapsed: bool
+    child_states: dict[str, 'BoxState'] = dataclasses.field(default_factory=dict)
+    collapsed: bool = True
 
 
 @dataclasses.dataclass()
@@ -27,8 +27,8 @@ class LinkState:
 
 @dataclasses.dataclass()
 class EditorState:
-    box_states: dict[str, BoxState]
-    link_states: dict[str, LinkState]
+    box_states: dict[str, BoxState] = dataclasses.field(default_factory=dict)
+    link_states: dict[str, LinkState] = dataclasses.field(default_factory=dict)
 
 
 class PropertyEditor(VerticalScrollArea):
@@ -359,6 +359,7 @@ class PropertyForm(QtWidgets.QWidget):
         self._widgets[name] = form
 
         if link is not None:
+            link = typing.cast('PropertyForm', link)
             form._link(link)
 
         return form
@@ -501,7 +502,7 @@ def main():
     sys.exit(app.exec_())
 
 
-__all__ = ['PropertyEditor']
+__all__ = ['PropertyEditor', 'EditorState']
 
 
 if __name__ == '__main__':

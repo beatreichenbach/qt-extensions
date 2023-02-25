@@ -1,5 +1,7 @@
 import dataclasses
 import logging
+import typing
+from typing import Callable
 
 import numpy as np
 from PySide2 import QtWidgets, QtGui, QtCore
@@ -54,8 +56,11 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
         super().__init__(parent)
 
         self._exposure: float = 0
-        self._array = np.ndarray((0, 0, 3))
+        self._array = np.ndarray((0, 0, 3), np.float32)
         self.image = QtGui.QImage()
+        self.post_processes: list[typing.Callable[[np.ndarray], np.ndarray]] = [
+            self._expose
+        ]
 
     @property
     def array(self) -> np.ndarray:
@@ -101,9 +106,16 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
         painter.drawImage(option.rect, self.image)
 
     def update_image(self) -> None:
-        gain = pow(2, self.exposure)
-        self.image = image_from_array(self.array * gain)
+        array = self.array.copy()
+        for post_process in self.post_processes:
+            array = post_process(array)
+        self.image = image_from_array(array)
         self.update()
+
+    def _expose(self, array: np.ndarray) -> np.ndarray:
+        gain = pow(2, self.exposure)
+        array = array * gain
+        return array
 
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
@@ -360,6 +372,7 @@ class ToolBar(QtWidgets.QToolBar):
         super().__init__(parent)
 
         self._zoom = 0
+        self._exposure = 0
 
         self._init_actions()
 
@@ -368,17 +381,17 @@ class ToolBar(QtWidgets.QToolBar):
         self.setIconSize(QtCore.QSize(size, size))
 
         # exposure
-        exposure_slider = FloatProperty(parent=self)
-        exposure_slider.slider_min = -10
-        exposure_slider.slider_max = 10
-        exposure_slider.value_changed.connect(self.exposure_changed.emit)
-        palette = exposure_slider.slider.palette()
+        self.exposure_slider = FloatProperty(parent=self)
+        self.exposure_slider.slider_min = -10
+        self.exposure_slider.slider_max = 10
+        self.exposure_slider.value_changed.connect(self.exposure_changed.emit)
+        palette = self.exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
-        exposure_slider.slider.setPalette(palette)
+        self.exposure_slider.slider.setPalette(palette)
 
         exposure_action = QtWidgets.QWidgetAction(self)
         exposure_action.setText('exposure')
-        exposure_action.setDefaultWidget(exposure_slider)
+        exposure_action.setDefaultWidget(self.exposure_slider)
         self.addAction(exposure_action)
 
         # refresh
@@ -429,6 +442,15 @@ class ToolBar(QtWidgets.QToolBar):
         # header_lay.addWidget(self.proxy_cmb)
 
     @property
+    def exposure(self) -> float:
+        return self._exposure
+
+    @exposure.setter
+    def exposure(self, value: float) -> None:
+        self._exposure = value
+        self.exposure_slider.value = value
+
+    @property
     def zoom(self) -> float:
         return self._zoom
 
@@ -442,6 +464,10 @@ class ToolBar(QtWidgets.QToolBar):
         for action in self.actions():
             if action.text() == text:
                 return action
+
+    def _exposure_change(self, value: float) -> None:
+        self._exposure = value
+        self.exposure_changed.emit(value)
 
     def _zoom_index_change(self, index: int) -> None:
         if self.zoom_cmb.currentText() == 'fit':
@@ -469,6 +495,7 @@ class Viewer(QtWidgets.QWidget):
         super().__init__(parent)
 
         self.paused = False
+        self._post_processes = []
         self._resolution = QtCore.QSize()
 
         self._init_ui()
@@ -528,6 +555,8 @@ class Viewer(QtWidgets.QWidget):
 
     @exposure.setter
     def exposure(self, value: float) -> None:
+        self.item.exposure = value
+        self.toolbar.exposure = value
         self._exposure_change(value)
 
     def pause(self, state=True) -> None:
@@ -556,10 +585,10 @@ class Viewer(QtWidgets.QWidget):
     def refresh(self) -> None:
         self.refreshed.emit()
 
-    def update_buffer(self, buffer):
+    def update_image(self, image: np.ndarray) -> None:
         if not self.paused:
-            self.item.array = buffer
-            self.resolution = QtCore.QSize(buffer.shape[0], buffer.shape[1])
+            self.item.array = image
+            self.resolution = QtCore.QSize(image.shape[0], image.shape[1])
 
     def _exposure_change(self, value: float) -> None:
         if not self.paused:
@@ -582,9 +611,9 @@ def main():
 
     viewer = Viewer()
 
-    buffer = np.tile(np.linspace(0, 1, 512), (512, 1))
-    buffer = np.dstack((buffer, buffer, buffer))
-    viewer.update_buffer(buffer)
+    array = np.tile(np.linspace(0, 1, 512), (512, 1))
+    image = np.dstack((array, array, array))
+    viewer.update_image(image)
 
     viewer.show()
 

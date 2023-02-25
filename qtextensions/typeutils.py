@@ -1,9 +1,10 @@
 import dataclasses
+import logging
 import sys
-import typing
+import types
 from dataclasses import is_dataclass, fields
 from enum import Enum
-from types import GenericAlias, UnionType, GeneratorType
+from types import GenericAlias, UnionType, GeneratorType, NoneType
 from typing import Any, ForwardRef, _UnionGenericAlias, _eval_type
 
 from PySide2 import QtCore, QtGui
@@ -48,7 +49,7 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
     if globalns is None:
         globalns = {}
 
-    if typ is None:
+    if typ in (None, NoneType):
         return None
 
     elif typ is Any:
@@ -61,13 +62,13 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
         if issubclass(origin, list):
             try:
                 arg = args[0]
-                return origin(cast(arg, value, globalns) for value in value)
+                return origin(cast(arg, v, globalns) for v in value)
             except IndexError:
                 return origin(value)
 
         elif issubclass(origin, tuple):
             if len(args) == 2 and args[1] is Ellipsis:
-                return origin(cast(args[0], value, globalns) for value in value)
+                return origin(cast(args[0], v, globalns) for v in value)
             try:
                 return origin(cast(args[i], v, globalns) for i, v in enumerate(value))
             except IndexError:
@@ -90,7 +91,7 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
         for arg in typ.__args__:
             try:
                 return cast(arg, value, globalns)
-            except TypeError as e:
+            except TypeError:
                 continue
 
     elif isinstance(typ, ForwardRef):
@@ -121,8 +122,8 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
                 kwargs[field_.name] = kw_value
         elif isinstance(value, (list, tuple)):
             # treat value as *args for a dataclass
-            for field_, value in zip(fields(typ), value):
-                kw_value = cast(field_.type, value, globalns)
+            for field_, v in zip(fields(typ), value):
+                kw_value = cast(field_.type, v, globalns)
                 kwargs[field_.name] = kw_value
         else:
             return typ(value)
@@ -134,7 +135,7 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
         else:
             return typ(value)
 
-    raise TypeError(f'cannot cast to type f{typ}')
+    raise TypeError(f'cannot cast to type ({typ})')
 
 
 def _asdict_inner(obj):
