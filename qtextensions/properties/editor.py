@@ -1,5 +1,6 @@
 import dataclasses
 import itertools
+import logging
 from collections.abc import Iterable
 from functools import partial
 import typing
@@ -254,7 +255,9 @@ class PropertyForm(QtWidgets.QWidget):
             widget = widgets[key]
             if isinstance(widget, dict):
                 self.update_widget_values(value, widget)
-            else:
+            elif widget.isEnabled():
+                # only set values on enabled widgets, otherwise linked widgets
+                # hold the wrong value
                 setattr(widget, attr, value)
 
     @staticmethod
@@ -271,21 +274,28 @@ class PropertyForm(QtWidgets.QWidget):
         row, column, rowspan, colspan = layout.getItemPosition(index)
 
         # widget
+        widgets = list(
+            layout.itemAtPosition(row, i).widget() for i in range(layout.columnCount())
+        )
         item = layout.itemAtPosition(row, 2)
         if not item or not item.widget():
             return
 
-        widget = item.widget()
-        widget.setEnabled(enabled)
+        item_widget = item.widget()
+        item_widget.setEnabled(enabled)
 
-        if hasattr(widget, 'link') and widget.link is not None:
-            if not hasattr(widget, 'set_value'):
-                widget.set_value = partial(setattr, widget, 'value')
+        if (
+            isinstance(item_widget, PropertyWidget)
+            and hasattr(item_widget, 'link')
+            and item_widget.link is not None
+        ):
+            if not hasattr(item_widget, 'link_set_value'):
+                item_widget.link_set_value = partial(setattr, item_widget, 'value')
             if enabled:
-                widget.link.value_changed.disconnect(widget.set_value)
+                item_widget.link.value_changed.disconnect(item_widget.link_set_value)
             else:
-                widget.value = widget.link.value
-                widget.link.value_changed.connect(widget.set_value)
+                item_widget.value = item_widget.link.value
+                item_widget.link.value_changed.connect(item_widget.link_set_value)
 
     def _box_states(
         self, boxes: dict[CollapsibleBox, ...] | None = None
@@ -351,6 +361,9 @@ class PropertyForm(QtWidgets.QWidget):
                 # TODO: make safe
                 enabled = not value.linked
                 PropertyForm._set_widget_row_enabled(widget, enabled)
+                # logging.debug((widget.name, widget.link.value))
+                # if enabled:
+                #     widget.value = widget.link.value
 
     def _create_form(self, name, link: Self | None = None) -> Self:
         self._validate_name(name)

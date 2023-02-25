@@ -451,19 +451,13 @@ class DockWindow(QtWidgets.QWidget):
         # store all current widgets for layout
         widgets = OrderedDict()
         for dock_widget in self.widgets():
+            # dock_widget.hide()
             child_widgets = dock_widget.widgets()
             for child_widget in list(widgets.values()):
                 child_widget.setParent(None)
             widgets.update(child_widgets)
-            # undock all widgets to clear out layout
-            dock_widget.setParent(None)
 
-        self.center_widget = None
         self._update_states_inner(states, self, widgets)
-
-        # make sure that there is always a center widget
-        if self.center_widget is None:
-            self.center_widget = self._add_protected_dock_widget(self.center_splitter)
 
         # parent any widgets that have not been set to the center_widget
         for title, widget in widgets.items():
@@ -489,8 +483,7 @@ class DockWindow(QtWidgets.QWidget):
                 widget = splitter
             elif isinstance(state, DockWidgetState):
                 if state.is_center_widget:
-                    dock_widget = self._add_protected_dock_widget(parent)
-                    self.center_widget = dock_widget
+                    dock_widget = self.center_widget
                 else:
                     dock_widget = DockWidget(self)
                     dock_widget.detachable = state.detachable
