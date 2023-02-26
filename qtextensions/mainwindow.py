@@ -596,9 +596,6 @@ class DockWindow(QtWidgets.QWidget):
         if title is None:
             title = registered_widget.title
 
-        if title in self._widgets:
-            raise ValueError(f'Widget with title {repr(title)} already exists')
-
         titles = list(self._widgets.keys())
         unique_title = helper.unique_name(title, titles)
 
@@ -609,7 +606,7 @@ class DockWindow(QtWidgets.QWidget):
         return unique_title, widget
 
     def _remove_widget(self, title: str) -> None:
-        widget = self._widgets.pop(title)
+        self._widgets.pop(title)
 
     def _dock_rects(
         self,
