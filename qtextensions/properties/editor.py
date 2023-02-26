@@ -12,6 +12,7 @@ from qtextensions import helper
 from qtextensions.scrollarea import VerticalScrollArea
 from qtextensions.properties import PropertyWidget
 from qtextensions.box import CollapsibleBox
+from qtextensions.typeutils import cast
 
 
 @dataclasses.dataclass()
@@ -80,6 +81,19 @@ class PropertyForm(QtWidgets.QWidget):
         if not isinstance(layout, QtWidgets.QGridLayout):
             raise RuntimeError('Layout needs to be QGridLayout')
         return layout
+
+    @property
+    def state(self) -> EditorState:
+        box_states = self._box_states()
+        link_states = self._link_states()
+        state = EditorState(box_states=box_states, link_states=link_states)
+        return state
+
+    @state.setter
+    def state(self, value: dict) -> None:
+        state = cast(EditorState, value)
+        self._update_box_states(state.box_states)
+        self._update_link_states(state.link_states)
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
@@ -204,16 +218,6 @@ class PropertyForm(QtWidgets.QWidget):
                 children = widget.boxes()
                 boxes.update(children)
         return boxes
-
-    def state(self) -> EditorState:
-        box_states = self._box_states()
-        link_states = self._link_states()
-        state = EditorState(box_states=box_states, link_states=link_states)
-        return state
-
-    def update_state(self, state: EditorState) -> None:
-        self._update_box_states(state.box_states)
-        self._update_link_states(state.link_states)
 
     def values(self) -> dict[str, typing.Any]:
         # create nested dictionary of all property values

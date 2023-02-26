@@ -7,13 +7,14 @@ from functools import partial
 
 from PySide2 import QtCore, QtGui, QtWidgets
 
+from qtextensions import helper
 from qtextensions.icons import MaterialIcon
 
 
 @dataclasses.dataclass()
 class DockWidgetState:
     current_index: int
-    widgets: list[str]
+    widgets: list[tuple[str, str]]
     detachable: bool
     auto_delete: bool
     is_center_widget: bool
@@ -28,6 +29,13 @@ class SplitterState:
     states: list[typing.Union[DockWidgetState, 'SplitterState', None]]
     geometry: QtCore.QRect = QtCore.QRect()
     flags: QtCore.Qt.WindowFlags = 0
+
+
+@dataclasses.dataclass()
+class RegisteredWidget:
+    cls: type
+    title: str
+    unique: bool
 
 
 class DockTabBar(QtWidgets.QTabBar):
@@ -133,10 +141,16 @@ class DockWidget(QtWidgets.QTabWidget):
         self.tabCloseRequested.connect(self.close_tab)
         self.currentChanged.connect(self.update_window_title)
 
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        # since widgets are stored in window._widgets, trigger garbage collection
+        for widget in self.widgets().values():
+            widget.deleteLater()
+        super().closeEvent(event)
+
     def tabRemoved(self, index: int) -> None:
         self.try_delete()
 
-    def add_widget(
+    def add_dock_widget(
         self, widget: QtWidgets.QTabWidget, area: QtCore.Qt.DockWidgetArea
     ) -> None:
         if area == QtCore.Qt.NoDockWidgetArea:
@@ -193,7 +207,11 @@ class DockWidget(QtWidgets.QTabWidget):
                 parent.insertWidget(index + 1, widget)
 
     def close_tab(self, index: int) -> None:
+        widget = self.widget(index)
         self.removeTab(index)
+        # since widgets are stored in window._widgets, trigger garbage collection
+        if widget is not None:
+            widget.deleteLater()
 
     def detach(self, index: int, interactive=False) -> None:
         if index not in range(self.count()) or not self.detachable:
@@ -261,13 +279,13 @@ class DockWidget(QtWidgets.QTabWidget):
             height = self.style().pixelMetric(QtWidgets.QStyle.PM_TitleBarHeight)
             offset = position - QtCore.QPoint(height / 2, height / 2)
             self._drag_widget.move(offset)
-            self.dock_window.add_widget(self._drag_widget, position, True)
+            self.dock_window.add_dock_widget(self._drag_widget, position, True)
 
     def _detach_finish(self, position: QtCore.QPoint) -> None:
         if self._drag_widget:
             self._drag_widget.setWindowOpacity(1)
             position = QtGui.QCursor().pos()
-            self.dock_window.add_widget(self._drag_widget, position)
+            self.dock_window.add_dock_widget(self._drag_widget, position)
         self._drag_widget = None
         self.try_delete()
 
@@ -312,12 +330,18 @@ class DockWidget(QtWidgets.QTabWidget):
 
 
 class DockWindow(QtWidgets.QWidget):
+    widget_added: QtCore.Signal = QtCore.Signal(QtWidgets.QWidget)
+    dock_widget_added: QtCore.Signal = QtCore.Signal(DockWidget)
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.center_widget = None
+        self.center_widget: DockWidget | None = None
+        self.registered_widgets: dict[str, RegisteredWidget] = {}
 
-        self._rubber_band = None
+        self._widgets: dict[str, QtWidgets.QWidget] = {}
+        self._rubber_band: QtWidgets.QRubberBand | None = None
+
         self._init_rubber_band()
         self._init_ui()
 
@@ -341,22 +365,12 @@ class DockWindow(QtWidgets.QWidget):
         self.layout().addWidget(self.status_bar)
         self.layout().setStretch(0, 1)
 
-    @property
-    def ui_state(self) -> dict:
-        # returns the current ui state:
-        # the positions of splitters, rects of undocked DockWidgets, and tab order of DockWidgets
-        pass
-        return dict()
-
-    @ui_state.setter
-    def ui_state(self, value) -> None:
-        pass
-
-    def add_widget(
+    def add_dock_widget(
         self, widget: DockWidget, position: QtCore.QPoint, simulate: bool = False
     ) -> None:
+        # add a widget at global position
         dock_rects = self._dock_rects()
-        pass
+
         for target, rects in dock_rects.items():
             if target == widget:
                 continue
@@ -374,28 +388,42 @@ class DockWindow(QtWidgets.QWidget):
                         self._rubber_band.show()
                     else:
                         self._rubber_band.hide()
-                        target.add_widget(widget, area)
+                        target.add_dock_widget(widget, area)
                     return
                 else:
                     self._rubber_band.hide()
 
-    def dockify_widget(
+    def create_dock_widget(
         self,
-        widget: QtWidgets.QWidget,
-        title: str,
-        dock: tuple[DockWidget, QtCore.Qt.DockWidgetArea] | None = None,
+        widget: QtWidgets.QWidget | type | str,
+        title: str | None = None,
     ) -> DockWidget:
         # helper function to turn QWidgets into DockWidgets
+        unique_title, widget_instance = self._add_widget(widget, title)
         dock_widget = DockWidget(self)
-        dock_widget.addTab(widget, title)
-        if dock is not None:
-            sibling, area = dock
-            sibling.add_widget(dock_widget, area)
-        else:
-            dock_widget.show()
+        dock_widget.addTab(widget_instance, unique_title)
+        self.dock_widget_added.emit(dock_widget)
+
         return dock_widget
 
-    def widgets(self) -> list[DockWidget]:
+    def register_widget(
+        self, cls: type, title: str | None = None, unique: bool = True
+    ) -> RegisteredWidget:
+        if title is None:
+            title = helper.title(cls.__name__)
+
+        key = cls.__name__
+        if key not in self.registered_widgets:
+            registered_widget = RegisteredWidget(cls, title, unique)
+            self.registered_widgets[key] = registered_widget
+        return self.registered_widgets[key]
+
+    def unregister_widget(self, cls: type | str) -> None:
+        # returns true if widget was found and unregistered, false if not found
+        key = cls.__name__ if not isinstance(cls, type) else cls
+        self.registered_widgets.pop(key, None)
+
+    def dock_widgets(self) -> list[DockWidget]:
         # return all DockWidgets under this window. They are sorted in a manner
         # that makes sense for checking dock areas.
         children = self.findChildren(DockWidget)
@@ -425,7 +453,11 @@ class DockWindow(QtWidgets.QWidget):
                 )
 
             elif isinstance(child, DockWidget):
-                widgets = [child.tabText(i) for i in range(child.count())]
+                # widgets is a tuple [title, cls.__name__]
+                widgets = [
+                    (child.tabText(i), type(child.widget(i)).__name__)
+                    for i in range(child.count())
+                ]
                 state = DockWidgetState(
                     current_index=child.currentIndex(),
                     widgets=widgets,
@@ -449,25 +481,33 @@ class DockWindow(QtWidgets.QWidget):
         states: list[DockWidgetState | SplitterState],
     ) -> None:
         # store all current widgets for layout
-        widgets = OrderedDict()
-        for dock_widget in self.widgets():
-            # dock_widget.hide()
-            child_widgets = dock_widget.widgets()
-            for child_widget in list(widgets.values()):
-                child_widget.setParent(None)
-            widgets.update(child_widgets)
+        widgets = dict(self._widgets)
+        # unparent all widgets to clean up layout
+        for widget in widgets.values():
+            widget.setParent(None)
 
         self._update_states_inner(states, self, widgets)
 
-        # parent any widgets that have not been set to the center_widget
+        # float any existing widgets that have not been updated
         for title, widget in widgets.items():
-            self.center_widget.addTab(widget, title)
+            dock_widget = self.create_dock_widget(widget, title)
+            dock_widget.show()
+
+    @staticmethod
+    def focus_widget(widget: QtWidgets.QWidget) -> None:
+        parent = widget.parent()
+        while parent is not None:
+            if isinstance(parent, QtWidgets.QTabWidget):
+                break
+            parent = parent.parent()
+        index = parent.indexOf(widget)
+        parent.setCurrentIndex(index)
 
     def _update_states_inner(
         self,
         states: list[DockWidgetState | SplitterState],
         parent: QtWidgets.QWidget,
-        widgets: OrderedDict[str, QtWidgets.QWidget],
+        widgets: dict[str, QtWidgets.QWidget],
     ) -> None:
         for i, state in enumerate(states):
             # create widget
@@ -489,12 +529,14 @@ class DockWindow(QtWidgets.QWidget):
                     dock_widget.detachable = state.detachable
                     dock_widget.auto_delete = state.auto_delete
 
-                for title in state.widgets:
+                for (title, cls_name) in state.widgets:
                     # remove widget from dictionary to keep track of
                     # which widgets have been re-parented
                     widget = widgets.pop(title, None)
-                    if widget is not None:
-                        dock_widget.addTab(widget, title)
+                    if widget is None:
+                        title, widget = self._add_widget(cls_name)
+                    dock_widget.addTab(widget, title)
+
                 dock_widget.setCurrentIndex(state.current_index)
 
                 widget = dock_widget
@@ -525,9 +567,55 @@ class DockWindow(QtWidgets.QWidget):
         parent.setCollapsible(parent.count() - 1, False)
         return dock_widget
 
-    def _dock_rects(self) -> OrderedDict:
+    def _add_widget(
+        self, widget: QtWidgets.QWidget | type | str, title: str | None = None
+    ) -> tuple[str, QtWidgets.QWidget]:
+        # adds a new widget to the window
+        if isinstance(widget, str):
+            key = widget
+            registered_widget = self.registered_widgets.get(key)
+            if not registered_widget:
+                raise ValueError(f'widget for {repr(key)} has not been registered')
+            widget = registered_widget.cls()
+        else:
+            if isinstance(widget, type):
+                cls = widget
+                widget = cls()
+            else:
+                cls = type(widget)
+            registered_widget = self.register_widget(cls, title)
+            key = cls.__name__
+
+        # check if widget is unique
+        if registered_widget.unique:
+            if any(type(widget) is type(w) for w in self._widgets.values()):
+                raise ValueError(
+                    f'Widget {repr(key)} can only be added once to DockWindow '
+                )
+        # get title
+        if title is None:
+            title = registered_widget.title
+
+        if title in self._widgets:
+            raise ValueError(f'Widget with title {repr(title)} already exists')
+
+        titles = list(self._widgets.keys())
+        unique_title = helper.unique_name(title, titles)
+
+        widget.destroyed.connect(lambda: self._remove_widget(unique_title))
+        self._widgets[unique_title] = widget
+        self.widget_added.emit(widget)
+
+        return unique_title, widget
+
+    def _remove_widget(self, title: str) -> None:
+        widget = self._widgets.pop(title)
+
+    def _dock_rects(
+        self,
+    ) -> OrderedDict[DockWidget, dict[QtCore.Qt.DockWidgetArea, QtCore.QRect]]:
         rects = OrderedDict()
-        widgets = self.widgets()
+        widgets = self.dock_widgets()
         for widget in widgets:
             rects[widget] = widget.dock_rects()
         return rects
@@ -565,8 +653,12 @@ def main():
         dock.setWindowFlag(QtCore.Qt.Tool, True)
         dock.show()
 
-    floating_windows[3].add_widget(floating_windows[4], QtCore.Qt.RightDockWidgetArea)
-    window.center_widget.add_widget(floating_windows[4], QtCore.Qt.NoDockWidgetArea)
+    floating_windows[3].add_dock_widget(
+        floating_windows[4], QtCore.Qt.RightDockWidgetArea
+    )
+    window.center_widget.add_dock_widget(
+        floating_windows[4], QtCore.Qt.NoDockWidgetArea
+    )
 
     sys.exit(app.exec_())
 
