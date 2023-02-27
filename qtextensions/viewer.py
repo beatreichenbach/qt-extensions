@@ -38,6 +38,7 @@ def convert_array(array: np.ndarray) -> np.ndarray:
 
     # TODO: this whole function would be nice to turn into some sort of a type hint
     # so that it is clear that functions expect an image like array.
+    # TODO: this needs to be done smarter, i shouldn't have to even cocnvert shit here
 
     if len(array.shape) == 2:
         array = np.dstack((array, array, array))
@@ -47,6 +48,9 @@ def convert_array(array: np.ndarray) -> np.ndarray:
             array = array[:, :, :3]
             return array
         elif array.shape[2] == 3:
+            return array
+        elif array.shape[2] == 1:
+            array = np.dstack((array[0], array[0], array[0]))
             return array
     raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
 
@@ -584,6 +588,12 @@ class Viewer(QtWidgets.QWidget):
 
     def refresh(self) -> None:
         self.refreshed.emit()
+
+    def relative_position(self, position: QtCore.QPoint) -> QtCore.QPointF:
+        return QtCore.QPointF(
+            (position.x() / self.resolution.width() - 0.5) * 2,
+            (position.y() / self.resolution.height() - 0.5) * 2,
+        )
 
     def update_image(self, image: np.ndarray) -> None:
         if not self.paused:
