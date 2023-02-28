@@ -43,14 +43,14 @@ def convert_array(array: np.ndarray) -> np.ndarray:
     if len(array.shape) == 2:
         array = np.dstack((array, array, array))
         return array
-    elif len(array.shape) == 3:
+    if len(array.shape) == 3:
         if array.shape[2] == 4:
             array = array[:, :, :3]
             return array
         elif array.shape[2] == 3:
             return array
         elif array.shape[2] == 1:
-            array = np.dstack((array[0], array[0], array[0]))
+            array = np.dstack((array[:, :, 0], array[:, :, 0], array[:, :, 0]))
             return array
     raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
 
@@ -598,7 +598,7 @@ class Viewer(QtWidgets.QWidget):
     def update_image(self, image: np.ndarray) -> None:
         if not self.paused:
             self.item.array = image
-            self.resolution = QtCore.QSize(image.shape[0], image.shape[1])
+            self.resolution = QtCore.QSize(image.shape[1], image.shape[0])
 
     def _exposure_change(self, value: float) -> None:
         if not self.paused:
