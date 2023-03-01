@@ -1,4 +1,5 @@
 import dataclasses
+import json
 import logging
 import sys
 import types
@@ -161,3 +162,12 @@ def cast_json(value: Any) -> dict:
         value = _asdict_inner(value)
     data = cast_basic(value)
     return data
+
+
+def hash_dataclass(cls):
+    def __hash__(self):
+        json_data = cast_json(self)
+        return hash(json.dumps(json_data, sort_keys=True))
+
+    cls.__hash__ = __hash__
+    return dataclasses.dataclass(cls)
