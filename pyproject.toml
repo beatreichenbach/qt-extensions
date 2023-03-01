@@ -12,8 +12,8 @@ requires-python = ">=3.10"
 license = {text = "MIT"}
 readme = "README.md"
 
-[tool.setuptools]
-packages = ["qtextensions"]
+[tool.setuptools.packages.find]
+include = ["qtextensions*"]
 
 [tool.pytest]
 norecursedirs = '.*'
