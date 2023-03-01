@@ -322,9 +322,13 @@ class PathProperty(PropertyWidget):
 
 
 class EnumProperty(PropertyWidget):
+    # TODO: figure out how to actually handle it
+    # EnumProperty's value is actually not of type value but whatever the type of the enum.value is.
+    # this is bad because enumproperty.value = Enum.RED means that enumproperty.value is now 'red'
+
     value_changed: QtCore.Signal = QtCore.Signal(Enum)
 
-    value: Enum | None = None
+    value: typing.Any | None = None
     default: Enum | None = None
     formatter: typing.Callable = staticmethod(helper.title)
     enum: Enum | None = None
@@ -357,9 +361,15 @@ class EnumProperty(PropertyWidget):
             for member in self.enum:
                 label = self.formatter(member.name)
                 self.combo.addItem(label, member.value)
+            self._value = self.combo.itemData(0)
 
     def _current_index_change(self, index: int) -> None:
         self._value = self.combo.itemData(index)
+
+    def _set_value(self, value: typing.Any) -> None:
+        if isinstance(value, Enum):
+            value = value.value
+        super()._set_value(value)
 
 
 class BoolProperty(PropertyWidget):

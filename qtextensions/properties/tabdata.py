@@ -235,10 +235,13 @@ class TabDataProperty(PropertyWidget):
                 delegate.decimals = decimals
 
     def set_value(self, value: list | None) -> None:
+        self.model.clear()
         if value is None:
             return
         for row, row_data in enumerate(value):
             items = []
+            if isinstance(row_data, dict):
+                row_data = row_data.values()
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
                 item.setData(cell_data, QtCore.Qt.EditRole)
@@ -246,6 +249,7 @@ class TabDataProperty(PropertyWidget):
             if items:
                 self.model.appendRow(items)
         self.update_horizontal_headers()
+        self.update_vertical_headers()
 
     def add_row(self) -> None:
         items = []

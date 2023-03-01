@@ -46,6 +46,8 @@ def cast_basic(obj: Any) -> Any:
 
 def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
     # casts a value to a type or a type hint
+    if typ == str:
+        pass
 
     if globalns is None:
         globalns = {}
@@ -133,6 +135,8 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
     else:
         if isinstance(value, (tuple, list)):
             return typ(*value)
+        elif isinstance(value, Enum):
+            return typ(value.value)
         else:
             return typ(value)
 
