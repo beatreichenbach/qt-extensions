@@ -5,10 +5,7 @@ description = "Various QtWidgets extending the functionality of PySide2"
 authors = [
     {name = "Beat Reichenbach", email = "info@artofbeat.com"}
 ]
-dependencies = [
-    "PySide2",
-    "material-design-icons @ https://github.com/marella/material-design-icons/archive/refs/heads/main.zip"
-]
+dependencies = ["PySide2"]
 requires-python = ">=3.9, <3.11"
 license = {text = "MIT"}
 readme = "README.md"
@@ -17,7 +14,7 @@ readme = "README.md"
 requires = ["setuptools"]
 
 [tool.setuptools]
-packages = ["qt_extensions"]
+packages = ["qt_extensions", "qt_extensions.properties"]
 
 [tool.setuptools.package-data]
 qt_extensions = ["**/*.svg"]
