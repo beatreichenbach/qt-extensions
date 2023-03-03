@@ -1,3 +1,8 @@
+# initially I had https://github.com/marella/material-design-icons/ added as a submodule
+# but zip files of the repo on github does not include submodules.
+# to go around this the filled variations are added manually for now until there's a better solution
+# outlined, round, sharp and two-tone will raise an Exception :(
+
 import enum
 import os
 import logging
