@@ -70,7 +70,7 @@ class PropertyForm(QtWidgets.QWidget):
         self.name = name
         self.root = root or self
 
-        self.setLayout(QtWidgets.QGridLayout(self))
+        self.setLayout(QtWidgets.QGridLayout())
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name)})'
@@ -148,7 +148,7 @@ class PropertyForm(QtWidgets.QWidget):
         if collapsible:
             group.collapsed = True
 
-        group.setLayout(QtWidgets.QVBoxLayout(self))
+        group.setLayout(QtWidgets.QVBoxLayout())
         group.layout().setContentsMargins(0, 0, 0, 0)
         group.layout().setSpacing(0)
         group.layout().addWidget(form)

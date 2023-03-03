@@ -147,7 +147,7 @@ class TabDataProperty(PropertyWidget):
 
     def _init_ui(self) -> None:
         QtWidgets.QWidget().setLayout(self.layout())
-        self.setLayout(QtWidgets.QVBoxLayout(self))
+        self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setContentsMargins(0, 0, 0, 0)
 
         # table view

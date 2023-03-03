@@ -351,7 +351,7 @@ class DockWindow(QtWidgets.QWidget):
         self._rubber_band.destroyed.connect(self._init_rubber_band)
 
     def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QVBoxLayout(self))
+        self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setContentsMargins(0, 0, 0, 0)
         self.layout().setSpacing(0)
 

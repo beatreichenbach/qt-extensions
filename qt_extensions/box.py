@@ -31,7 +31,7 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self.collapsible = collapsible
 
     def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QHBoxLayout(self))
+        self.setLayout(QtWidgets.QHBoxLayout())
 
         self._expand_label = QtWidgets.QLabel(self)
         self.layout().addWidget(self._expand_label)
@@ -153,7 +153,7 @@ class CollapsibleBox(QtWidgets.QFrame):
             QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum
         )
 
-        self._layout = QtWidgets.QVBoxLayout(self)
+        self._layout = QtWidgets.QVBoxLayout()
         self._layout.setSpacing(0)
         super().setLayout(self._layout)
 
