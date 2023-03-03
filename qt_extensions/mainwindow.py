@@ -546,9 +546,11 @@ class DockWindow(QtWidgets.QWidget):
             # parent widget
             if isinstance(parent, Splitter):
                 if parent.widget(i) is not None:
-                    parent.replaceWidget(i, widget)
-                    widget.setParent(parent)
-                    widget.show()
+                    # don't replace widget with itself (prevent warnings)
+                    if parent.widget(i) != widget:
+                        parent.replaceWidget(i, widget)
+                        widget.setParent(parent)
+                        widget.show()
                 else:
                     parent.addWidget(widget)
             else:
