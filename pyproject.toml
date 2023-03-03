@@ -14,7 +14,7 @@ readme = "README.md"
 requires = ["setuptools"]
 
 [tool.setuptools]
-packages = ["qt_extensions"]
+packages = ["qt_extensions", "qt_extensions.properties"]
 
 [tool.setuptools.package-data]
 qt_extensions = ["**/*.svg"]
