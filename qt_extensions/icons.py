@@ -8,7 +8,7 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
 
 
-svg_path = files('qt_extensions').joinpath('material-design-icons').joinpath('svg')
+svg_path = str(files('qt_extensions').joinpath('material-design-icons').joinpath('svg'))
 
 
 class MaterialIcon(QIcon):
