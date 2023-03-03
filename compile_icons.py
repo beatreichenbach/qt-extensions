@@ -21,7 +21,7 @@ def main():
             'pyside2-rcc',
             qrc_path,
             '-o',
-            f'qt_extensions/icons_resources.py',
+            f'qt_extensions/icons_resource.py',
         ]
     )
     os.remove(qrc_path)

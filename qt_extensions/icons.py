@@ -9,7 +9,7 @@ import sys
 from PySide2 import QtWidgets, QtGui
 from PySide2.QtGui import QIcon, QPalette
 
-from qt_extensions import icons_resources
+from qt_extensions import icons_resource
 
 
 class MaterialIcon(QIcon):
