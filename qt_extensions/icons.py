@@ -1,20 +1,15 @@
 # initially I had https://github.com/marella/material-design-icons/ added as a submodule
 # but zip files of the repo on github does not include submodules.
-# to go around this the filled, outlined variations are added manually for now
-# until there's a better solution.
-# round, sharp and two-tone will raise an Exception :(
+# to go around this icons are compile to qt resource file using compile_icons.py
 
 import enum
-import os
 import logging
 import sys
-from importlib.resources import files
 
-from PySide2 import QtWidgets, QtGui, QtCore
+from PySide2 import QtWidgets, QtGui
 from PySide2.QtGui import QIcon, QPalette
 
-
-svg_path = str(files('qt_extensions').joinpath('material-design-icons').joinpath('svg'))
+from qt_extensions import icons_resources
 
 
 class MaterialIcon(QIcon):
@@ -31,12 +26,15 @@ class MaterialIcon(QIcon):
         # set pixmap
         if style is None:
             style = MaterialIcon.Style.OUTLINED
-        dir_name = str(style.value)
+        # dir_name = str(style.value)
 
-        file_path = os.path.join(svg_path, dir_name, f'{name}.svg')
-        if not os.path.isfile(file_path):
-            raise FileNotFoundError(file_path)
-        self._pixmap = QtGui.QPixmap(file_path)
+        # file_path = os.path.join(svg_path, dir_name, f'{name}.svg')
+        # if not os.path.isfile(file_path):
+        #     raise FileNotFoundError(file_path)
+
+        self._pixmap = QtGui.QPixmap(
+            f':/material-design-icons/svg/{style.value}/{name}.svg'
+        )
 
         # get palette colors
         app = QtWidgets.QApplication.instance()
@@ -80,7 +78,7 @@ def main():
 
     app = QtWidgets.QApplication()
 
-    icon = MaterialIcon('folder', MaterialIcon.Style.TWO_TONE)
+    icon = MaterialIcon('folder', MaterialIcon.Style.FILLED)
     logging.debug(icon)
     button = QtWidgets.QPushButton()
     button.setIcon(icon)
