@@ -8,11 +8,11 @@ from typing_extensions import Self
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-from qtextensions import helper
-from qtextensions.scrollarea import VerticalScrollArea
-from qtextensions.properties import PropertyWidget
-from qtextensions.box import CollapsibleBox
-from qtextensions.typeutils import cast
+from qt_extensions import helper
+from qt_extensions.scrollarea import VerticalScrollArea
+from qt_extensions.properties import PropertyWidget
+from qt_extensions.box import CollapsibleBox
+from qt_extensions.typeutils import cast
 
 
 @dataclasses.dataclass()
@@ -424,8 +424,8 @@ def main():
     import sys
     import logging
 
-    from qtextensions import theme
-    from qtextensions import properties
+    from qt_extensions import theme
+    from qt_extensions import properties
 
     logging.getLogger().setLevel(logging.DEBUG)
 

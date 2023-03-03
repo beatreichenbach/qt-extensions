@@ -2,7 +2,7 @@ import enum
 import logging
 
 from PySide2 import QtWidgets, QtCore, QtGui
-from qtextensions.icons import MaterialIcon
+from qt_extensions.icons import MaterialIcon
 
 
 class CollapsibleHeader(QtWidgets.QWidget):
@@ -239,7 +239,7 @@ class CollapsibleBox(QtWidgets.QFrame):
 
 def main():
     import sys
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 

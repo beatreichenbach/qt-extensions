@@ -5,8 +5,8 @@ import shutil
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-from qtextensions.icons import MaterialIcon
-from qtextensions.elementbrowser import ElementBrowser, Element, Field
+from qt_extensions.icons import MaterialIcon
+from qt_extensions.elementbrowser import ElementBrowser, Element, Field
 
 
 class FileNameDelegate(QtWidgets.QStyledItemDelegate):
@@ -151,7 +151,7 @@ class FileBrowser(ElementBrowser):
 
 
 def main():
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 

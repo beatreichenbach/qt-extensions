@@ -4,9 +4,9 @@ import math
 import typing
 from functools import partial
 from PySide2 import QtWidgets, QtGui, QtCore
-from qtextensions import helper
-from qtextensions.icons import MaterialIcon
-from qtextensions.resizegrip import ResizeGrip
+from qt_extensions import helper
+from qt_extensions.icons import MaterialIcon
+from qt_extensions.resizegrip import ResizeGrip
 
 
 class PropertyWidget(QtWidgets.QWidget):

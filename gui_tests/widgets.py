@@ -2,7 +2,7 @@ from enum import Enum
 
 from PySide2 import QtWidgets, QtCore
 
-from qtextensions.properties import (
+from qt_extensions.properties import (
     IntProperty,
     FloatProperty,
     StringProperty,
@@ -20,7 +20,7 @@ from qtextensions.properties import (
 def widgets():
     import sys
     import logging
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 

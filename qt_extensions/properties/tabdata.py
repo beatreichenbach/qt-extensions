@@ -5,10 +5,10 @@ from collections.abc import Iterable
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qtextensions.properties import PropertyWidget, IntProperty, FloatProperty
-from qtextensions import helper
-from qtextensions.icons import MaterialIcon
-from qtextensions.resizegrip import ResizeGrip
+from qt_extensions.properties import PropertyWidget, IntProperty, FloatProperty
+from qt_extensions import helper
+from qt_extensions.icons import MaterialIcon
+from qt_extensions.resizegrip import ResizeGrip
 
 
 class IntegerDelegate(QtWidgets.QStyledItemDelegate):
@@ -279,7 +279,7 @@ class TabDataProperty(PropertyWidget):
 
 def main():
     import sys
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 

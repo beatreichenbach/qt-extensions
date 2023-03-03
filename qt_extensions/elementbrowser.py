@@ -6,8 +6,8 @@ from collections.abc import Iterable
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-from qtextensions.icons import MaterialIcon
-from qtextensions.helper import unique_name
+from qt_extensions.icons import MaterialIcon
+from qt_extensions.helper import unique_name
 
 
 @dataclasses.dataclass

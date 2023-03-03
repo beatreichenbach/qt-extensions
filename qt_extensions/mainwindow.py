@@ -7,8 +7,8 @@ from functools import partial
 
 from PySide2 import QtCore, QtGui, QtWidgets
 
-from qtextensions import helper
-from qtextensions.icons import MaterialIcon
+from qt_extensions import helper
+from qt_extensions.icons import MaterialIcon
 
 
 @dataclasses.dataclass()
@@ -626,7 +626,7 @@ def area_orientation(area: QtCore.Qt.DockWidgetArea) -> QtCore.Qt.Orientation:
 
 
 def main():
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
 

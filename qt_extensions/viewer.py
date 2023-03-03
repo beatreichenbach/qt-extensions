@@ -6,9 +6,9 @@ from typing import Callable
 import numpy as np
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qtextensions.icons import MaterialIcon
-from qtextensions.properties import FloatProperty
-from qtextensions.combobox import QComboBox
+from qt_extensions.icons import MaterialIcon
+from qt_extensions.properties import FloatProperty
+from qt_extensions.combobox import QComboBox
 
 
 @dataclasses.dataclass()
@@ -613,7 +613,7 @@ class Viewer(QtWidgets.QWidget):
 
 def main():
     import sys
-    from qtextensions import theme
+    from qt_extensions import theme
 
     logging.getLogger().setLevel(logging.DEBUG)
     app = QtWidgets.QApplication()
