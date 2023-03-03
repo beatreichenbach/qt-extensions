@@ -15,6 +15,3 @@ requires = ["setuptools"]
 
 [tool.setuptools.packages.find]
 include = ["qt_extensions*"]
-
-[tool.setuptools.package-data]
-qt_extensions = ["**/*.svg"]
