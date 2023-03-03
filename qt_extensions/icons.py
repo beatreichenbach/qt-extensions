@@ -7,11 +7,8 @@ from importlib.resources import files
 from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
 
-data_text = files('mypkg.data').joinpath('data1.txt')
 
-svg_path = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), 'material-design-icons', 'svg'
-)
+svg_path = files('qt_extensions').joinpath('material-design-icons').joinpath('svg')
 
 
 class MaterialIcon(QIcon):

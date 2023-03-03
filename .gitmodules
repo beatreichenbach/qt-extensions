@@ -1,0 +1,3 @@
+[submodule "qt_extensions/material-design-icons"]
+	path = qt_extensions/material-design-icons
+	url = https://github.com/marella/material-design-icons/
