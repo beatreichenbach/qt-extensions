@@ -5,15 +5,16 @@ description = "Various QtWidgets extending the functionality of PySide2"
 authors = [
     {name = "Beat Reichenbach", email = "info@artofbeat.com"}
 ]
-dependencies = [
-    "PySide2"
-]
-requires-python = ">=3.10"
+dependencies = ["PySide2"]
+requires-python = ">=3.9, <3.11"
 license = {text = "MIT"}
 readme = "README.md"
 
-[tool.setuptools.packages.find]
-include = ["qtextensions*"]
+[build-system]
+requires = ["setuptools"]
 
-[tool.pytest]
-norecursedirs = '.*'
+[tool.setuptools]
+packages = ["qtextensions"]
+
+[tool.setuptools.package-data]
+qtextensions = ["**/*.svg"]
