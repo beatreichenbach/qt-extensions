@@ -106,7 +106,10 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
         return cast(typ, value)
 
     elif issubclass(typ, Enum):
-        return typ[value]
+        try:
+            return typ[value]
+        except KeyError:
+            return len(typ) and list(typ)[0] or None
 
     elif is_dataclass(typ):
         # types that are dataclasses
