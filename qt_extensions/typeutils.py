@@ -107,7 +107,8 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
 
     elif issubclass(typ, Enum):
         try:
-            return typ[value]
+            enum = typ[value]
+            return enum
         except KeyError:
             return len(typ) and list(typ)[0] or None
 
