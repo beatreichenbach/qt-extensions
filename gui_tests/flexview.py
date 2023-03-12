@@ -20,13 +20,15 @@ def flexview():
 
     model = QtGui.QStandardItemModel()
     view = FlexView()
+    # view.wrap = FlexView.WrapFlags.NONE
+    view.grow = True
     view.setModel(model)
     widget.layout().addWidget(view)
 
     for i in range(10):
         model.appendRow(QtGui.QStandardItem(f'Item {i}'))
 
-    splash_path = str(files('flare').joinpath('resources').joinpath('splash.png'))
+    splash_path = str(files('flare').joinpath('resources').joinpath('icon.png'))
     pixmap = QtGui.QPixmap(splash_path).scaledToWidth(
         200, QtCore.Qt.SmoothTransformation
     )
