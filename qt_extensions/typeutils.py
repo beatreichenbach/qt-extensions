@@ -166,6 +166,7 @@ def _asdict_inner(obj):
 
 
 def cast_json(value: Any) -> dict:
+    # TODO: implement __deepcopy__ instead of this gabaghoou
     if dataclasses.is_dataclass(value):
         value = _asdict_inner(value)
     data = cast_basic(value)

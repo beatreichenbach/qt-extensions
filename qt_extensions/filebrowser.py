@@ -149,6 +149,17 @@ class FileBrowser(ElementBrowser):
             logging.debug(e)
             self.refresh()
 
+        # text = 'Are you sure you want to permanently remove {} and all {} contents?'
+        # if len(indices) == 1:
+        #     index = self.proxy.mapToSource(indices[0])
+        #     item = self.model.itemFromIndex(index)
+        #     text = text.format(item.text(), 'its')
+        # else:
+        #     text = text.format('the selected elements', 'their')
+        # result = QtWidgets.QMessageBox.question(self, 'Delete', text)
+        # if result == QtWidgets.QMessageBox.StandardButton.No:
+        #     return
+
 
 def main():
     from qt_extensions import theme
