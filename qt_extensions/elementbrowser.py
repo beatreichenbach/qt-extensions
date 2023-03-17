@@ -1,14 +1,14 @@
 import copy
-import logging
-import os
 import dataclasses
+import logging
 import sys
-from typing import Any, Optional
 
-from PySide2 import QtWidgets, QtCore, QtGui
+from typing import Any
 
+from PySide2 import QtGui, QtCore, QtWidgets
+
+from qt_extensions.helper import title
 from qt_extensions.icons import MaterialIcon
-from qt_extensions.helper import unique_name, title
 
 
 @dataclasses.dataclass
@@ -22,87 +22,52 @@ class Field:
             self.label = title(self.name)
 
 
+ItemFlags = QtCore.Qt.ItemFlags
+ItemFlags.Deletable = 1 << 9
+
+
 class Element:
-    def __init__(self) -> None:
-        self._index = None
-        self.data = None
-        self.icon = None
-        self.deletable = True
-        self.movable = True
-        self.no_children = False
-        self.required_parent = None
+    data: Any = None
+    # icon: QtGui.QIcon | None = None
+    # movable: bool = True
+    # deletable: bool = True
+    # no_children: bool = False
+    require_ancestor = None
+    ancestors: list['Element'] = []
 
-    def __deepcopy__(self):
-        element = Element()
-        element.data = self.data
-        element.icon = self.icon
-        element.deletable = self.deletable
-        element.movable = self.movable
-        element.no_children = self.no_children
-        element.required_parent = self.required_parent
-        return element
+    def __repr__(self):
+        return repr(self.data)
 
-    def append_element(self, element: 'Element') -> None:
-        self.model().append_element(element, self)
 
-    def child(self, row: int) -> Optional['Element']:
-        child_index = self.model().index(row, 0, self.index())
-        element = self.model().element_from_index(child_index)
-        return element
+def set_flag(item, flag: int, value: bool) -> None:
+    if value:
+        item.setFlags(item.flags() | flag)
+    else:
+        item.setFlags(item.flags() & ~flag)
 
-    def clone(self) -> 'Element':
-        return copy.deepcopy(self)
 
-    def index(self) -> QtCore.QModelIndex:
-        if self._index is None:
-            self._index = QtCore.QModelIndex()
-        return self._index
+def no_children(item: QtGui.QStandardItem | QtCore.QModelIndex) -> bool:
+    return bool(item.flags() & QtCore.Qt.ItemNeverHasChildren)
 
-    def insert_element(self, row: int, element: 'Element') -> None:
-        pass
 
-    def model(self) -> 'ElementModel':
-        return self.index().model()
+def set_no_children(item, value: bool) -> None:
+    set_flag(item, QtCore.Qt.ItemNeverHasChildren, value)
 
-    def parent(self) -> Optional['Element']:
-        element = self.index().parent().data(QtCore.Qt.UserRole)
-        return element
 
-    def parents(self) -> list['Element']:
-        parents = []
-        try:
-            index = self.index()
-            while index.isValid():
-                element = index.data(QtCore.Qt.UserRole)
-                parents.insert(0, element)
-                index = index.parent()
-        except AttributeError:
-            pass
-        return parents
+def movable(item) -> bool:
+    return item.isDragEnabled()
 
-    def remove_row(self, row: int) -> None:
-        if not self.index() or not self.index().isValid():
-            return
-        self.model().removeRow(row, self.index())
 
-    def row(self) -> int:
-        if not self.index() or not self.index().isValid():
-            return 0
-        row = self.index().row()
-        return row
+def set_movable(item, value: bool) -> None:
+    item.setDragEnabled(value)
 
-    def row_count(self) -> int:
-        if not self.index() or not self.index().isValid():
-            return 0
-        row_count = self.model().rowCount(self.index().parent())
-        return row_count
 
-    def value(self, field: Field) -> Any:
-        try:
-            value = getattr(self.data, field.name)
-            return value
-        except AttributeError:
-            return self.data
+def deletable(item) -> bool:
+    return bool(item.flags() & ItemFlags.Deletable)
+
+
+def set_deletable(item, value: bool) -> None:
+    set_flag(item, ItemFlags.Deletable, value)
 
 
 class ElementModel(QtGui.QStandardItemModel):
@@ -114,20 +79,35 @@ class ElementModel(QtGui.QStandardItemModel):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        # this is used to track elements about to be moved
-        self.current_elements = None
+        # # this is used to track elements about to be moved
+        self.current_indexes = []
 
-        self.bold_groups = True
-
+        self._elements = []
         self._fields = []
-        self._inherit_icons = False
+        self._bold_groups = True
+        self.class_groups = False
 
-        # self.columnsInserted.connect(self._columns_insert)
+    @property
+    def bold_groups(self) -> bool:
+        return self._bold_groups
+
+    @bold_groups.setter
+    def bold_groups(self, value: bool) -> None:
+        self._bold_groups = value
+
+    @property
+    def fields(self) -> list[Field]:
+        return self._fields
+
+    @fields.setter
+    def fields(self, value: list[Field]) -> None:
+        self._fields = value
+        self.refresh_header_labels()
 
     def data(self, index: QtCore.QModelIndex, role: int = QtCore.Qt.DisplayRole) -> Any:
         if self.bold_groups and role == QtCore.Qt.FontRole:
-            element = self.element_from_index(index)
-            if element and not element.no_children:
+            item = self.itemFromIndex(index)
+            if not (item.flags() & QtCore.Qt.ItemNeverHasChildren):
                 font = QtGui.QFont()
                 font.setBold(True)
                 return font
@@ -142,198 +122,171 @@ class ElementModel(QtGui.QStandardItemModel):
         parent: QtCore.QModelIndex,
     ) -> bool:
         if action == QtCore.Qt.MoveAction:
-            self._element_move(parent)
+            self._index_move(parent)
         return super().dropMimeData(data, action, row, 0, parent.siblingAtColumn(0))
 
     def removeRow(
         self, row: int, parent: QtCore.QModelIndex = QtCore.QModelIndex()
     ) -> bool:
-        index = self.index(row, 0, parent)
-        element = self.element_from_index(index)
-        if element:
-            self.element_removed.emit(element)
+        # index = self.index(row, 0, parent)
+        # element = self.itemFromIndex(index)
+        # if element:
+        #     self.element_removed.emit(element)
         return super().removeRow(row, parent)
 
     def setData(
         self,
         index,
         value: Any,
-        role: QtCore.Qt.ItemDataRole = QtCore.Qt.EditRole,
+        role: int = QtCore.Qt.EditRole,
     ) -> Any:
-        previous = self.element_from_index(index).clone()
+        previous = copy.deepcopy(self.element_from_index(index))
         result = super().setData(index, value, role)
         if result and previous:
             current = self.element_from_index(index)
             self.element_changed.emit(current, previous)
         return result
 
-    @property
-    def fields(self) -> list[Field]:
-        return self._fields
+    def append_element(
+        self, element: Element, parent: Element | QtCore.QModelIndex | None = None
+    ) -> None:
+        parent_item = None
+        if isinstance(parent, Element):
+            parent_item = self.item_from_element(parent)
+            if parent_item and parent.no_children:
+                parent_item = parent_item.parent()
 
-    @fields.setter
-    def fields(self, value: list[Field]) -> None:
-        self._fields = value
-        # self.update_max_columns(len(self._fields))
-        self.refresh_header_labels()
+        elif isinstance(parent, QtCore.QModelIndex):
+            parent_item = self.itemFromIndex(parent)
+            parent_element = self.element_from_index(parent)
+            if parent_item and parent_element and parent_element.no_children:
+                parent_item = parent_item.parent()
 
-    @property
-    def inherit_icons(self) -> bool:
-        return self._inherit_icons
-
-    @inherit_icons.setter
-    def inherit_icons(self, value: bool) -> None:
-        self._inherit_icons = value
-        for row in range(self.rowCount()):
-            element = self.element_from_index(self.index(row, 0))
-            self._update_icon(element)
-
-    def append_element(self, element: Element, parent: Element | None = None) -> None:
-        if parent:
-            parent_item = self.itemFromIndex(parent.index())
-        else:
+        if parent_item is None:
             parent_item = self.invisibleRootItem()
 
         items = self._create_items(element)
         if items:
+            # key = max(self._elements.keys()) + 1
+            # self._elements[key] = element
+            self._elements.append(element)
             parent_item.appendRow(items)
-            element._index = items[0].index()
-            self._update_icon(element)
+            item = items[0]
+            key = len(self._elements) - 1
+            item.setData(key, QtCore.Qt.UserRole)
+            element.ancestors = self.ancestors(element)
+            if element.icon:
+                item.setIcon(element.icon)
 
-            self.element_added.emit(element)
+        self.element_added.emit(element)
 
-    # def index_from_path(self, path: str) -> QtCore.QModelIndex:
-    #     paths = path.split(os.sep)
-    #     parent_index = QtCore.QModelIndex()
-    #     for name in paths:
-    #         for row in range(self.rowCount(parent_index)):
-    #             index = self.index(row, 0, parent_index)
-    #             element = index.data(QtCore.Qt.UserRole)
-    #             if element and element.name == name:
-    #                 if name == paths[-1]:
-    #                     return index
-    #                 else:
-    #                     parent_index = index
-    #                     break
-    #     return QtCore.QModelIndex()
+    def element_from_index(self, index: QtCore.QModelIndex) -> Element | None:
+        element = None
+        index = index.siblingAtColumn(0)
+        key = index.data(QtCore.Qt.UserRole)
+        if key:
+            try:
+                element = self._elements[key]
+            except KeyError:
+                pass
+        return element
+
+    def data_value(self, data: Any, field: Field):
+        if isinstance(data, (str, int, float)):
+            value = data
+        elif isinstance(data, dict):
+            value = data.get(field.name)
+        elif isinstance(data, (list, tuple)):
+            try:
+                i = self.fields.index(field)
+                value = data[i]
+            except (KeyError, ValueError):
+                value = None
+        else:
+            try:
+                value = getattr(data, field.name)
+            except AttributeError:
+                value = None
+        return value
 
     def refresh_header_labels(self) -> None:
         labels = [field.label for field in self.fields]
         super().setHorizontalHeaderLabels(labels)
 
-    # def unique_name(self, name: str, parent: Element | None = None) -> str:
-    #     # helper function to get unique name based on first field as name attribute
-    #
-    #     if parent:
-    #         parent_item = self._item_from_element(parent)
-    #     else:
-    #         parent_item = self.invisibleRootItem()
-    #
-    #     if not self.fields:
-    #         return name
-    #     name_field = self.fields[0]
-    #
-    #     children = []
-    #     for row in range(parent_item.rowCount()):
-    #         child = parent_item.child(row, 0)
-    #         if child:
-    #             element = child.data(QtCore.Qt.UserRole)
-    #             if isinstance(element, Element):
-    #                 try:
-    #                     value = getattr(element.data, name_field.name)
-    #                     children.append(value)
-    #                 except AttributeError:
-    #                     pass
-    #
-    #     return unique_name(name, children)
-
-    # def update_max_columns(self, max_columns: int) -> None:
-    #     # adds enough columns to match max_columns
-    #     # this is necessary to set default items with flags
-    #     # otherwise by default new columns are editable
-    #     if max_columns > self.columnCount():
-    #         missing_columns = max_columns - self.columnCount()
-    #         for i in range(missing_columns):
-    #             col = self.columnCount()
-    #             items = []
-    #             for row in range(self.rowCount()):
-    #                 item = QtGui.QStandardItem()
-    #                 item.setEditable(False)
-    #                 items.append(item)
-    #             self.insertColumn(col, items)
-
-    @staticmethod
-    def index_from_element(element: Element) -> QtCore.QModelIndex:
-        return element.index()
-
-    @staticmethod
-    def element_from_index(index: QtCore.QModelIndex) -> Element | None:
-        element = index.siblingAtColumn(0).data(QtCore.Qt.UserRole)
-        return element
-
     def _create_items(self, element: Element) -> list[QtGui.QStandardItem]:
         items = []
 
         for field in self.fields:
-            value = element.value(field)
-            item = QtGui.QStandardItem(value)
-            if not element.movable:
-                item.setDragEnabled(False)
-            if element.no_children:
-                item.setDropEnabled(False)
-                item.setFlags(item.flags() | QtCore.Qt.ItemNeverHasChildren)
-            if not field.editable:
+            value = self.data_value(element.data, field)
+            text = '' if value is None else str(value)
+            item = QtGui.QStandardItem(text)
+
+            if field.editable:
+                item.setData(value, QtCore.Qt.EditRole)
+            else:
                 item.setEditable(False)
+
+            set_movable(item, element.movable)
+            set_no_children(item, element.no_children)
+            set_deletable(item, element.deletable)
+
             items.append(item)
-
-        if items:
-            item = items[0]
-            item.setData(element, QtCore.Qt.UserRole)
-
         return items
 
-    def _element_move(self, parent: QtCore.QModelIndex) -> None:
-        if not parent.flags() & QtCore.Qt.ItemIsDropEnabled:
+    def _index_move(self, parent: QtCore.QModelIndex) -> None:
+        if not parent.isValid():
+            # is root
+            pass
+        elif not (parent.flags() & QtCore.Qt.ItemIsDropEnabled):
             return
 
-        if self.current_elements:
-            parent_path = self.path_from_index(parent)
-            for element in self.current_elements:
-                self._update_icon(element)
-                name = os.path.basename(element.path)
-                path = os.path.join(parent_path, name)
-                previous = dataclasses.replace(element)
-                previous.path = path
-                self.element_moved.emit(previous, element)
-            self.current_elements = None
+        if self.current_indexes:
+            parent_element = self.element_from_index(parent)
+            if parent_element:
+                ancestors = [*self.ancestors(parent_element), parent_element]
+            else:
+                ancestors = []
+            for index in self.current_indexes:
+                previous = self.element_from_index(index)
+                if not previous:
+                    continue
+                current = copy.copy(previous)
 
-    # def _columns_insert(
-    #     self, parent: QtCore.QModelIndex, first: int, last: int
-    # ) -> None:
-    #     super().setHorizontalHeaderLabels(self.header_labels)
+                current.ancestors = ancestors
+                self.element_moved.emit(previous, current)
+            self.current_indexes = None
 
-    # def _item_from_element(self, element: Element) -> QtGui.QStandardItem:
-    #     for row in range(self.rowCount()):
-    #         index = self.index(row, 0)
-    #         data = self.data(index, QtCore.Qt.UserRole)
-    #         if element == data:
-    #             item = self.itemFromIndex(index)
-    #             if item is not None:
-    #                 return item
-    #     return self.invisibleRootItem()
+    def item_from_element(
+        self, element: Element, parent: QtCore.QModelIndex | None = None
+    ) -> QtGui.QStandardItem | None:
+        if parent is None:
+            parent = QtCore.QModelIndex()
 
-    def _update_icon(self, element: Element) -> None:
-        item = self.itemFromIndex(element.index())
-        if not item:
+        try:
+            key = self._elements.index(element)
+        except ValueError:
             return
-        if element.icon:
-            item.setIcon(element.icon)
-            return
-        if self.inherit_icons:
-            for parent in element.parents():
-                if parent.icon:
-                    item.setIcon(parent.icon)
-                    return
+
+        for row in range(self.rowCount(parent)):
+            index = self.index(row, 0, parent)
+            if index and key == index.data(QtCore.Qt.UserRole):
+                return self.itemFromIndex(index)
+            else:
+                item = self.item_from_element(element, index)
+                if item is not None:
+                    return item
+
+    def ancestors(self, element: Element) -> list[Element]:
+        ancestors = []
+        item = self.item_from_element(element)
+        while item and item.parent():
+            item = item.parent()
+            element = self.element_from_index(item.index())
+            if not element:
+                break
+            ancestors.insert(0, element)
+        ancestors.reverse()
+        return ancestors
 
 
 class ElementProxyModel(QtCore.QSortFilterProxyModel):
@@ -381,52 +334,43 @@ class ElementTree(QtWidgets.QTreeView):
         self.setSortingEnabled(True)
         self.setAutoExpandDelay(500)
 
-        # alternate row colors
-        # self.setAlternatingRowColors(True)
-        # palette = self.palette()
-        # palette.setColor(
-        #     QtGui.QPalette.AlternateBase, palette.color(QtGui.QPalette.Window)
-        # )
-        # self.setPalette(palette)
-
     def dropEvent(self, event: QtGui.QDropEvent) -> None:
         if self.dragDropMode() == QtWidgets.QAbstractItemView.InternalMove:
             if event.dropAction() == QtCore.Qt.MoveAction:
-                self._update_current_elements()
+                self._update_current_indexes()
         super().dropEvent(event)
 
-    def current_element(self) -> Element | None:
-        indices = self.selectionModel().selectedRows()
-        index = (
-            self.model().mapToSource(indices[0]) if indices else QtCore.QModelIndex()
-        )
-        proxy = self.model()
-        model = proxy.sourceModel()
-        element = model.element_from_index(index)
-        return element
+    # def current_element(self) -> Element | None:
+    #     current_index = self.model().mapToSource(self.currentIndex())
+    #     model = self.model().sourceModel()
+    #     element = model.element_from_index(current_index)
+    #     return element
 
-    def selected_elements(self) -> list[Element]:
-        indices = self.selectionModel().selectedRows()
-        proxy = self.model()
-        model = proxy.sourceModel()
-        elements = []
-        for index in indices:
-            index = proxy.mapToSource(index)
-            element = model.element_from_index(index)
-            if element:
-                elements.append(element)
-        return elements
+    # def selected_elements(self) -> list[Element]:
+    #     indices = self.selectionModel().selectedRows()
+    #     proxy = self.model()
+    #     model = proxy.sourceModel()
+    #     elements = []
+    #     for index in indices:
+    #         index = proxy.mapToSource(index)
+    #         element = model.element_from_index(index)
+    #         if element:
+    #             elements.append(element)
+    #     return elements
 
-    def _update_current_elements(self) -> None:
+    def _update_current_indexes(self) -> None:
         # used for tracking elements about to be moved
-        proxy = self.model()
-        model = proxy.sourceModel()
-        model.current_elements = self.selected_elements()
+        model = self.model()
+        indexes = self.selectionModel().selectedRows()
+        if model.sourceModel():
+            indexes = [model.mapToSource(index) for index in indexes]
+            model = model.sourceModel()
+        model.current_indexes = indexes
 
 
 class ElementBrowser(QtWidgets.QWidget):
     unique_names = True
-    edit_requested = QtCore.Signal(Element)
+    # edit_requested = QtCore.Signal(Element)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -436,14 +380,13 @@ class ElementBrowser(QtWidgets.QWidget):
 
     def _init_model(self):
         self.model = ElementModel(parent=self)
-        self.model.setHorizontalHeaderLabels(['Name'])
         self.proxy = ElementProxyModel(parent=self)
-        self.proxy.setSourceModel(self.model)
-        self.proxy.setRecursiveFilteringEnabled(True)
-        self.proxy.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
-        self.proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.proxy.setAutoAcceptChildRows(True)
         self.proxy.setDynamicSortFilter(False)
+        self.proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self.proxy.setRecursiveFilteringEnabled(True)
+        self.proxy.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self.proxy.setSourceModel(self.model)
 
     def _init_ui(self):
         self.setLayout(QtWidgets.QVBoxLayout())
@@ -460,12 +403,12 @@ class ElementBrowser(QtWidgets.QWidget):
 
         icon = MaterialIcon('remove')
         action = QtWidgets.QAction(icon, 'Remove Element', self)
-        action.triggered.connect(self.remove_selected_elements)
+        # action.triggered.connect(self.remove_selected_elements)
         self.toolbar.addAction(action)
 
         icon = MaterialIcon('content_copy')
         action = QtWidgets.QAction(icon, 'Duplicate', self)
-        action.triggered.connect(lambda: self.duplicate_element())
+        # action.triggered.connect(lambda: self.duplicate_element())
         self.toolbar.addAction(action)
 
         icon = MaterialIcon('create_new_folder')
@@ -489,95 +432,46 @@ class ElementBrowser(QtWidgets.QWidget):
         if text:
             self.tree.expandAll()
 
-    def add_element(self, element: Element | None = None) -> None:
+    def add_element(self, element: Element | None = None) -> Element:
         if element is None:
             element = Element()
             element.data = 'New Element'
             element.no_children = True
 
-        parent = self.tree.current_element()
-        if parent and parent.no_children:
-            parent = parent.parent()
+        parent = self.selected_index()
+        # if parent and parent.no_children:
+        #     parent = parent.parent()
 
         # if self.unique_names:
         #     element.name = self.model.unique_name(element.name, parent)
 
         self.model.append_element(element, parent)
 
-    def duplicate_element(self, element: Element | None = None):
+        return element
+
+    def add_group(self, element: Element | None = None) -> Element:
         if element is None:
-            element = self.tree.current_element()
+            element = Element()
+            element.data = 'New Group'
+            element.icon = MaterialIcon('folder')
 
-        if element:
-            parent = element.parent()
-            duplicate = element.clone()
-            self.model.append_element(duplicate, parent)
+        parent = self.selected_index()
 
-    def add_group(self, name: str = 'New Group') -> None:
-        element = Element()
-        element.data = 'New Group'
-        element.icon = MaterialIcon('folder')
-        self.add_element(element)
+        self.model.append_element(element, parent)
 
-    # def add_group(self, name: str = 'New Group') -> Element:
-    #     parent = self.tree.current_index()
-    #
-    #     # if parent doesn't allow children, append as sibling
-    #     parent_item = self.model.itemFromIndex(parent)
-    #     if parent_item and parent_item.flags() & QtCore.Qt.ItemNeverHasChildren:
-    #         parent = parent.parent()
-    #
-    #     if self.unique_names:
-    #         name = self.model.unique_name(name, parent)
-    #
-    #     icon = MaterialIcon('folder')
-    #     fields = [
-    #         Field(name, icon=icon, editable=True),
-    #     ]
-    #     element = Element(fields)
-    #
-    #     self.model.append_element(element, parent)
-    #     return element
+        return element
 
-    # def duplicate_elements(self) -> None:
-    #     indices = self.tree.selectionModel().selectedRows()
-    #
-    #     indices = [
-    #         QtCore.QPersistentModelIndex(self.proxy.mapToSource(index))
-    #         for index in indices
-    #     ]
-    #     if not indices:
-    #         return
-    #
-    #     last_index = indices.pop()
-    #     element = self.model.element_from_index(last_index)
-    #
-    #     parent_item = self.model.itemFromIndex(parent)
-    #
-    #     if self.unique_names:
-    #         name = element.fields[0]
-    #         name = self.model.unique_name(element, last_index.parent())
-    #     self.model.append_element(element, parent)
-    #
-    #     parent = self.tree.current_index()
-    #
-    def remove_selected_elements(self) -> None:
-        indices = self.tree.selectionModel().selectedRows()
+    def selected_index(self) -> QtCore.QModelIndex:
+        selected_indices = self.tree.selectedIndexes()
+        if selected_indices:
+            index = self.proxy.mapToSource(selected_indices[0])
+        else:
+            index = QtCore.QModelIndex()
+        return index
 
-        # build list of persistent indices so that indices don't changed
-        # as rows are removed
-        persistent_indices = [
-            QtCore.QPersistentModelIndex(self.proxy.mapToSource(index))
-            for index in indices
-        ]
-        for index in persistent_indices:
-            if index.isValid():
-                self.model.removeRow(index.row(), index.parent())
 
-    def action(self, name: str) -> QtWidgets.QAction:
-        for action in self.toolbar.actions():
-            if name == action.text():
-                return action
+class Foo:
+    pass
 
 
 def main():
@@ -589,7 +483,27 @@ def main():
     theme.apply_theme(theme.monokai)
 
     widget = ElementBrowser()
-    widget.model.fields = [Field()]
+    widget.model.fields = [Field(name='name')]
+    widget.model.element_added.connect(lambda current: logging.info(current.ancestors))
+    widget.model.element_removed.connect(
+        lambda current: logging.info(current.ancestors)
+    )
+    widget.model.element_changed.connect(
+        lambda previous, current: logging.info([previous.ancestors, current.ancestors])
+    )
+    widget.model.element_moved.connect(
+        lambda previous, current: logging.info([previous.ancestors, current.ancestors])
+    )
+
+    data = 'Bob'
+
+    # data = Foo()
+    # data.name = 'Bobby'
+
+    element = Element()
+    element.data = data
+
+    widget.add_element(element)
     widget.show()
 
     sys.exit(app.exec_())
