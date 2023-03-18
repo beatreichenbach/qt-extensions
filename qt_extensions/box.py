@@ -19,8 +19,8 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self._collapsed = False
         self._collapsible = None
 
-        self._expand_more_icon = MaterialIcon('expand_more')
-        self._expand_less_icon = MaterialIcon('expand_less')
+        self._expand_more_icon = MaterialIcon('chevron_right')
+        self._expand_less_icon = MaterialIcon('expand_more')
 
         self._expand_label = None
         self._title_label = None
@@ -122,6 +122,7 @@ class CollapsibleHeader(QtWidgets.QWidget):
 
 class CollapsibleBox(QtWidgets.QFrame):
     class Style(enum.IntFlag):
+        NONE = 0
         SIMPLE = enum.auto()
         BUTTON = enum.auto()
 
@@ -129,7 +130,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         self,
         title: str,
         collapsible: bool = True,
-        style: Style | None = None,
+        style: Style = Style.NONE,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)

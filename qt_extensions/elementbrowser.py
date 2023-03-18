@@ -10,9 +10,6 @@ from PySide2 import QtGui, QtCore, QtWidgets
 from qt_extensions.helper import title
 from qt_extensions.icons import MaterialIcon
 
-ItemFlags = QtCore.Qt.ItemFlags
-ItemFlags.Locked = 1 << 9
-
 
 def set_flag(item: QtGui.QStandardItem, flag: QtCore.Qt.ItemFlag, value: bool) -> None:
     if value:
@@ -36,18 +33,6 @@ class Field:
     def __post_init__(self) -> None:
         if self.label is None:
             self.label = title(self.name)
-
-
-class Element:
-    data: Any = None
-    icon: QtGui.QIcon | None = None
-    movable: bool = True
-    locked: bool = True
-    no_children: bool = False
-    ancestors: list['Element'] = []
-
-    def __repr__(self):
-        return repr(self.data)
 
 
 class ElementModel(QtGui.QStandardItemModel):
@@ -114,12 +99,11 @@ class ElementModel(QtGui.QStandardItemModel):
         data: Any = None,
         icon: QtGui.QIcon | None = None,
         movable: bool = True,
-        # locked: bool = True,
         no_children: bool = False,
         parent: QtCore.QModelIndex | None = None,
     ) -> None:
         parent_item = None
-        if parent is not None:
+        if parent is not None and parent.isValid():
             parent_item = self.itemFromIndex(parent)
             if parent_item and check_flag(parent_item, QtCore.Qt.ItemNeverHasChildren):
                 parent_item = parent_item.parent()
@@ -150,6 +134,29 @@ class ElementModel(QtGui.QStandardItemModel):
                 value = None
         return value
 
+    def index_from_value(
+        self,
+        value: Any,
+        field: Field | None = None,
+        parent: QtCore.QModelIndex | None = None,
+    ):
+        if parent is None or value is None:
+            parent = QtCore.QModelIndex()
+
+        for row in range(self.rowCount(parent)):
+            index = self.index(row, 0, parent)
+            if not index.isValid():
+                continue
+
+            data = index.data(QtCore.Qt.UserRole)
+            if field is None:
+                match = data == value
+            else:
+                match = self.data_value(data, field) == value
+
+            if match:
+                return index
+
     def refresh_header_labels(self) -> None:
         labels = [field.label for field in self.fields]
         super().setHorizontalHeaderLabels(labels)
@@ -164,7 +171,7 @@ class ElementModel(QtGui.QStandardItemModel):
             text = '' if value is None else str(value)
             item = QtGui.QStandardItem(text)
 
-            if field.editable:
+            if field.editable and movable:
                 item.setData(value, QtCore.Qt.EditRole)
             else:
                 item.setEditable(False)
@@ -172,7 +179,6 @@ class ElementModel(QtGui.QStandardItemModel):
             item.setDragEnabled(movable)
             item.setDropEnabled(not no_children)
             set_flag(item, QtCore.Qt.ItemNeverHasChildren, no_children)
-            # set_flag(item, ItemFlags.Locked, locked)
 
             items.append(item)
 
@@ -237,13 +243,21 @@ class ElementDelegate(QtWidgets.QStyledItemDelegate):
         option: QtWidgets.QStyleOptionViewItem,
         index: QtCore.QModelIndex,
     ) -> None:
-        # if not check_flag(index, ItemFlags.Locked):
         if not check_flag(index, QtCore.Qt.ItemIsDragEnabled):
             option.font.setBold(True)
         super().paint(painter, option, index)
 
+    def sizeHint(
+        self, option: QtWidgets.QStyleOptionViewItem, index: QtCore.QModelIndex
+    ) -> QtCore.QSize:
+        size_hint = super().sizeHint(option, index)
+        size_hint = size_hint.grownBy(QtCore.QMargins(0, 4, 0, 4))
+        return size_hint
+
 
 class ElementTree(QtWidgets.QTreeView):
+    selected_elements_changed: QtCore.Signal = QtCore.Signal(list)
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
@@ -275,6 +289,8 @@ class ElementTree(QtWidgets.QTreeView):
         self, selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection
     ) -> None:
         self._update_selected_indexes()
+        elements = [index.data(QtCore.Qt.UserRole) for index in self.selected_indexes]
+        self.selected_elements_changed.emit(elements)
         super().selectionChanged(selected, deselected)
 
     def _update_selected_indexes(self) -> None:
@@ -291,8 +307,7 @@ class ElementTree(QtWidgets.QTreeView):
 
 
 class ElementBrowser(QtWidgets.QWidget):
-    unique_names = True
-    # edit_requested = QtCore.Signal(Element)
+    selected_elements_changed: QtCore.Signal = QtCore.Signal(list)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -346,6 +361,7 @@ class ElementBrowser(QtWidgets.QWidget):
 
         self.tree = ElementTree()
         self.tree.setModel(self.proxy)
+        self.tree.selected_elements_changed.connect(self.selected_elements_changed.emit)
         self.layout().addWidget(self.tree)
 
     def filter(self, text: str) -> None:
@@ -374,13 +390,10 @@ class ElementBrowser(QtWidgets.QWidget):
         # if self.unique_names:
         #     element.name = self.model.unique_name(element.name, parent)
 
-        self.model.append_element(
-            data, movable=False, icon=MaterialIcon('folder'), parent=parent
-        )
+        self.model.append_element(data, icon=MaterialIcon('folder'), parent=parent)
 
     def duplicate_element(self):
         for index in self.tree.selected_indexes:
-            # if check_flag(index, ItemFlags.Locked):
             movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
             if not movable:
                 continue
@@ -389,8 +402,33 @@ class ElementBrowser(QtWidgets.QWidget):
             icon = index.data(QtCore.Qt.DecorationRole)
             no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
 
-            parent = self._selected_index()
+            parent = self._selected_index().parent()
             self.model.append_element(data, icon, movable, no_children, parent)
+
+    def elements(self, parent: QtCore.QModelIndex | None = None) -> list:
+        if parent is None:
+            parent = QtCore.QModelIndex()
+        elements = []
+        for row in range(self.model.rowCount(parent)):
+            index = self.model.index(row, 0, parent)
+            if index.isValid():
+                data = index.data(QtCore.Qt.UserRole)
+                if data is not None:
+                    elements.append(data)
+            elements.extend(self.elements(index))
+        return elements
+
+    def update_element(self, data: Any):
+        index = self.model.index_from_value(data)
+        if not index.isValid():
+            return
+
+        for i, field in enumerate(self.model.fields):
+            value = self.model.data_value(data, field)
+            text = '' if value is None else str(value)
+            item_index = index.siblingAtColumn(i)
+            if item_index.isValid():
+                self.model.setData(item_index, text, QtCore.Qt.DisplayRole)
 
     def remove_selected_elements(self) -> None:
         indexes = self.tree.selectionModel().selectedRows()
@@ -402,7 +440,6 @@ class ElementBrowser(QtWidgets.QWidget):
             for index in indexes
         ]
         for index in persistent_indexes:
-            # if index.isValid() and check_flag(index, ItemFlags.Locked):
             if index.isValid() and check_flag(index, QtCore.Qt.ItemIsDragEnabled):
                 self.model.removeRow(index.row(), index.parent())
 
@@ -415,10 +452,6 @@ class ElementBrowser(QtWidgets.QWidget):
         return index
 
 
-class Foo:
-    pass
-
-
 def main():
     from qt_extensions import theme
 
@@ -428,7 +461,8 @@ def main():
     theme.apply_theme(theme.monokai)
 
     widget = ElementBrowser()
-    widget.model.fields = [Field(name='name')]
+    widget.model.fields = [Field(name='name', editable=True)]
+    widget.tree.setHeaderHidden(True)
     widget.model.element_added.connect(lambda data: logging.info(data))
     widget.model.element_removed.connect(lambda data: logging.info(data))
     widget.model.element_changed.connect(
@@ -439,9 +473,6 @@ def main():
     )
 
     data = 100
-
-    # data = Foo()
-    # data.name = 'Bobby'
 
     widget.add_element(data)
     widget.show()
