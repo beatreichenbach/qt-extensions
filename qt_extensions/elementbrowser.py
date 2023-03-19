@@ -41,24 +41,17 @@ class ElementModel(QtGui.QStandardItemModel):
     element_moved: QtCore.Signal = QtCore.Signal(object, QtCore.QModelIndex)
     element_removed: QtCore.Signal = QtCore.Signal(object)
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, fields: list[Field] | None = None, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
 
         # # this is used to track elements about to be moved
         self.selected_indexes = []
 
-        self._fields = []
-        self.fields = []  # set defaults
-
-    @property
-    def fields(self) -> list[Field]:
-        return self._fields
-
-    @fields.setter
-    def fields(self, value: list[Field]) -> None:
-        if not value:
-            value = [Field('name', editable=False)]
-        self._fields = value
+        if not fields:
+            fields = [Field('name')]
+        self.fields = fields
         self.refresh_header()
 
     def dropMimeData(
@@ -102,7 +95,7 @@ class ElementModel(QtGui.QStandardItemModel):
 
     def append_element(
         self,
-        data: Any = None,
+        element: Any = None,
         icon: QtGui.QIcon | None = None,
         movable: bool = True,
         no_children: bool = False,
@@ -121,7 +114,7 @@ class ElementModel(QtGui.QStandardItemModel):
         # create QStandardItems
         items = []
         for field in self.fields:
-            value = self._data_value(data, field)
+            value = self._value(element, field)
             item = QtGui.QStandardItem(value)
             item.setEditable(field.editable and movable)
             item.setDragEnabled(movable)
@@ -132,11 +125,15 @@ class ElementModel(QtGui.QStandardItemModel):
         # update QStandardItems
         if items:
             item = items[0]
-            item.setData(data, QtCore.Qt.UserRole)
+            item.setData(element, QtCore.Qt.UserRole)
             if icon:
                 item.setIcon(icon)
             parent_item.appendRow(items)
-            self.element_added.emit(data)
+            self.element_added.emit(element)
+
+    def element(self, index: QtCore.QModelIndex):
+        data = index.siblingAtColumn(0).data(QtCore.Qt.UserRole)
+        return data
 
     def elements(self, parent: QtCore.QModelIndex | None = None) -> list:
         if parent is None:
@@ -152,45 +149,13 @@ class ElementModel(QtGui.QStandardItemModel):
             elements.extend(self.elements(index))
         return elements
 
-    def refresh_element(self, data: Any) -> None:
-        # update the DisplayRole based on the data stored in the first item
-        index = self._index_from_element(data)
-        if not index.isValid():
-            return
-
-        for column, field in enumerate(self.fields):
-            item_index = index.siblingAtColumn(column)
-            value = self._data_value(data, field)
-            self.setData(item_index, value, QtCore.Qt.DisplayRole)
-
-    def refresh_header(self) -> None:
-        labels = [field.label for field in self.fields]
-        self.setHorizontalHeaderLabels(labels)
-
-    def _data_value(self, data: Any, field: Field):
-        if isinstance(data, (str, int, float)):
-            value = data
-        elif isinstance(data, dict):
-            value = data.get(field.name)
-        elif isinstance(data, (list, tuple)):
-            try:
-                i = self.fields.index(field)
-                value = data[i]
-            except (KeyError, ValueError):
-                value = None
-        else:
-            try:
-                value = getattr(data, field.name)
-            except AttributeError:
-                value = None
-        return value
-
-    def _index_from_element(
+    def find_index(
         self,
-        data: Any,
+        value: Any,
+        field: Field | None = None,
         parent: QtCore.QModelIndex | None = None,
     ) -> QtCore.QModelIndex:
-        if parent is None:
+        if parent is None or value is None:
             parent = QtCore.QModelIndex()
 
         for row in range(self.rowCount(parent)):
@@ -198,14 +163,49 @@ class ElementModel(QtGui.QStandardItemModel):
             if not index.isValid():  # optimization
                 continue
 
-            if index.data(QtCore.Qt.UserRole) == data:
+            data = index.data(QtCore.Qt.UserRole)
+            if field is None and value == data:
+                return index
+            elif value == self._value(data, field):
                 return index
 
-            index = self._index_from_element(data, index)
+            index = self.find_index(value, field, index)
             if index.isValid():
                 return index
-
         return QtCore.QModelIndex()
+
+    def refresh_element(self, element: Any) -> None:
+        # update the DisplayRole based on the element stored in the first item
+        index = self.find_index(element)
+        if not index.isValid():
+            return
+
+        for column, field in enumerate(self.fields):
+            item_index = index.siblingAtColumn(column)
+            value = self._value(element, field)
+            self.setData(item_index, value, QtCore.Qt.DisplayRole)
+
+    def refresh_header(self) -> None:
+        labels = [field.label for field in self.fields]
+        self.setHorizontalHeaderLabels(labels)
+
+    def _value(self, element: Any, field: Field):
+        if isinstance(element, (str, int, float)):
+            value = element
+        elif isinstance(element, dict):
+            value = element.get(field.name)
+        elif isinstance(element, (list, tuple)):
+            try:
+                i = self.fields.index(field)
+                value = element[i]
+            except (KeyError, ValueError):
+                value = None
+        else:
+            try:
+                value = getattr(element, field.name)
+            except AttributeError:
+                value = None
+        return value
 
 
 class ElementProxyModel(QtCore.QSortFilterProxyModel):
@@ -236,11 +236,11 @@ class ElementProxyModel(QtCore.QSortFilterProxyModel):
         is_left_group = check_flag(source_left, QtCore.Qt.ItemNeverHasChildren)
         is_right_group = check_flag(source_right, QtCore.Qt.ItemNeverHasChildren)
 
-        if is_left_group != is_right_group:
-            return False
-        else:
+        if is_left_group == is_right_group:
             result = super().lessThan(source_left, source_right)
             return result
+        else:
+            return is_right_group
 
 
 class ElementDelegate(QtWidgets.QStyledItemDelegate):
@@ -280,13 +280,13 @@ class ElementTree(QtWidgets.QTreeView):
 
     def dragMoveEvent(self, event: QtGui.QDragMoveEvent) -> None:
         if self.class_groups:
-            # don't allow drag onto items with different data classes
+            # don't allow drag onto items with different element classes
             index = self.indexAt(event.pos())
-            parent_data = index.data(QtCore.Qt.UserRole)
-            if parent_data is not None:
+            parent_element = index.data(QtCore.Qt.UserRole)
+            if parent_element is not None:
                 for index in self.selected_indexes:
-                    data = index.data(QtCore.Qt.UserRole)
-                    if not isinstance(data, type(parent_data)):
+                    element = index.data(QtCore.Qt.UserRole)
+                    if not isinstance(element, type(parent_element)):
                         event.ignore()
                         return
 
@@ -312,18 +312,33 @@ class ElementTree(QtWidgets.QTreeView):
         self.selection_changed.emit()
         super().selectionChanged(selected, deselected)
 
+    def selected_elements(self):
+        elements = [index.data(QtCore.Qt.UserRole) for index in self.selected_indexes]
+        return elements
+
+    def resize_columns(self) -> None:
+        if self.model():
+            self.expandAll()
+            for column in range(self.model().columnCount()):
+                self.resizeColumnToContents(column)
+            self.collapseAll()
+
 
 class ElementBrowser(QtWidgets.QWidget):
     selection_changed: QtCore.Signal = QtCore.Signal()
 
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, fields: list[Field] | None = None, parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
+
+        self._fields = fields
 
         self._init_model()
         self._init_ui()
 
     def _init_model(self):
-        self.model = ElementModel(self)
+        self.model = ElementModel(self._fields, self)
         self.proxy = ElementProxyModel(self)
         self.proxy.setAutoAcceptChildRows(True)
         self.proxy.setDynamicSortFilter(False)
@@ -347,7 +362,7 @@ class ElementBrowser(QtWidgets.QWidget):
 
         icon = MaterialIcon('remove')
         action = QtWidgets.QAction(icon, 'Remove Element', self)
-        action.triggered.connect(self.remove_selected_elements)
+        action.triggered.connect(lambda: self.remove_element())
         self.toolbar.addAction(action)
 
         icon = MaterialIcon('content_copy')
@@ -369,6 +384,8 @@ class ElementBrowser(QtWidgets.QWidget):
         self.tree = ElementTree()
         self.tree.setModel(self.proxy)
         self.tree.selection_changed.connect(self.selection_changed.emit)
+        if not self._fields:
+            self.tree.setHeaderHidden(True)
         self.layout().addWidget(self.tree)
 
     def filter(self, text: str) -> None:
@@ -377,35 +394,47 @@ class ElementBrowser(QtWidgets.QWidget):
         if text:
             self.tree.expandAll()
 
-    def add_element(self, data: Any = None):
-        if data is None:
-            data = 'New Element'
+    def add_element(self):
+        element = 'New Element'
 
         parent = self._selected_index()
-        self.model.append_element(data, no_children=True, parent=parent)
+        self.model.append_element(element, no_children=True, parent=parent)
 
-    def add_group(self, data: Any = None):
-        if data is None:
-            data = 'New Group'
+    def add_group(self):
+        element = 'New Group'
 
         parent = self._selected_index()
-        self.model.append_element(data, icon=MaterialIcon('folder'), parent=parent)
+        self.model.append_element(element, icon=MaterialIcon('folder'), parent=parent)
 
-    def duplicate_element(self):
-        for index in self.tree.selected_indexes:
+    def duplicate_element(self, element: Any = None) -> None:
+        if element is None:
+            indexes = self.tree.selected_indexes
+        else:
+            index = self.model.find_index(element)
+            if not index.isValid():
+                return
+            indexes = [index]
+
+        for index in indexes:
             movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
             if not movable:
-                continue
-            data = index.data(QtCore.Qt.UserRole)
-            data = copy.deepcopy(data)
+                return
+            element = index.data(QtCore.Qt.UserRole)
+            element = copy.deepcopy(element)
             icon = index.data(QtCore.Qt.DecorationRole)
             no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
+            parent = index.parent()
 
-            parent = self._selected_index().parent()
-            self._append_element(data, icon, movable, no_children, parent)
+            self.model.append_element(element, icon, movable, no_children, parent)
 
-    def remove_selected_elements(self) -> None:
-        indexes = self.tree.selectionModel().selectedRows()
+    def remove_element(self, element: Any = None) -> None:
+        if element is None:
+            indexes = self.tree.selectionModel().selectedRows()
+        else:
+            index = self.model.find_index(element)
+            if not index.isValid():
+                return
+            indexes = [index]
 
         # build list of persistent indexes so that indexes don't changed
         # as rows are removed
@@ -417,11 +446,8 @@ class ElementBrowser(QtWidgets.QWidget):
             if index.isValid() and check_flag(index, QtCore.Qt.ItemIsDragEnabled):
                 self.model.removeRow(index.row(), index.parent())
 
-    def selected_elements(self):
-        elements = [
-            index.data(QtCore.Qt.UserRole) for index in self.tree.selected_indexes
-        ]
-        return elements
+    def selected_elements(self) -> list:
+        return self.tree.selected_elements()
 
     def _selected_index(self) -> QtCore.QModelIndex:
         indexes = self.tree.selectionModel().selectedRows()
@@ -444,8 +470,7 @@ def main():
     app = QtWidgets.QApplication()
     theme.apply_theme(theme.monokai)
 
-    widget = ElementBrowser()
-    widget.tree.setHeaderHidden(True)
+    widget = ElementBrowser([Field('name'), Field('focal')])
     # widget.model.element_added.connect(lambda data: logging.info(data))
     # widget.model.element_removed.connect(lambda data: logging.info(data))
     # widget.model.element_changed.connect(
@@ -460,8 +485,6 @@ def main():
     # data = 'Bob'
 
     widget.add_element(data)
-
-    widget.model.fields = [Field('name'), Field('focal')]
 
     widget.show()
 

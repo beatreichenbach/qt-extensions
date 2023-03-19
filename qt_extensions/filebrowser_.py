@@ -1,28 +1,17 @@
-import dataclasses
 import logging
 import sys
 import os
 import shutil
-from typing import Any
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions.icons import MaterialIcon
-from qt_extensions.elementbrowser import (
-    ElementBrowser,
-    Field,
-    ElementDelegate,
-    check_flag,
-)
+from qt_extensions.elementbrowser import ElementBrowser, Element, Field
 
 
-@dataclasses.dataclass
-class FileElement:
-    name: str
-    path: str
+class FileNameDelegate(QtWidgets.QStyledItemDelegate):
+    item_changed = QtCore.Signal(str, QtCore.QAbstractItemModel, QtCore.QModelIndex)
 
-
-class FileNameDelegate(ElementDelegate):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         regex = QtCore.QRegularExpression(r'[\w\d\.-]+')
@@ -55,16 +44,12 @@ class FileNameDelegate(ElementDelegate):
 
 
 class FileBrowser(ElementBrowser):
-    def __init__(
-        self,
-        path: str,
-        fields: list[Field] | None = None,
-        parent: QtWidgets.QWidget | None = None,
-    ) -> None:
-        super().__init__(fields, parent)
+    # ignore_patterns = None
+
+    def __init__(self, path: str, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
 
         self.path = path
-        self.file_filter = ''
         self.sync_files = True
 
         self.init_elements()
@@ -87,41 +72,22 @@ class FileBrowser(ElementBrowser):
 
     def init_elements(self) -> None:
         for root, dirs, files in os.walk(self.path):
-            parent = self.model.find_index(root, Field('path'))
-
+            relative_path = os.path.relpath(root, self.path)
+            parent = self.model.index_from_path(relative_path)
             for name in dirs:
-                path = os.path.join(root, name)
-                self._append_dir(path, parent)
+                element = self.element_from_path(os.path.join(root, name))
+                self.model.append_element(element, parent)
             for name in files:
-                path = os.path.join(root, name)
-                self._append_file(path, parent)
-
+                element = self.element_from_path(os.path.join(root, name))
+                self.model.append_element(element, parent)
+        # sort
         self.proxy.sort(0)
-        self.tree.resize_columns()
 
-    def add_element(self):
-        parent = self._selected_index()
-
-        parent_element = self.model.element(parent)
-        if isinstance(parent_element, FileElement):
-            parent_path = parent_element.path
-        else:
-            parent_path = self.path
-
-        path = os.path.join(parent_path, 'New File')
-        self._append_file(path, parent)
-
-    def add_group(self):
-        parent = self._selected_index()
-
-        parent_element = self.model.element(parent)
-        if isinstance(parent_element, FileElement):
-            parent_path = parent_element.path
-        else:
-            parent_path = self.path
-
-        path = os.path.join(parent_path, 'New Folder')
-        self._append_dir(path, parent)
+        # adjust column width
+        self.tree.expandAll()
+        for col in range(self.model.columnCount()):
+            self.tree.resizeColumnToContents(col)
+        self.tree.collapseAll()
 
     def refresh(self) -> None:
         self.model.clear()
@@ -129,48 +95,49 @@ class FileBrowser(ElementBrowser):
         self.init_elements()
         self.sync_files = True
 
-    def file_add_element(self, element: FileElement) -> None:
+    def element_from_path(self, path: str) -> Element:
+        name = os.path.basename(path)
+        if os.path.isdir(path):
+            icon = MaterialIcon('folder')
+            fields = [Field(name, editable=True, icon=icon)]
+            element = Element(fields)
+        else:
+            fields = [Field(name, editable=True)]
+            element = Element(fields, no_children=True)
+        return element
+
+    def file_add_element(self, element: Element) -> None:
         if not self.sync_files:
             return
 
-        # what might be better is to check where the element was creaeted, then create the file based on that, then update the element
+        path = os.path.join(self.path, element.path)
 
-        index = self.model.find_index(element)
-        if not index.isValid():
-            return
         try:
-            if check_flag(index, QtCore.Qt.ItemNeverHasChildren):
+            if element.no_children:
                 # element is a file
-                if not os.path.isdir(os.path.dirname(element.path)):
-                    os.makedirs(element.path)
-                f = open(element.path, 'x')
+                if not os.path.isdir(os.path.dirname(path)):
+                    os.makedirs(path)
+                f = open(path, 'x')
                 f.close()
             else:
                 # element is a dir
-                os.makedirs(element.path)
+                os.makedirs(path)
 
         except (FileExistsError, PermissionError, FileNotFoundError) as e:
             logging.debug(e)
             self.refresh()
 
-    def file_remove_element(self, element: FileElement) -> None:
-        if os.path.isdir(element.path):
-            shutil.rmtree(element.path)
-        elif os.path.isfile(element.path):
-            os.remove(element.path)
+    def file_remove_element(self, element: Element) -> None:
+        path = os.path.join(self.path, element.path)
+        if os.path.isdir(path):
+            shutil.rmtree(path)
+        elif os.path.isfile(path):
+            os.remove(path)
         # self.refresh()
 
-    def file_move_element(
-        self, element: FileElement, parent: QtCore.QModelIndex
-    ) -> None:
-        parent_element = self.model.element(parent)
-        if isinstance(parent_element, FileElement):
-            parent_path = parent_element.path
-        else:
-            parent_path = self.path
-
-        destination_path = os.path.join(parent_path, os.path.basename(element.path))
-        source_path = element.path
+    def file_move_element(self, current: Element, previous: Element) -> None:
+        destination_path = os.path.join(self.path, current.path)
+        source_path = os.path.join(self.path, previous.path)
         if destination_path == source_path:
             return
 
@@ -178,8 +145,6 @@ class FileBrowser(ElementBrowser):
             if os.path.exists(destination_path):
                 raise FileExistsError(f'File Exists: {destination_path}')
             shutil.move(source_path, destination_path)
-            element.path = destination_path
-            logging.debug(element.path)
         except (FileExistsError, PermissionError, FileNotFoundError) as e:
             logging.debug(e)
             self.refresh()
@@ -195,33 +160,18 @@ class FileBrowser(ElementBrowser):
         # if result == QtWidgets.QMessageBox.StandardButton.No:
         #     return
 
-    def _append_dir(self, path: str, parent: QtCore.QModelIndex):
-        name = os.path.basename(path)
-        element = FileElement(name=name, path=path)
-        icon = MaterialIcon('folder')
-        self.model.append_element(element, icon=icon, parent=parent)
-
-    def _append_file(self, path: str, parent: QtCore.QModelIndex):
-        if not path.endswith(self.file_filter):
-            return
-        name = os.path.basename(path)
-        element = FileElement(name=name, path=path)
-        self.model.append_element(element, no_children=True, parent=parent)
-
 
 def main():
     from qt_extensions import theme
 
-    app = QtWidgets.QApplication(sys.argv)
     logging.getLogger().setLevel(logging.DEBUG)
 
+    app = QtWidgets.QApplication()
     theme.apply_theme(theme.monokai)
 
-    dialog = FileBrowser(
-        r'D:\files\dev\027_flare\qt-extensions\qt_extensions',
-        [Field('name'), Field('path')],
-    )
-    dialog.show()
+    path = r'/flare/presets/lens'
+    widget = FileBrowser(path)
+    widget.show()
 
     sys.exit(app.exec_())
 
