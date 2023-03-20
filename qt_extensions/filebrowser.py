@@ -3,10 +3,12 @@ import logging
 import sys
 import os
 import shutil
+import re
 from typing import Any
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
+from qt_extensions.helper import unique_name, unique_path
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.elementbrowser import (
     ElementBrowser,
@@ -67,12 +69,9 @@ class FileBrowser(ElementBrowser):
         self.file_filter = ''
         self.sync_files = True
 
-        self.init_elements()
+        self._init_elements()
 
-        self.model.element_added.connect(self.file_add_element)
-        self.model.element_removed.connect(self.file_remove_element)
-        self.model.element_changed.connect(self.file_move_element)
-        self.model.element_moved.connect(self.file_move_element)
+        self.model.element_moved.connect(self._move_element)
 
     def _init_ui(self):
         super()._init_ui()
@@ -85,7 +84,7 @@ class FileBrowser(ElementBrowser):
         action.triggered.connect(self.refresh)
         self.toolbar.addAction(action)
 
-    def init_elements(self) -> None:
+    def _init_elements(self) -> None:
         for root, dirs, files in os.walk(self.path):
             parent = self.model.find_index(root, Field('path'))
 
@@ -93,6 +92,8 @@ class FileBrowser(ElementBrowser):
                 path = os.path.join(root, name)
                 self._append_dir(path, parent)
             for name in files:
+                if not name.endswith(self.file_filter):
+                    continue
                 path = os.path.join(root, name)
                 self._append_file(path, parent)
 
@@ -100,7 +101,7 @@ class FileBrowser(ElementBrowser):
         self.tree.resize_columns()
 
     def add_element(self):
-        parent = self._selected_index()
+        parent = self._current_parent()
 
         parent_element = self.model.element(parent)
         if isinstance(parent_element, FileElement):
@@ -108,11 +109,21 @@ class FileBrowser(ElementBrowser):
         else:
             parent_path = self.path
 
-        path = os.path.join(parent_path, 'New File')
+        path = os.path.join(parent_path, 'new_file')
+        path = unique_path(path)
+
+        try:
+            if not os.path.isdir(os.path.dirname(path)):
+                os.makedirs(path)
+            f = open(path, 'x')
+            f.close()
+        except OSError as e:
+            logging.warning(e)
+            return
         self._append_file(path, parent)
 
     def add_group(self):
-        parent = self._selected_index()
+        parent = self._current_parent()
 
         parent_element = self.model.element(parent)
         if isinstance(parent_element, FileElement):
@@ -120,49 +131,58 @@ class FileBrowser(ElementBrowser):
         else:
             parent_path = self.path
 
-        path = os.path.join(parent_path, 'New Folder')
+        path = os.path.join(parent_path, 'new_folder')
+        path = unique_path(path)
+
+        try:
+            os.makedirs(path)
+        except OSError as e:
+            logging.warning(e)
+            return
         self._append_dir(path, parent)
+
+    def duplicate_selected(self) -> None:
+        try:
+            for element in self.selected_elements():
+                path = unique_path(element.path)
+                shutil.copy(element.path, path)
+            super().duplicate_selected()
+        except OSError as e:
+            logging.warning(e)
+            self.refresh()
 
     def refresh(self) -> None:
         self.model.clear()
         self.sync_files = False
-        self.init_elements()
+        self._init_elements()
         self.sync_files = True
 
-    def file_add_element(self, element: FileElement) -> None:
-        if not self.sync_files:
-            return
+    def remove_selected(self) -> None:
 
-        # what might be better is to check where the element was creaeted, then create the file based on that, then update the element
+        # text = 'Are you sure you want to permanently remove {} and all {} contents?'
+        # if len(indices) == 1:
+        #     index = self.proxy.mapToSource(indices[0])
+        #     item = self.model.itemFromIndex(index)
+        #     text = text.format(item.text(), 'its')
+        # else:
+        #     text = text.format('the selected elements', 'their')
+        # result = QtWidgets.QMessageBox.question(self, 'Delete', text)
+        # if result == QtWidgets.QMessageBox.StandardButton.No:
+        #     return
 
-        index = self.model.find_index(element)
-        if not index.isValid():
-            return
         try:
-            if check_flag(index, QtCore.Qt.ItemNeverHasChildren):
-                # element is a file
-                if not os.path.isdir(os.path.dirname(element.path)):
-                    os.makedirs(element.path)
-                f = open(element.path, 'x')
-                f.close()
-            else:
-                # element is a dir
-                os.makedirs(element.path)
-
-        except (FileExistsError, PermissionError, FileNotFoundError) as e:
-            logging.debug(e)
+            for element in self.selected_elements():
+                if os.path.isdir(element.path):
+                    shutil.rmtree(element.path)
+                elif os.path.isfile(element.path):
+                    os.remove(element.path)
+        except OSError as e:
+            logging.warning(e)
             self.refresh()
+            return
+        super().remove_selected()
 
-    def file_remove_element(self, element: FileElement) -> None:
-        if os.path.isdir(element.path):
-            shutil.rmtree(element.path)
-        elif os.path.isfile(element.path):
-            os.remove(element.path)
-        # self.refresh()
-
-    def file_move_element(
-        self, element: FileElement, parent: QtCore.QModelIndex
-    ) -> None:
+    def _move_element(self, element: FileElement, parent: QtCore.QModelIndex) -> None:
         parent_element = self.model.element(parent)
         if isinstance(parent_element, FileElement):
             parent_path = parent_element.path
@@ -178,22 +198,13 @@ class FileBrowser(ElementBrowser):
             if os.path.exists(destination_path):
                 raise FileExistsError(f'File Exists: {destination_path}')
             shutil.move(source_path, destination_path)
-            element.path = destination_path
-            logging.debug(element.path)
-        except (FileExistsError, PermissionError, FileNotFoundError) as e:
-            logging.debug(e)
+        except OSError as e:
+            logging.warning(e)
             self.refresh()
+            return
 
-        # text = 'Are you sure you want to permanently remove {} and all {} contents?'
-        # if len(indices) == 1:
-        #     index = self.proxy.mapToSource(indices[0])
-        #     item = self.model.itemFromIndex(index)
-        #     text = text.format(item.text(), 'its')
-        # else:
-        #     text = text.format('the selected elements', 'their')
-        # result = QtWidgets.QMessageBox.question(self, 'Delete', text)
-        # if result == QtWidgets.QMessageBox.StandardButton.No:
-        #     return
+        element.path = destination_path
+        self.model.refresh_element(element)
 
     def _append_dir(self, path: str, parent: QtCore.QModelIndex):
         name = os.path.basename(path)
@@ -202,8 +213,6 @@ class FileBrowser(ElementBrowser):
         self.model.append_element(element, icon=icon, parent=parent)
 
     def _append_file(self, path: str, parent: QtCore.QModelIndex):
-        if not path.endswith(self.file_filter):
-            return
         name = os.path.basename(path)
         element = FileElement(name=name, path=path)
         self.model.append_element(element, no_children=True, parent=parent)

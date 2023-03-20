@@ -3,7 +3,7 @@ import dataclasses
 import logging
 import sys
 
-from typing import Any
+from typing import Any, Callable
 
 from PySide2 import QtGui, QtCore, QtWidgets
 
@@ -54,6 +54,10 @@ class ElementModel(QtGui.QStandardItemModel):
         self.fields = fields
         self.refresh_header()
 
+    def clear(self):
+        super().clear()
+        self.refresh_header()
+
     def dropMimeData(
         self,
         data: QtCore.QMimeData,
@@ -62,13 +66,13 @@ class ElementModel(QtGui.QStandardItemModel):
         column: int,
         parent: QtCore.QModelIndex,
     ) -> bool:
-        if action == QtCore.Qt.MoveAction:
-            if self.selected_indexes:
-                for index in self.selected_indexes:
-                    element = index.data(QtCore.Qt.UserRole)
-                    self.element_moved.emit(element, parent)
-                self.selected_indexes = []
-        return super().dropMimeData(data, action, row, 0, parent.siblingAtColumn(0))
+        result = super().dropMimeData(data, action, row, 0, parent.siblingAtColumn(0))
+        if result and action == QtCore.Qt.MoveAction:
+            for index in self.selected_indexes:
+                element = index.data(QtCore.Qt.UserRole)
+                self.element_moved.emit(element, parent)
+            self.selected_indexes = []
+        return result
 
     def removeRow(
         self, row: int, parent: QtCore.QModelIndex = QtCore.QModelIndex()
@@ -102,12 +106,7 @@ class ElementModel(QtGui.QStandardItemModel):
         parent: QtCore.QModelIndex | None = None,
     ) -> None:
         # get parent QStandardItem
-        parent_item = None
-        if parent is not None and parent.isValid():
-            parent_item = self.itemFromIndex(parent)
-            if parent_item and check_flag(parent_item, QtCore.Qt.ItemNeverHasChildren):
-                parent_item = parent_item.parent()
-
+        parent_item = self.itemFromIndex(parent) if parent else None
         if parent_item is None:
             parent_item = self.invisibleRootItem()
 
@@ -155,6 +154,7 @@ class ElementModel(QtGui.QStandardItemModel):
         field: Field | None = None,
         parent: QtCore.QModelIndex | None = None,
     ) -> QtCore.QModelIndex:
+        # TODO: find index is not guaranteed to return the correct index if multiple elements are equal
         if parent is None or value is None:
             parent = QtCore.QModelIndex()
 
@@ -252,6 +252,7 @@ class ElementDelegate(QtWidgets.QStyledItemDelegate):
     ) -> None:
         if not check_flag(index, QtCore.Qt.ItemIsDragEnabled):
             option.font.setBold(True)
+        option.state &= ~QtWidgets.QStyle.State_HasFocus
         super().paint(painter, option, index)
 
     def sizeHint(
@@ -333,6 +334,7 @@ class ElementBrowser(QtWidgets.QWidget):
         super().__init__(parent)
 
         self._fields = fields
+        self._actions = {}
 
         self._init_model()
         self._init_ui()
@@ -343,6 +345,7 @@ class ElementBrowser(QtWidgets.QWidget):
         self.proxy.setAutoAcceptChildRows(True)
         self.proxy.setDynamicSortFilter(False)
         self.proxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
+        self.proxy.setFilterKeyColumn(-1)
         self.proxy.setRecursiveFilteringEnabled(True)
         self.proxy.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.proxy.setSourceModel(self.model)
@@ -355,25 +358,26 @@ class ElementBrowser(QtWidgets.QWidget):
         self.toolbar.setIconSize(QtCore.QSize(icon_size, icon_size))
         self.layout().addWidget(self.toolbar)
 
-        icon = MaterialIcon('add')
-        action = QtWidgets.QAction(icon, 'Add Element', self)
-        action.triggered.connect(lambda: self.add_element())
-        self.toolbar.addAction(action)
-
-        icon = MaterialIcon('remove')
-        action = QtWidgets.QAction(icon, 'Remove Element', self)
-        action.triggered.connect(lambda: self.remove_element())
-        self.toolbar.addAction(action)
-
-        icon = MaterialIcon('content_copy')
-        action = QtWidgets.QAction(icon, 'Duplicate', self)
-        action.triggered.connect(lambda: self.duplicate_element())
-        self.toolbar.addAction(action)
-
-        icon = MaterialIcon('create_new_folder')
-        action = QtWidgets.QAction(icon, 'Add Group', self)
-        action.triggered.connect(lambda: self.add_group())
-        self.toolbar.addAction(action)
+        self.add_toolbar_action(
+            'add_element',
+            icon=MaterialIcon('add'),
+            slot=self.add_element,
+        )
+        self.add_toolbar_action(
+            'remove',
+            icon=MaterialIcon('remove'),
+            slot=self.remove_selected,
+        )
+        self.add_toolbar_action(
+            'duplicate_element',
+            icon=MaterialIcon('content_copy'),
+            slot=self.duplicate_selected,
+        )
+        self.add_toolbar_action(
+            'add_group',
+            icon=MaterialIcon('create_new_folder'),
+            slot=self.add_group,
+        )
 
         filter_bar = QtWidgets.QLineEdit()
         filter_bar.setPlaceholderText('Filter...')
@@ -384,9 +388,12 @@ class ElementBrowser(QtWidgets.QWidget):
         self.tree = ElementTree()
         self.tree.setModel(self.proxy)
         self.tree.selection_changed.connect(self.selection_changed.emit)
+        self.tree.selection_changed.connect(self._update_action_states)
         if not self._fields:
             self.tree.setHeaderHidden(True)
         self.layout().addWidget(self.tree)
+
+        self._update_action_states()
 
     def filter(self, text: str) -> None:
         self.tree.collapseAll()
@@ -396,51 +403,56 @@ class ElementBrowser(QtWidgets.QWidget):
 
     def add_element(self):
         element = 'New Element'
-
-        parent = self._selected_index()
+        parent = self._current_parent()
         self.model.append_element(element, no_children=True, parent=parent)
 
     def add_group(self):
         element = 'New Group'
-
-        parent = self._selected_index()
+        parent = self._current_parent()
         self.model.append_element(element, icon=MaterialIcon('folder'), parent=parent)
 
-    def duplicate_element(self, element: Any = None) -> None:
-        if element is None:
-            indexes = self.tree.selected_indexes
-        else:
-            index = self.model.find_index(element)
-            if not index.isValid():
-                return
-            indexes = [index]
+    def add_toolbar_action(
+        self,
+        name: str,
+        label: str | None = None,
+        icon: QtGui.QIcon | None = None,
+        slot: Callable | None = None,
+    ):
+        if name in self._actions:
+            raise ValueError(f'Action with name {name} already exists.')
+        if label is None:
+            label = title(name)
 
-        for index in indexes:
-            movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
-            if not movable:
-                return
+        action = QtWidgets.QAction(self)
+        if label:
+            action.setText(label)
+        if icon:
+            action.setIcon(icon)
+        if slot:
+            action.triggered.connect(slot)
+        self.toolbar.addAction(action)
+        self._actions[name] = action
+
+    def duplicate_selected(self) -> None:
+        for index in self.tree.selected_indexes:
             element = index.data(QtCore.Qt.UserRole)
             element = copy.deepcopy(element)
             icon = index.data(QtCore.Qt.DecorationRole)
+            movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
             no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
             parent = index.parent()
-
             self.model.append_element(element, icon, movable, no_children, parent)
 
-    def remove_element(self, element: Any = None) -> None:
-        if element is None:
-            indexes = self.tree.selectionModel().selectedRows()
-        else:
-            index = self.model.find_index(element)
-            if not index.isValid():
-                return
-            indexes = [index]
+    def remove_toolbar_action(self, name: str) -> None:
+        if name in self._actions:
+            action = self._actions.pop(name)
+            self.toolbar.removeAction(action)
 
+    def remove_selected(self) -> None:
         # build list of persistent indexes so that indexes don't changed
         # as rows are removed
         persistent_indexes = [
-            QtCore.QPersistentModelIndex(self.proxy.mapToSource(index))
-            for index in indexes
+            QtCore.QPersistentModelIndex(index) for index in self.tree.selected_indexes
         ]
         for index in persistent_indexes:
             if index.isValid() and check_flag(index, QtCore.Qt.ItemIsDragEnabled):
@@ -449,13 +461,26 @@ class ElementBrowser(QtWidgets.QWidget):
     def selected_elements(self) -> list:
         return self.tree.selected_elements()
 
-    def _selected_index(self) -> QtCore.QModelIndex:
-        indexes = self.tree.selectionModel().selectedRows()
+    def _current_parent(self):
+        indexes = self.tree.selected_indexes
         if indexes:
-            index = self.proxy.mapToSource(indexes[0])
+            index = indexes[0]
+            if check_flag(index, QtCore.Qt.ItemNeverHasChildren):
+                index = index.parent()
         else:
             index = QtCore.QModelIndex()
         return index
+
+    def _update_action_states(self):
+        indexes = self.tree.selected_indexes
+        no_children = False
+        movable = True
+        if indexes:
+            no_children = check_flag(indexes[0], QtCore.Qt.ItemNeverHasChildren)
+            movable = check_flag(indexes[0], QtCore.Qt.ItemIsDragEnabled)
+
+        self._actions['remove'].setEnabled(bool(indexes) and movable)
+        self._actions['duplicate_element'].setEnabled(bool(indexes) and no_children)
 
 
 class Foo:
@@ -479,12 +504,6 @@ def main():
     # widget.model.element_moved.connect(
     #     lambda data, parent: logging.info([data, parent])
     # )
-
-    data = Foo()
-    data.name = 'Bob'
-    # data = 'Bob'
-
-    widget.add_element(data)
 
     widget.show()
 
