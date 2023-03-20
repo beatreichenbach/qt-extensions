@@ -6,10 +6,19 @@ import enum
 import logging
 import sys
 
-from PySide2 import QtWidgets, QtGui
+from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
 
 from qt_extensions import icons_resource
+
+
+def fill_pixmap(pixmap: QtGui.QPixmap, color: QtGui.QColor) -> QtGui.QPixmap:
+    pixmap = QtGui.QPixmap(pixmap)
+    painter = QtGui.QPainter(pixmap)
+    painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
+    painter.fillRect(pixmap.rect(), color)
+    painter.end()
+    return pixmap
 
 
 class MaterialIcon(QIcon):
@@ -26,20 +35,17 @@ class MaterialIcon(QIcon):
         # set pixmap
         if style is None:
             style = MaterialIcon.Style.OUTLINED
-        # dir_name = str(style.value)
 
-        # file_path = os.path.join(svg_path, dir_name, f'{name}.svg')
-        # if not os.path.isfile(file_path):
-        #     raise FileNotFoundError(file_path)
+        self._path = f':/material-design-icons/svg/{style.value}/{name}.svg'
+        self._pixmap = QtGui.QPixmap(self._path)
 
-        self._pixmap = QtGui.QPixmap(
-            f':/material-design-icons/svg/{style.value}/{name}.svg'
-        )
+        self._init_colors()
 
+    def _init_colors(self) -> None:
         # get palette colors
         app = QtWidgets.QApplication.instance()
         palette = app.palette()
-        colors = {
+        self._colors = {
             QIcon.On: {
                 QIcon.Normal: None,
                 QIcon.Active: None,
@@ -54,23 +60,27 @@ class MaterialIcon(QIcon):
             },
         }
 
-        self.init_colors(colors)
-
-    def init_colors(self, colors: dict) -> None:
-        for state, modes in colors.items():
+        for state, modes in self._colors.items():
             for mode, color in modes.items():
-                if color:
-                    self.set_color(color, mode, state)
+                if color is not None:
+                    pixmap = fill_pixmap(self._pixmap, color)
+                    self.addPixmap(pixmap, mode, state)
 
-    def set_color(
-        self, color: QtGui.QColor, mode: QtGui.QIcon.Mode, state: QtGui.QIcon.State
-    ) -> None:
-        pixmap = QtGui.QPixmap(self._pixmap)
-        painter = QtGui.QPainter(pixmap)
-        painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
-        painter.fillRect(pixmap.rect(), color)
-        painter.end()
-        self.addPixmap(pixmap, mode, state)
+    def pixmap(
+        self,
+        size: QtCore.QSize | None = None,
+        mode: QtGui.QIcon.Mode = QtGui.QIcon.Normal,
+        state: QtGui.QIcon.State = QtGui.QIcon.Off,
+        color: QtGui.QColor | None = None,
+    ) -> QtGui.QPixmap:
+        if size is None:
+            size = self._pixmap.size()
+        if color is None:
+            color = self._colors[state][mode]
+            if color is None:
+                color = self._colors[QIcon.Off][QIcon.Normal]
+        pixmap = QtGui.QIcon(self._path).pixmap(size)
+        return fill_pixmap(pixmap, color)
 
 
 def main():

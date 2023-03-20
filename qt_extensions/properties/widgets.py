@@ -741,7 +741,8 @@ class IntLineEdit(QtWidgets.QLineEdit):
 
     @maximum.setter
     def maximum(self, maximum: int | None) -> None:
-        maximum = maximum or self._abs_maximum
+        if maximum is None:
+            maximum = self._abs_maximum
         self._maximum = maximum
         self.validator().setTop(maximum)
 
@@ -751,7 +752,8 @@ class IntLineEdit(QtWidgets.QLineEdit):
 
     @minimum.setter
     def minimum(self, minimum: int | None) -> None:
-        minimum = minimum or self._abs_minimum
+        if minimum is None:
+            minimum = self._abs_minimum
         self._minimum = minimum
         self.validator().setBottom(minimum)
 
@@ -1109,6 +1111,11 @@ class TextEdit(QtWidgets.QPlainTextEdit):
     def focusOutEvent(self, event: QtGui.QFocusEvent) -> None:
         self.editing_finished.emit()
         return super().focusOutEvent(event)
+
+    def sizeHint(self) -> QtCore.QSize:
+        size_hint = super().sizeHint()
+        size_hint.setHeight(self.minimumSizeHint().height())
+        return size_hint
 
 
 __all__ = [

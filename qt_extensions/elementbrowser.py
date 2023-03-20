@@ -88,13 +88,23 @@ class ElementModel(QtGui.QStandardItemModel):
         value: Any,
         role: int = QtCore.Qt.EditRole,
     ) -> Any:
-        element_index = index.siblingAtColumn(0)
-        previous = copy.deepcopy(index.data(QtCore.Qt.UserRole))
-
         result = super().setData(index, value, role)
-        if element_index.isValid():
-            current = index.data(QtCore.Qt.UserRole)
-            self.element_changed.emit(current, previous)
+        if result and role & QtCore.Qt.DisplayRole | QtCore.Qt.EditRole:
+            logging.debug('setData')
+
+            element_index = index.siblingAtColumn(0)
+            if element_index.isValid():
+                element = index.data(QtCore.Qt.UserRole)
+                previous = copy.deepcopy(element)
+
+                try:
+                    field = self.fields[index.column()]
+                except KeyError:
+                    logging.debug('key error')
+                    return False
+
+                element = self._set_value(element, value, field)
+                self.element_changed.emit(element, previous)
         return result
 
     def append_element(
@@ -148,13 +158,14 @@ class ElementModel(QtGui.QStandardItemModel):
             elements.extend(self.elements(index))
         return elements
 
-    def find_index(
+    def find_indexes(
         self,
         value: Any,
         field: Field | None = None,
         parent: QtCore.QModelIndex | None = None,
-    ) -> QtCore.QModelIndex:
-        # TODO: find index is not guaranteed to return the correct index if multiple elements are equal
+    ) -> list[QtCore.QModelIndex]:
+        indexes = []
+
         if parent is None or value is None:
             parent = QtCore.QModelIndex()
 
@@ -165,25 +176,27 @@ class ElementModel(QtGui.QStandardItemModel):
 
             data = index.data(QtCore.Qt.UserRole)
             if field is None and value == data:
-                return index
+                indexes.append(index)
             elif value == self._value(data, field):
-                return index
+                indexes.append(index)
 
-            index = self.find_index(value, field, index)
-            if index.isValid():
-                return index
-        return QtCore.QModelIndex()
+            indexes.extend(self.find_indexes(value, field, index))
+        return indexes
 
-    def refresh_element(self, element: Any) -> None:
-        # update the DisplayRole based on the element stored in the first item
-        index = self.find_index(element)
-        if not index.isValid():
-            return
-
+    def refresh_index(self, index: QtCore.QModelIndex) -> None:
+        element = self.element(index)
         for column, field in enumerate(self.fields):
             item_index = index.siblingAtColumn(column)
             value = self._value(element, field)
             self.setData(item_index, value, QtCore.Qt.DisplayRole)
+        # refresh child indexes
+        # for row in range(self.rowCount(index)):
+        #     self.refresh_index(self.index(row, 0, index))
+
+    def refresh_element(self, element: Any) -> None:
+        # update the DisplayRole based on the element stored in the first item
+        for index in self.find_indexes(element):
+            self.refresh_index(index)
 
     def refresh_header(self) -> None:
         labels = [field.label for field in self.fields]
@@ -206,6 +219,24 @@ class ElementModel(QtGui.QStandardItemModel):
             except AttributeError:
                 value = None
         return value
+
+    def _set_value(self, element: Any, value: Any, field: Field):
+        if isinstance(element, (str, int, float)):
+            element = value
+        elif isinstance(element, dict):
+            element[field.name] = value
+        elif isinstance(element, (list, tuple)):
+            try:
+                i = self.fields.index(field)
+                element[i] = value
+            except (KeyError, ValueError):
+                pass
+        else:
+            try:
+                setattr(element, field.name, value)
+            except AttributeError:
+                pass
+        return element
 
 
 class ElementProxyModel(QtCore.QSortFilterProxyModel):
@@ -402,14 +433,16 @@ class ElementBrowser(QtWidgets.QWidget):
             self.tree.expandAll()
 
     def add_element(self):
-        element = 'New Element'
+        element = 'Unnamed'
         parent = self._current_parent()
         self.model.append_element(element, no_children=True, parent=parent)
+        return element
 
     def add_group(self):
-        element = 'New Group'
+        element = 'Unnamed'
         parent = self._current_parent()
         self.model.append_element(element, icon=MaterialIcon('folder'), parent=parent)
+        return element
 
     def add_toolbar_action(
         self,
@@ -434,14 +467,21 @@ class ElementBrowser(QtWidgets.QWidget):
         self._actions[name] = action
 
     def duplicate_selected(self) -> None:
+        # elements = []
         for index in self.tree.selected_indexes:
             element = index.data(QtCore.Qt.UserRole)
             element = copy.deepcopy(element)
+            # elements.append(element)
             icon = index.data(QtCore.Qt.DecorationRole)
             movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
             no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
             parent = index.parent()
             self.model.append_element(element, icon, movable, no_children, parent)
+        # self.select_elements(elements)
+        # return elements
+
+    def elements(self) -> list:
+        return self.model.elements()
 
     def remove_toolbar_action(self, name: str) -> None:
         if name in self._actions:
@@ -457,6 +497,15 @@ class ElementBrowser(QtWidgets.QWidget):
         for index in persistent_indexes:
             if index.isValid() and check_flag(index, QtCore.Qt.ItemIsDragEnabled):
                 self.model.removeRow(index.row(), index.parent())
+
+    def select_elements(self, elements: list) -> None:
+        selection_model = self.tree.selectionModel()
+        selection_model.clear()
+        for element in elements:
+            indexes = self.model.find_indexes(element)
+            for index in indexes:
+                index = self.proxy.mapFromSource(index)
+                selection_model.select(index, QtCore.QItemSelectionModel.Select)
 
     def selected_elements(self) -> list:
         return self.tree.selected_elements()

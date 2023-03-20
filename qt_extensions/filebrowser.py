@@ -57,6 +57,9 @@ class FileNameDelegate(ElementDelegate):
 
 
 class FileBrowser(ElementBrowser):
+    file_filter = ''
+    sync_files = True
+
     def __init__(
         self,
         path: str,
@@ -66,12 +69,11 @@ class FileBrowser(ElementBrowser):
         super().__init__(fields, parent)
 
         self.path = path
-        self.file_filter = ''
-        self.sync_files = True
 
         self._init_elements()
 
         self.model.element_moved.connect(self._move_element)
+        self.model.element_changed.connect(self._change_element)
 
     def _init_ui(self):
         super()._init_ui()
@@ -86,7 +88,8 @@ class FileBrowser(ElementBrowser):
 
     def _init_elements(self) -> None:
         for root, dirs, files in os.walk(self.path):
-            parent = self.model.find_index(root, Field('path'))
+            indexes = self.model.find_indexes(root, Field('path'))
+            parent = indexes[0] if indexes else QtCore.QModelIndex()
 
             for name in dirs:
                 path = os.path.join(root, name)
@@ -109,7 +112,7 @@ class FileBrowser(ElementBrowser):
         else:
             parent_path = self.path
 
-        path = os.path.join(parent_path, 'new_file')
+        path = os.path.join(parent_path, 'Unnamed')
         path = unique_path(path)
 
         try:
@@ -120,7 +123,7 @@ class FileBrowser(ElementBrowser):
         except OSError as e:
             logging.warning(e)
             return
-        self._append_file(path, parent)
+        return self._append_file(path, parent)
 
     def add_group(self):
         parent = self._current_parent()
@@ -131,7 +134,7 @@ class FileBrowser(ElementBrowser):
         else:
             parent_path = self.path
 
-        path = os.path.join(parent_path, 'new_folder')
+        path = os.path.join(parent_path, 'Unnamed')
         path = unique_path(path)
 
         try:
@@ -139,17 +142,20 @@ class FileBrowser(ElementBrowser):
         except OSError as e:
             logging.warning(e)
             return
-        self._append_dir(path, parent)
+        return self._append_dir(path, parent)
 
     def duplicate_selected(self) -> None:
+        # elements = []
         try:
             for element in self.selected_elements():
                 path = unique_path(element.path)
                 shutil.copy(element.path, path)
-            super().duplicate_selected()
+            elements = super().duplicate_selected()
         except OSError as e:
             logging.warning(e)
-            self.refresh()
+        # for element in elements:
+        #     self.model.refresh_element(element)
+        # return elements
 
     def refresh(self) -> None:
         self.model.clear()
@@ -178,9 +184,33 @@ class FileBrowser(ElementBrowser):
                     os.remove(element.path)
         except OSError as e:
             logging.warning(e)
-            self.refresh()
             return
         super().remove_selected()
+
+    def _append_dir(self, path: str, parent: QtCore.QModelIndex):
+        name = os.path.basename(path)
+        element = FileElement(name=name, path=path)
+        icon = MaterialIcon('folder')
+        self.model.append_element(element, icon=icon, parent=parent)
+        return element
+
+    def _append_file(self, path: str, parent: QtCore.QModelIndex):
+        name = os.path.basename(path)
+        element = FileElement(name=name, path=path)
+        self.model.append_element(element, no_children=True, parent=parent)
+        return element
+
+    def _change_element(self, element: FileElement, previous: FileElement) -> None:
+        if element.name == previous.name:
+            return
+        source_path = previous.path
+        parent_path = os.path.dirname(previous.path)
+        destination_path = unique_path(os.path.join(parent_path, element.name))
+        try:
+            shutil.move(source_path, destination_path)
+        except OSError as e:
+            logging.warning(e)
+        self.refresh()
 
     def _move_element(self, element: FileElement, parent: QtCore.QModelIndex) -> None:
         parent_element = self.model.element(parent)
@@ -200,22 +230,8 @@ class FileBrowser(ElementBrowser):
             shutil.move(source_path, destination_path)
         except OSError as e:
             logging.warning(e)
-            self.refresh()
-            return
 
-        element.path = destination_path
-        self.model.refresh_element(element)
-
-    def _append_dir(self, path: str, parent: QtCore.QModelIndex):
-        name = os.path.basename(path)
-        element = FileElement(name=name, path=path)
-        icon = MaterialIcon('folder')
-        self.model.append_element(element, icon=icon, parent=parent)
-
-    def _append_file(self, path: str, parent: QtCore.QModelIndex):
-        name = os.path.basename(path)
-        element = FileElement(name=name, path=path)
-        self.model.append_element(element, no_children=True, parent=parent)
+        self.refresh()
 
 
 def main():

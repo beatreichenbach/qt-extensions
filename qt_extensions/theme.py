@@ -57,8 +57,8 @@ class Palette(QPalette):
 
 # Original color palette from https://github.com/gmarull/qtmodern
 modern_dark = ColorScheme(
-    primary=QColor(42, 130, 218),
-    secondary=QColor(56, 252, 196),
+    primary=QColor(42, 165, 218),
+    secondary=QColor(38, 126, 163),
     black1=QColor(20, 20, 20),
     dark1=QColor(35, 35, 35),
     dark2=QColor(42, 42, 42),

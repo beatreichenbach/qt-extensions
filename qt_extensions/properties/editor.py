@@ -219,6 +219,35 @@ class PropertyForm(QtWidgets.QWidget):
                 boxes.update(children)
         return boxes
 
+    def reset(self, widgets: dict[str, PropertyWidget] | None = None) -> None:
+        if widgets is None:
+            widgets = self.widgets()
+
+        for widget in widgets.values():
+            if isinstance(widget, PropertyWidget):
+                widget.value = widget.default
+            elif isinstance(widget, dict):
+                self.reset(widget)
+
+    def update_widget_values(
+        self,
+        values: dict,
+        widgets: dict[str, PropertyWidget] | None = None,
+        attr: str = 'value',
+    ) -> None:
+        if widgets is None:
+            widgets = self.widgets()
+        for key, value in values.items():
+            if key not in widgets:
+                continue
+            widget = widgets[key]
+            if isinstance(widget, dict):
+                self.update_widget_values(value, widget)
+            elif widget.isEnabled():
+                # only set values on enabled widgets, otherwise linked widgets
+                # hold the wrong value
+                setattr(widget, attr, value)
+
     def values(self) -> dict[str, typing.Any]:
         # create nested dictionary of all property values
         values = {}
@@ -244,25 +273,6 @@ class PropertyForm(QtWidgets.QWidget):
             else:
                 widgets[name] = widget
         return widgets
-
-    def update_widget_values(
-        self,
-        values: dict,
-        widgets: dict[str, PropertyWidget] | None = None,
-        attr: str = 'value',
-    ) -> None:
-        if widgets is None:
-            widgets = self.widgets()
-        for key, value in values.items():
-            if key not in widgets:
-                continue
-            widget = widgets[key]
-            if isinstance(widget, dict):
-                self.update_widget_values(value, widget)
-            elif widget.isEnabled():
-                # only set values on enabled widgets, otherwise linked widgets
-                # hold the wrong value
-                setattr(widget, attr, value)
 
     @staticmethod
     def _set_widget_row_enabled(widget: QtWidgets.QWidget, enabled: bool) -> None:
