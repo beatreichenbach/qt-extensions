@@ -220,6 +220,7 @@ class StringProperty(PropertyWidget):
     value: str = ''
     default: str = ''
     area: bool = False
+    menu: dict | None = None
 
     def _init_ui(self) -> None:
         if self.area:
@@ -232,9 +233,15 @@ class StringProperty(PropertyWidget):
         self.layout().addWidget(self.text)
         self.setFocusProxy(self.text)
 
+        self.menu_button = QtWidgets.QToolButton()
+        self.menu_button.setAutoRaise(True)
+        self.layout().addWidget(self.menu_button)
+        self.menu_button.hide()
+
     def _init_signals(self) -> None:
         super()._init_signals()
         self.setter_signal('area', lambda _: self.update_layout())
+        self.setter_signal('menu', self._update_menu)
 
     def set_value(self, value: str) -> None:
         super().set_value(value)
@@ -256,6 +263,41 @@ class StringProperty(PropertyWidget):
         else:
             value = self.text.text()
         self._value = value
+
+    def _update_menu(self, menu: dict | None) -> None:
+        if not self.area and self.menu is not None:
+            if not self.menu_button.defaultAction():
+                icon = MaterialIcon('expand_more')
+                action = QtWidgets.QAction(icon, 'Fill', self)
+                action.triggered.connect(self._request_menu)
+                self.menu_button.setDefaultAction(action)
+            self.menu_button.show()
+        else:
+            self.menu_button.hide()
+
+    def _request_menu(self) -> None:
+        relative_pos = self.menu_button.rect().topRight()
+        relative_pos.setX(relative_pos.x() + 2)
+        position = self.menu_button.mapToGlobal(relative_pos)
+
+        menu = self._menu(self.menu)
+        menu.exec_(position)
+        self.menu_button.setDown(False)
+
+    def _menu(
+        self, content: dict, menu: QtWidgets.QMenu | None = None
+    ) -> QtWidgets.QMenu:
+        if menu is None:
+            menu = QtWidgets.QMenu(self)
+        for label, text in content.items():
+            if isinstance(text, dict):
+                sub_menu = menu.addMenu(label)
+                self._menu(text, sub_menu)
+            else:
+                action = QtWidgets.QAction(label, self)
+                action.triggered.connect(partial(self.set_value, str(text)))
+                menu.addAction(action)
+        return menu
 
 
 class PathProperty(PropertyWidget):

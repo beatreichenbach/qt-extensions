@@ -114,7 +114,7 @@ class ElementModel(QtGui.QStandardItemModel):
         movable: bool = True,
         no_children: bool = False,
         parent: QtCore.QModelIndex | None = None,
-    ) -> None:
+    ) -> QtCore.QModelIndex:
         # get parent QStandardItem
         parent_item = self.itemFromIndex(parent) if parent else None
         if parent_item is None:
@@ -139,9 +139,23 @@ class ElementModel(QtGui.QStandardItemModel):
                 item.setIcon(icon)
             parent_item.appendRow(items)
             self.element_added.emit(element)
+            return item.index()
+        return QtCore.QModelIndex()
 
-    def element(self, index: QtCore.QModelIndex):
-        data = index.siblingAtColumn(0).data(QtCore.Qt.UserRole)
+    def duplicate_index(self, index: QtCore.QModelIndex) -> QtCore.QModelIndex:
+        element = index.data(QtCore.Qt.UserRole)
+        copied_element = copy.deepcopy(element)
+        icon = index.data(QtCore.Qt.DecorationRole)
+        movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
+        no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
+        parent = index.parent()
+        copied_index = self.append_element(
+            copied_element, icon, movable, no_children, parent
+        )
+        return copied_index
+
+    def element(self, index: QtCore.QModelIndex) -> Any:
+        data = self.data(index.siblingAtColumn(0), QtCore.Qt.UserRole)
         return data
 
     def elements(self, parent: QtCore.QModelIndex | None = None) -> list:
@@ -202,7 +216,7 @@ class ElementModel(QtGui.QStandardItemModel):
         labels = [field.label for field in self.fields]
         self.setHorizontalHeaderLabels(labels)
 
-    def _value(self, element: Any, field: Field):
+    def _value(self, element: Any, field: Field) -> Any:
         if isinstance(element, (str, int, float)):
             value = element
         elif isinstance(element, dict):
@@ -220,7 +234,8 @@ class ElementModel(QtGui.QStandardItemModel):
                 value = None
         return value
 
-    def _set_value(self, element: Any, value: Any, field: Field):
+    def _set_value(self, element: Any, value: Any, field: Field) -> Any:
+        # the reason for returning element is in case element is an immutable object
         if isinstance(element, (str, int, float)):
             element = value
         elif isinstance(element, dict):
@@ -344,7 +359,7 @@ class ElementTree(QtWidgets.QTreeView):
         self.selection_changed.emit()
         super().selectionChanged(selected, deselected)
 
-    def selected_elements(self):
+    def selected_elements(self) -> list:
         elements = [index.data(QtCore.Qt.UserRole) for index in self.selected_indexes]
         return elements
 
@@ -432,17 +447,19 @@ class ElementBrowser(QtWidgets.QWidget):
         if text:
             self.tree.expandAll()
 
-    def add_element(self):
+    def add_element(self) -> QtCore.QModelIndex:
         element = 'Unnamed'
         parent = self._current_parent()
-        self.model.append_element(element, no_children=True, parent=parent)
-        return element
+        index = self.model.append_element(element, no_children=True, parent=parent)
+        return index
 
-    def add_group(self):
+    def add_group(self) -> QtCore.QModelIndex:
         element = 'Unnamed'
         parent = self._current_parent()
-        self.model.append_element(element, icon=MaterialIcon('folder'), parent=parent)
-        return element
+        index = self.model.append_element(
+            element, icon=MaterialIcon('folder'), parent=parent
+        )
+        return index
 
     def add_toolbar_action(
         self,
@@ -450,7 +467,7 @@ class ElementBrowser(QtWidgets.QWidget):
         label: str | None = None,
         icon: QtGui.QIcon | None = None,
         slot: Callable | None = None,
-    ):
+    ) -> QtWidgets.QAction:
         if name in self._actions:
             raise ValueError(f'Action with name {name} already exists.')
         if label is None:
@@ -465,20 +482,14 @@ class ElementBrowser(QtWidgets.QWidget):
             action.triggered.connect(slot)
         self.toolbar.addAction(action)
         self._actions[name] = action
+        return action
 
-    def duplicate_selected(self) -> None:
-        # elements = []
+    def duplicate_selected(self) -> list[QtCore.QModelIndex]:
+        indexes = []
         for index in self.tree.selected_indexes:
-            element = index.data(QtCore.Qt.UserRole)
-            element = copy.deepcopy(element)
-            # elements.append(element)
-            icon = index.data(QtCore.Qt.DecorationRole)
-            movable = check_flag(index, QtCore.Qt.ItemIsDragEnabled)
-            no_children = check_flag(index, QtCore.Qt.ItemNeverHasChildren)
-            parent = index.parent()
-            self.model.append_element(element, icon, movable, no_children, parent)
-        # self.select_elements(elements)
-        # return elements
+            copied_index = self.model.duplicate_index(index)
+            indexes.append(copied_index)
+        return indexes
 
     def elements(self) -> list:
         return self.model.elements()
@@ -510,7 +521,7 @@ class ElementBrowser(QtWidgets.QWidget):
     def selected_elements(self) -> list:
         return self.tree.selected_elements()
 
-    def _current_parent(self):
+    def _current_parent(self) -> QtCore.QModelIndex:
         indexes = self.tree.selected_indexes
         if indexes:
             index = indexes[0]
@@ -520,7 +531,7 @@ class ElementBrowser(QtWidgets.QWidget):
             index = QtCore.QModelIndex()
         return index
 
-    def _update_action_states(self):
+    def _update_action_states(self) -> None:
         indexes = self.tree.selected_indexes
         no_children = False
         movable = True

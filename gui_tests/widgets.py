@@ -47,6 +47,14 @@ def widgets():
     string_property.area = True
     widget.layout().addWidget(string_property)
 
+    string_property = StringProperty('string_menu')
+    string_property.value = '$PATH/file.json'
+    string_property.menu = {
+        'Presets': {'File': 'file.json', 'Empty': ''},
+        'Bob': 'bob.txt',
+    }
+    widget.layout().addWidget(string_property)
+
     path_property = PathProperty('path')
     path_property.value = 'asd'
     path_property.method = PathProperty.Method.EXISTING_DIR

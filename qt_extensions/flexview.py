@@ -19,10 +19,10 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         self._draw_frame(painter, option)
 
         # draw decoration and display
-        # option_view_item = QtWidgets.QStyleOptionViewItem(option)
+        option_view_item = QtWidgets.QStyleOptionViewItem(option)
         # option_view_item.state &= ~QtWidgets.QStyle.State_Selected
-        #
-        super().paint(painter, option, index)
+
+        super().paint(painter, option_view_item, index)
 
         # draw selection
         # self._draw_selection(painter, option)
@@ -55,6 +55,7 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
 
         pixmap = pixmap.scaled(rect.size(), QtCore.Qt.KeepAspectRatioByExpanding)
 
+        # if hasattr(painter, 'selected') and painter.selected:
         if option.state & QtWidgets.QStyle.State_Selected:
             pixmap = self.selectedPixmap(
                 pixmap, option.palette, option.state & QtWidgets.QStyle.State_Enabled
@@ -79,6 +80,7 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
             -self.text_margins.right(),
             -self.text_margins.bottom(),
         )
+        option.state &= ~QtWidgets.QStyle.State_Selected
         super().drawDisplay(painter, option, rect, text)
 
     def sizeHint(
@@ -118,7 +120,11 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         option_frame.frameShape = QtWidgets.QFrame.StyledPanel
         option_frame.lineWidth = 1
 
-        painter.fillRect(option_frame.rect, palette.color(QtGui.QPalette.Window))
+        if option.state & QtWidgets.QStyle.State_Selected:
+            color = palette.color(QtGui.QPalette.Highlight)
+        else:
+            color = palette.color(QtGui.QPalette.Window)
+        painter.fillRect(option_frame.rect, color)
         painter.save()
         painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
         style.drawPrimitive(QtWidgets.QStyle.PE_Frame, option_frame, painter)
@@ -170,6 +176,8 @@ class FlexView(QtWidgets.QAbstractItemView):
 
     min_size = QtCore.QSize(0, 0)
     default_size = QtCore.QSize(250, 150)
+    child_rows = True
+    column = 0
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -192,13 +200,13 @@ class FlexView(QtWidgets.QAbstractItemView):
         self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
 
     @property
-    def item_rects(self) -> list[QtCore.QRect]:
+    def item_rects(self) -> dict[QtCore.QModelIndex, QtCore.QRect]:
         if not self._item_rects:
             self._item_rects = self._update_item_rects()
         return self._item_rects
 
     @item_rects.setter
-    def item_rects(self, value: list[QtCore.QRect]) -> None:
+    def item_rects(self, value: dict[QtCore.QModelIndex, QtCore.QRect]) -> None:
         self._item_rects = value
 
     def dataChanged(
@@ -209,7 +217,7 @@ class FlexView(QtWidgets.QAbstractItemView):
     ) -> None:
         if roles is None:
             roles = []
-        self.item_rects = []
+        self.item_rects = {}
         super().dataChanged(top_left, bottom_right, roles)
 
     def indexAt(self, point: QtCore.QPoint) -> QtCore.QModelIndex:
@@ -218,11 +226,11 @@ class FlexView(QtWidgets.QAbstractItemView):
         )
         point += offset
 
-        self.item_rects = []
+        self.item_rects = {}
 
-        for i, rect in enumerate(self.item_rects):
+        for index, rect in self.item_rects.items():
             if rect.contains(point):
-                return self.model().index(i, 0, self.rootIndex())
+                return index
         return self.rootIndex()
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -298,11 +306,12 @@ class FlexView(QtWidgets.QAbstractItemView):
         has_focus = self.hasFocus() or self.viewport().hasFocus()
         focused = has_focus and self.currentIndex().isValid()
 
-        for row in range(self.model().rowCount(self.rootIndex())):
-            index = self.model().index(row, 0, self.rootIndex())
-
+        for index in self._indexes():
+            rect = self.item_rects.get(index)
+            if rect is None:
+                continue
             option.state = state
-            option.rect = self._map_to_viewport(self.item_rects[row])
+            option.rect = self._map_to_viewport(rect)
             option.decorationAlignment = QtCore.Qt.AlignCenter
             option.decorationPosition = QtWidgets.QStyleOptionViewItem.Top
             option.displayAlignment = QtCore.Qt.AlignBottom | QtCore.Qt.AlignLeft
@@ -323,21 +332,21 @@ class FlexView(QtWidgets.QAbstractItemView):
             self.itemDelegate(index).paint(painter, option, index)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        self.item_rects = []
+        self.item_rects = {}
         super().resizeEvent(event)
 
     def rowsAboutToBeRemoved(
         self, parent: QtCore.QModelIndex, start: int, end: int
     ) -> None:
-        self.item_rects = []
+        self.item_rects = {}
         super().rowsAboutToBeRemoved(parent, start, end)
 
     def rowsInserted(self, parent: QtCore.QModelIndex, start: int, end: int) -> None:
-        self.item_rects = []
+        self.item_rects = {}
         super().rowsInserted(parent, start, end)
 
     def setModel(self, model: QtCore.QAbstractItemModel) -> None:
-        self.item_rects = []
+        self.item_rects = {}
         super().setModel(model)
 
     def scrollTo(
@@ -351,7 +360,7 @@ class FlexView(QtWidgets.QAbstractItemView):
         if not index.isValid():
             return
 
-        rect = self.item_rects[index.row()]
+        rect = self.item_rects[index]
         mapped_rect = self._map_to_viewport(rect)
 
         if (
@@ -386,12 +395,15 @@ class FlexView(QtWidgets.QAbstractItemView):
 
         update_rect = QtCore.QRect()
         selection = QtCore.QItemSelection()
-        for i, item_rect in enumerate(self.item_rects):
+        for index, item_rect in self.item_rects.items():
             if item_rect.intersects(rect):
                 update_rect = update_rect.united(item_rect)
-                index = self.model().index(i, 0, self.rootIndex())
                 selection.select(index, index)
         self.selectionModel().select(selection, command)
+
+    def update(self) -> None:
+        super().update()
+        self.viewport().update()
 
     def updateGeometries(self) -> None:
         self._update_scrollbars()
@@ -399,7 +411,7 @@ class FlexView(QtWidgets.QAbstractItemView):
 
     def visualRect(self, index: QtCore.QModelIndex) -> QtCore.QRect:
         if index.isValid():
-            rect = self.item_rects[index.row()]
+            rect = self.item_rects[index]
         else:
             rect = QtCore.QRect()
         return self._map_to_viewport(rect)
@@ -410,11 +422,26 @@ class FlexView(QtWidgets.QAbstractItemView):
         region = QtGui.QRegion()
 
         for index in selection.indexes():
-            row = index.row()
-            rect = self.item_rects[row]
+            rect = self.item_rects[index]
             region = region.united(self._map_to_viewport(rect))
 
         return region
+
+    def _indexes(
+        self, parent: QtCore.QModelIndex | None = None
+    ) -> list[QtCore.QModelIndex]:
+        if parent is None:
+            parent = self.rootIndex()
+        indexes = []
+        for row in range(self.model().rowCount(parent)):
+            index = self.model().index(row, self.column, parent)
+            if index.data():  # TODO: temporary
+                indexes.append(index)
+            if self.child_rows:
+                first_index = index.siblingAtColumn(0)
+                if first_index.isValid():
+                    indexes.extend(self._indexes(first_index))
+        return indexes
 
     def _horizontal_scroll_to_value(
         self, rect: QtCore.QRect, hint: QtWidgets.QAbstractItemView.ScrollHint
@@ -461,9 +488,9 @@ class FlexView(QtWidgets.QAbstractItemView):
         rect = result.adjusted(dx, dy, dx, dy)
         return rect
 
-    def _update_item_rects(self) -> list[QtCore.QRect]:
+    def _update_item_rects(self) -> dict[QtCore.QModelIndex, QtCore.QRect]:
         if not self.model():
-            return []
+            return {}
 
         position_flags = self.__class__.PositionFlags
         wrap_flags = self.__class__.WrapFlags
@@ -476,15 +503,14 @@ class FlexView(QtWidgets.QAbstractItemView):
         max_height = 0
         group_width = 0
         spacing = self.spacing
-        item_rects = []
+        item_rects = {}
         min_item_width = 0
         previous_item_width = default_size.width()
 
-        items = range(self.model().rowCount(self.rootIndex()))
-
-        group_items = []
-        for i, item in enumerate(items):
-            group_items.append(item)
+        indexes = self._indexes()
+        group_indexes = []
+        for i, index in enumerate(indexes):
+            group_indexes.append(index)
             max_height = max(max_height, default_size.height())
             next_x = x + default_size.width() + spacing
             group_width += default_size.width() + spacing
@@ -496,7 +522,7 @@ class FlexView(QtWidgets.QAbstractItemView):
             except IndexError:
                 next_next_x = next_x - spacing
 
-            is_last_item = i == len(items) - 1
+            is_last_item = i == len(indexes) - 1
             is_overlapped = next_next_x > rect.right()
 
             if self.wrap == wrap_flags.WRAP:
@@ -505,7 +531,7 @@ class FlexView(QtWidgets.QAbstractItemView):
                 end_group = True
 
             if end_group:
-                count = len(group_items)
+                count = len(group_indexes)
                 item_spacing = spacing
                 group_width -= spacing
 
@@ -525,7 +551,7 @@ class FlexView(QtWidgets.QAbstractItemView):
                     item_x = rect.x()
 
                 item_width = (rect.width() - (count - 1) * spacing) / count
-                for group_item in group_items:
+                for group_index in group_indexes:
                     # size = group_item.sizeHint()
                     size = default_size
                     item_height = size.height()
@@ -558,14 +584,14 @@ class FlexView(QtWidgets.QAbstractItemView):
                     )
 
                     min_item_width = max(item_rect.width(), min_item_width)
-                    item_rects.append(item_rect)
+                    item_rects[group_index] = item_rect
                     item_x += item_width + item_spacing
 
                 x = rect.x()
                 y = y + max_height + spacing
 
                 max_height = 0
-                group_items = []
+                group_indexes = []
                 group_width = 0
 
         rect.setBottom(y - spacing)
