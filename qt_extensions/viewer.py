@@ -407,7 +407,7 @@ class ToolBar(QtWidgets.QToolBar):
         # pause
         icon = MaterialIcon('pause')
         color = self.pause_color
-        icon._colored_pixmap(color, QtGui.QIcon.Active, QtGui.QIcon.On)
+        icon.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
         pause_action = QtWidgets.QAction(icon, 'pause', self)
         pause_action.setCheckable(True)
         pause_action.toggled.connect(self.paused.emit)
