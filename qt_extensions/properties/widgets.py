@@ -295,7 +295,7 @@ class StringProperty(PropertyWidget):
                 self._menu(text, sub_menu)
             else:
                 action = QtWidgets.QAction(label, self)
-                action.triggered.connect(partial(self.set_value, str(text)))
+                action.triggered.connect(partial(setattr, self, 'value', str(text)))
                 menu.addAction(action)
         return menu
 

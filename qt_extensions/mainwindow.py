@@ -147,6 +147,11 @@ class DockWidget(QtWidgets.QTabWidget):
             widget.deleteLater()
         super().closeEvent(event)
 
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        if self.isWindow():
+            self.center()
+        super().showEvent(event)
+
     def tabRemoved(self, index: int) -> None:
         self.try_delete()
 
@@ -206,6 +211,15 @@ class DockWidget(QtWidgets.QTabWidget):
             ):
                 parent.insertWidget(index + 1, widget)
 
+    def center(self) -> None:
+        if not self.dock_window:
+            return
+
+        center = self.dock_window.mapToGlobal(self.dock_window.geometry().center())
+        x = center.x() - (self.width() // 2)
+        y = center.y() - (self.height() // 2)
+        self.move(x, y)
+
     def close_tab(self, index: int) -> None:
         widget = self.widget(index)
         self.removeTab(index)
@@ -229,7 +243,7 @@ class DockWidget(QtWidgets.QTabWidget):
         self._drag_widget = self.__class__(self.dock_window)
         self._drag_widget.setParent(self.dock_window)
         # setting window flag after parent creates a window
-        self._drag_widget.setWindowFlag(QtCore.Qt.Tool, True)
+        self._drag_widget.float()
         # adding tab after setting window flag, triggers window title update
         self._drag_widget.addTab(widget, title)
         self._drag_widget.setGeometry(geometry)
@@ -249,15 +263,18 @@ class DockWidget(QtWidgets.QTabWidget):
     def dock_preview_rect(self, area: QtCore.Qt.DockWidgetArea) -> QtCore.QRect:
         return self._dock_rect(area, 0.5)
 
+    def float(self) -> None:
+        self.setWindowFlag(QtCore.Qt.Tool, True)
+
     def update_window_title(self, index: int) -> None:
         if self.window() != self.dock_window:
             self.window().setWindowTitle(self.tabText(index))
 
     def try_delete(self) -> None:
-        # this widget must not be deleted during a drag event
-        # to get around this the widget or its parent will have their opacity set
-        # to 0 or be hidden
         if self.auto_delete and not self.count():
+            # this widget must not be deleted during a drag event
+            # to get around this the widget or its parent will have their opacity set
+            # to 0 or be hidden
             self._hidden = True
             if self._drag_widget:
                 self._hide_recursively(self)
@@ -399,8 +416,15 @@ class DockWindow(QtWidgets.QWidget):
         title: str | None = None,
     ) -> DockWidget:
         # helper function to turn QWidgets into DockWidgets
-        unique_title, widget_instance = self._add_widget(widget, title)
-        dock_widget = DockWidget(self)
+        for title_, widget_ in self._widgets.items():
+            if widget == widget_:
+                unique_title, widget_instance = title_, widget_
+                logging.debug((unique_title, widget_instance))
+                break
+        else:
+            unique_title, widget_instance = self._add_widget(widget, title)
+
+        dock_widget = DockWidget(dock_window=self)
         dock_widget.addTab(widget_instance, unique_title)
         self.dock_widget_added.emit(dock_widget)
 
@@ -484,14 +508,21 @@ class DockWindow(QtWidgets.QWidget):
         widgets = dict(self._widgets)
         # unparent all widgets to clean up layout
         for widget in widgets.values():
+            logging.debug(widget)
             widget.setParent(None)
+            widget.close()
 
         self._update_states_inner(states, self, widgets)
 
         # float any existing widgets that have not been updated
+        # for title, widget in widgets.items():
+        #     dock_widget = self.create_dock_widget(widget, title)
+        #     dock_widget.float()
+        #     dock_widget.show()
+
+        # remove unused widgets
         for title, widget in widgets.items():
-            dock_widget = self.create_dock_widget(widget, title)
-            dock_widget.show()
+            widget.deleteLater()
 
     @staticmethod
     def focus_widget(widget: QtWidgets.QWidget) -> None:
@@ -502,6 +533,13 @@ class DockWindow(QtWidgets.QWidget):
             parent = parent.parent()
         index = parent.indexOf(widget)
         parent.setCurrentIndex(index)
+
+        window = widget.window()
+        window.setWindowState(
+            (window.windowState() & ~QtCore.Qt.WindowMinimized) | QtCore.Qt.WindowActive
+        )
+        window.raise_()
+        window.activateWindow()
 
     def _update_states_inner(
         self,
@@ -649,7 +687,7 @@ def main():
         dock.addTab(QtWidgets.QPushButton('button'), title)
         floating_windows.append(dock)
         dock.setParent(window)
-        dock.setWindowFlag(QtCore.Qt.Tool, True)
+        dock.float()
         dock.show()
 
     floating_windows[3].add_dock_widget(
