@@ -1174,7 +1174,3 @@ __all__ = [
     'EnumProperty',
     'ColorProperty',
 ]
-
-
-if __name__ == '__main__':
-    main()

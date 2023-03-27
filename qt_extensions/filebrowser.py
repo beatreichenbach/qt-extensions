@@ -70,7 +70,7 @@ class FileBrowser(ElementBrowser):
     ) -> None:
         super().__init__(fields, parent)
 
-        self.path = path
+        self.path = os.path.normpath(path)
 
         self._init_elements()
 
@@ -91,7 +91,12 @@ class FileBrowser(ElementBrowser):
     def _init_elements(self) -> None:
         for root, dirs, files in os.walk(self.path):
             indexes = self.model.find_indexes(root, Field('path'))
-            parent = indexes[0] if indexes else QtCore.QModelIndex()
+            if os.path.normpath(root) == self.path:
+                parent = QtCore.QModelIndex()
+            elif indexes:
+                parent = indexes[0]
+            else:
+                break
 
             for name in dirs:
                 path = os.path.join(root, name)

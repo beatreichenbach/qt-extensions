@@ -539,8 +539,15 @@ class ElementBrowser(QtWidgets.QWidget):
             no_children = check_flag(indexes[0], QtCore.Qt.ItemNeverHasChildren)
             movable = check_flag(indexes[0], QtCore.Qt.ItemIsDragEnabled)
 
-        self._actions['remove'].setEnabled(bool(indexes) and movable)
-        self._actions['duplicate_element'].setEnabled(bool(indexes) and no_children)
+        try:
+            self._actions['remove'].setEnabled(bool(indexes) and movable)
+        except KeyError:
+            pass
+
+        try:
+            self._actions['duplicate_element'].setEnabled(bool(indexes) and no_children)
+        except KeyError:
+            pass
 
 
 class Foo:

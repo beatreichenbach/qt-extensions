@@ -68,6 +68,8 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
                 return origin(cast(arg, v, globalns) for v in value)
             except IndexError:
                 return origin(value)
+            except TypeError:
+                return value
 
         elif issubclass(origin, tuple):
             if len(args) == 2 and args[1] is Ellipsis:

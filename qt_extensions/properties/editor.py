@@ -242,7 +242,7 @@ class PropertyForm(QtWidgets.QWidget):
                 continue
             widget = widgets[key]
             if isinstance(widget, dict):
-                self.update_widget_values(value, widget)
+                self.update_widget_values(value, widget, attr)
             elif widget.isEnabled():
                 # only set values on enabled widgets, otherwise linked widgets
                 # hold the wrong value
@@ -523,7 +523,7 @@ def main():
     editor.property_changed.connect(logging.debug)
 
     editor.show()
-    state = editor.state()
+    state = editor.state
     editor.update_state(state)
 
     sys.exit(app.exec_())
