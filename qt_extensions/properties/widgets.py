@@ -1020,7 +1020,7 @@ class DoubleValidator(QtGui.QDoubleValidator):
             value = round(value, self.decimals())
             text = '{value:.{decimals}f}'.format(value=value, decimals=self.decimals())
             return text
-        except ValueError:
+        except (ValueError, TypeError):
             return text
 
 

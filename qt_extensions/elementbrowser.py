@@ -90,8 +90,6 @@ class ElementModel(QtGui.QStandardItemModel):
     ) -> Any:
         result = super().setData(index, value, role)
         if result and role & QtCore.Qt.DisplayRole | QtCore.Qt.EditRole:
-            logging.debug('setData')
-
             element_index = index.siblingAtColumn(0)
             if element_index.isValid():
                 element = index.data(QtCore.Qt.UserRole)
@@ -100,7 +98,6 @@ class ElementModel(QtGui.QStandardItemModel):
                 try:
                     field = self.fields[index.column()]
                 except KeyError:
-                    logging.debug('key error')
                     return False
 
                 element = self._set_value(element, value, field)
