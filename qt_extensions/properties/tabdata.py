@@ -175,6 +175,11 @@ class TabDataProperty(PropertyWidget):
         action.triggered.connect(self.remove_row)
         self.toolbar.addAction(action)
 
+        icon = MaterialIcon('clear_all')
+        action = QtWidgets.QAction(icon, 'Clear', self)
+        action.triggered.connect(self.clear)
+        self.toolbar.addAction(action)
+
         self.resize_grip = ResizeGrip(self.view)
         self.resize_grip.can_resize_horizontal = True
 
@@ -186,6 +191,9 @@ class TabDataProperty(PropertyWidget):
         self.setter_signal('types', self.set_types)
 
     def _item_change(self) -> None:
+        self._value = self._tab_data_value()
+
+    def _tab_data_value(self):
         value = []
         for row in range(self.model.rowCount()):
             row_values = []
@@ -194,8 +202,12 @@ class TabDataProperty(PropertyWidget):
                 column_value = self.model.data(index, QtCore.Qt.EditRole)
                 row_values.append(column_value)
             value.append(row_values)
+        return value
 
-        self._value = value
+    def clear(self):
+        self.model.clear()
+        super().set_value([])
+        self.update_horizontal_headers()
 
     def update_horizontal_headers(self) -> None:
         if self.headers:
@@ -238,16 +250,20 @@ class TabDataProperty(PropertyWidget):
         self.model.clear()
         if value is None:
             return
+
         for row, row_data in enumerate(value):
             items = []
             if isinstance(row_data, dict):
                 row_data = row_data.values()
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
+                cell_data = round(cell_data, self.decimals)
                 item.setData(cell_data, QtCore.Qt.EditRole)
                 items.append(item)
             if items:
                 self.model.appendRow(items)
+
+        super().set_value(self._tab_data_value())
         self.update_horizontal_headers()
         self.update_vertical_headers()
 

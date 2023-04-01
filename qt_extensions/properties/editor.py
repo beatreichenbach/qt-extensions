@@ -186,10 +186,12 @@ class PropertyForm(QtWidgets.QWidget):
         self.add_widget(line)
         return line
 
-    def add_widget(self, widget: QtWidgets.QWidget) -> QtWidgets.QWidget:
+    def add_widget(
+        self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 3
+    ) -> QtWidgets.QWidget:
         layout = self.grid_layout
         row = layout.rowCount() - 1
-        layout.addWidget(widget, row, 0, 1, 3)
+        layout.addWidget(widget, row, column, 1, column_span)
         self._update_stretch()
         return widget
 

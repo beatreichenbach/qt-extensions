@@ -380,7 +380,6 @@ class EnumProperty(PropertyWidget):
         self.combo.currentIndexChanged.connect(self._current_index_change)
 
         self.layout().addWidget(self.combo)
-        # self.layout().addStretch()
         self.setFocusProxy(self.combo)
 
     def _init_signals(self) -> None:
