@@ -220,7 +220,7 @@ class StringProperty(PropertyWidget):
     value: str = ''
     default: str = ''
     area: bool = False
-    menu: dict | None = None
+    menu: dict | list | tuple | None = None
 
     def _init_ui(self) -> None:
         if self.area:
@@ -241,7 +241,7 @@ class StringProperty(PropertyWidget):
     def _init_signals(self) -> None:
         super()._init_signals()
         self.setter_signal('area', lambda _: self.update_layout())
-        self.setter_signal('menu', self._update_menu)
+        self.setter_signal('menu', lambda _: self._update_menu())
 
     def set_value(self, value: str) -> None:
         super().set_value(value)
@@ -264,7 +264,7 @@ class StringProperty(PropertyWidget):
             value = self.text.text()
         self._value = value
 
-    def _update_menu(self, menu: dict | None) -> None:
+    def _update_menu(self) -> None:
         if not self.area and self.menu is not None:
             if not self.menu_button.defaultAction():
                 icon = MaterialIcon('expand_more')
@@ -285,10 +285,12 @@ class StringProperty(PropertyWidget):
         self.menu_button.setDown(False)
 
     def _menu(
-        self, content: dict, menu: QtWidgets.QMenu | None = None
+        self, content: dict | list | tuple, menu: QtWidgets.QMenu | None = None
     ) -> QtWidgets.QMenu:
         if menu is None:
             menu = QtWidgets.QMenu(self)
+        if isinstance(content, (list, tuple)):
+            content = {i: i for i in content}
         for label, text in content.items():
             if isinstance(text, dict):
                 sub_menu = menu.addMenu(label)
