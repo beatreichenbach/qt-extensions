@@ -2,7 +2,6 @@ import dataclasses
 import json
 import logging
 import sys
-import types
 from dataclasses import is_dataclass, fields
 from enum import Enum
 from types import GenericAlias, UnionType, GeneratorType, NoneType

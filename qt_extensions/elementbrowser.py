@@ -545,34 +545,3 @@ class ElementBrowser(QtWidgets.QWidget):
             self._actions['duplicate_element'].setEnabled(bool(indexes) and no_children)
         except KeyError:
             pass
-
-
-class Foo:
-    pass
-
-
-def main():
-    from qt_extensions import theme
-
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication()
-    theme.apply_theme(theme.monokai)
-
-    widget = ElementBrowser([Field('name'), Field('focal')])
-    # widget.model.element_added.connect(lambda data: logging.info(data))
-    # widget.model.element_removed.connect(lambda data: logging.info(data))
-    # widget.model.element_changed.connect(
-    #     lambda data, data2: logging.info([data, data2])
-    # )
-    # widget.model.element_moved.connect(
-    #     lambda data, parent: logging.info([data, parent])
-    # )
-
-    widget.show()
-
-    sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    main()

@@ -609,26 +609,3 @@ class Viewer(QtWidgets.QWidget):
 
     def _view_zoom_change(self, zoom: float) -> None:
         self.toolbar.zoom = zoom
-
-
-def main():
-    import sys
-    from qt_extensions import theme
-
-    logging.getLogger().setLevel(logging.DEBUG)
-    app = QtWidgets.QApplication()
-    theme.apply_theme(theme.monokai)
-
-    viewer = Viewer()
-
-    array = np.tile(np.linspace(0, 1, 512), (512, 1))
-    image = np.dstack((array, array, array))
-    viewer.update_image(image)
-
-    viewer.show()
-
-    sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    main()

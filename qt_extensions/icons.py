@@ -1,6 +1,6 @@
 # initially I had https://github.com/marella/material-design-icons/ added as a submodule
 # but zip files of the repo on github does not include submodules.
-# to go around this icons are compile to qt resource file using compile_icons.py
+# to go around this issue icons are compiled to qt resource file using compile_icons.py
 
 import enum
 import logging
@@ -81,21 +81,3 @@ class MaterialIcon(QIcon):
                 color = self._colors[QIcon.Off][QIcon.Normal]
         pixmap = QtGui.QIcon(self._path).pixmap(size)
         return fill_pixmap(pixmap, color)
-
-
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication()
-
-    icon = MaterialIcon('folder', MaterialIcon.Style.FILLED)
-    logging.debug(icon)
-    button = QtWidgets.QPushButton()
-    button.setIcon(icon)
-    button.show()
-
-    sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    main()

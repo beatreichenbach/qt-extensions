@@ -257,7 +257,8 @@ class TabDataProperty(PropertyWidget):
                 row_data = row_data.values()
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
-                cell_data = round(cell_data, self.decimals)
+                if isinstance(cell_data, numbers.Number):
+                    cell_data = round(cell_data, self.decimals)
                 item.setData(cell_data, QtCore.Qt.EditRole)
                 items.append(item)
             if items:
@@ -293,33 +294,4 @@ class TabDataProperty(PropertyWidget):
             self.view.setColumnWidth(i, size)
 
 
-def main():
-    import sys
-    from qt_extensions import theme
-
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication()
-    theme.apply_theme(theme.monokai)
-
-    data = [
-        ['Sun', 696000, 198],
-        ['Earth', 6371, 5973.6],
-        ['Moon', 1737, 73.5],
-        ['Mars', 3390, 641.85],
-        ['A really big Star', 406320, 339023452345.23450],
-    ]
-    prop = TabDataProperty()
-    prop.default = data
-    prop.headers = ['Name', 'Radius', 'Weight']
-    prop.types = [str, int, float]
-    prop.start_index = 4
-    prop.show()
-    sys.exit(app.exec_())
-
-
 __all__ = ['TabDataProperty']
-
-
-if __name__ == '__main__':
-    main()

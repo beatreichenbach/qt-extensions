@@ -252,24 +252,3 @@ class FileBrowser(ElementBrowser):
         except OSError as e:
             logging.exception(e)
         self.refresh()
-
-
-def main():
-    from qt_extensions import theme
-
-    app = QtWidgets.QApplication(sys.argv)
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    theme.apply_theme(theme.monokai)
-
-    dialog = FileBrowser(
-        r'D:\files\dev\027_flare\qt-extensions\qt_extensions',
-        [Field('name'), Field('path')],
-    )
-    dialog.show()
-
-    sys.exit(app.exec_())
-
-
-if __name__ == '__main__':
-    main()
