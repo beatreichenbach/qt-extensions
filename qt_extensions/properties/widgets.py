@@ -313,6 +313,7 @@ class PathProperty(PropertyWidget):
     value: str = ''
     default: str = ''
     method: Method = Method.OPEN_FILE
+    dir_fallback: str = ''
 
     def _init_ui(self) -> None:
         self.line = QtWidgets.QLineEdit()
@@ -328,25 +329,26 @@ class PathProperty(PropertyWidget):
         self.setFocusProxy(self.line)
 
     def browse(self) -> None:
+        start_dir = self.value or self.dir_fallback
         match self.method:
             case PathProperty.Method.OPEN_FILE:
                 path, filters = QtWidgets.QFileDialog.getOpenFileName(
                     parent=self,
                     caption='Open File',
-                    dir=self.value,
+                    dir=start_dir,
                 )
             case PathProperty.Method.SAVE_FILE:
                 path, filters = QtWidgets.QFileDialog.getSaveFileName(
                     parent=self,
                     caption='Save File',
-                    dir=self.value,
+                    dir=start_dir,
                     filter='*.*',
                 )
             case PathProperty.Method.EXISTING_DIR:
                 path = QtWidgets.QFileDialog.getExistingDirectory(
                     parent=self,
                     caption='Select Directory',
-                    dir=self.value,
+                    dir=start_dir,
                 )
             case _:
                 return

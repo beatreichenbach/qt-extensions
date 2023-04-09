@@ -44,7 +44,7 @@ def convert_array(array: np.ndarray) -> np.ndarray:
         array = np.dstack((array, array, array))
         return array
     if len(array.shape) == 3:
-        if array.shape[2] == 4:
+        if array.shape[2] > 3:
             array = array[:, :, :3]
             return array
         elif array.shape[2] == 3:
