@@ -1,7 +1,6 @@
 import dataclasses
 import logging
 import typing
-from typing import Callable
 
 import numpy as np
 from PySide2 import QtWidgets, QtGui, QtCore
