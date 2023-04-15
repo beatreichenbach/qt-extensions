@@ -40,7 +40,6 @@ class PropertyToolTip(QtWidgets.QFrame):
         super().__init__(parent)
 
         self.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
         self.setAutoFillBackground(True)
 
         palette = self.palette()
@@ -48,21 +47,23 @@ class PropertyToolTip(QtWidgets.QFrame):
         self.setPalette(palette)
 
         self.setLayout(QtWidgets.QVBoxLayout())
-        title = QtWidgets.QLabel(widget.label)
+        self.layout().setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
+
+        title = QtWidgets.QLabel(widget.label, self)
         font = title.font()
         font.setBold(True)
         title.setFont(font)
         self.layout().addWidget(title)
 
-        separator = QtWidgets.QFrame()
+        separator = QtWidgets.QFrame(self)
         separator.setFrameShape(QtWidgets.QFrame.HLine)
         self.layout().addWidget(separator)
 
         typ = type(widget).__name__.replace('Property', '')
-        detail = QtWidgets.QLabel(f'Property: {widget.name} ({typ})')
+        detail = QtWidgets.QLabel(f'Property: {widget.name} ({typ})', self)
         self.layout().addWidget(detail)
 
-        tooltip = QtWidgets.QLabel(widget.tooltip)
+        tooltip = QtWidgets.QLabel(widget.tooltip, self)
         # tooltip.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         tooltip.setWordWrap(True)
         tooltip.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
@@ -80,8 +81,6 @@ class PropertyLabel(QtWidgets.QLabel):
 
         self._tooltip: PropertyToolTip | None = None
         self._widget = widget
-
-        self.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
         if self._widget.tooltip:
