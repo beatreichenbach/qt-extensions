@@ -33,6 +33,70 @@ class EditorState:
     link_states: dict[str, LinkState] = dataclasses.field(default_factory=dict)
 
 
+class PropertyToolTip(QtWidgets.QFrame):
+    def __init__(
+        self, widget: PropertyWidget, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        super().__init__(parent)
+
+        self.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.setWindowFlags(QtCore.Qt.FramelessWindowHint)
+        self.setAutoFillBackground(True)
+
+        palette = self.palette()
+        palette.setColor(QtGui.QPalette.Window, palette.color(QtGui.QPalette.Base))
+        self.setPalette(palette)
+
+        self.setLayout(QtWidgets.QVBoxLayout())
+        title = QtWidgets.QLabel(widget.label)
+        font = title.font()
+        font.setBold(True)
+        title.setFont(font)
+        self.layout().addWidget(title)
+
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        self.layout().addWidget(separator)
+
+        typ = type(widget).__name__.replace('Property', '')
+        detail = QtWidgets.QLabel(f'Property: {widget.name} ({typ})')
+        self.layout().addWidget(detail)
+
+        tooltip = QtWidgets.QLabel(widget.tooltip)
+        # tooltip.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
+        tooltip.setWordWrap(True)
+        tooltip.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+        self.layout().addWidget(tooltip)
+
+    def leaveEvent(self, event: QtCore.QEvent) -> None:
+        self.hide()
+
+
+class PropertyLabel(QtWidgets.QLabel):
+    def __init__(
+        self, widget: PropertyWidget, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        super().__init__(widget.label, parent)
+
+        self._tooltip: PropertyToolTip | None = None
+        self._widget = widget
+
+        self.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+
+    def enterEvent(self, event: QtCore.QEvent) -> None:
+        if self._widget.tooltip:
+            QtCore.QTimer.singleShot(600, self.show_tooltip)
+        super().enterEvent(event)
+
+    def show_tooltip(self):
+        global_position = QtGui.QCursor.pos()
+        if self.geometry().contains(self.parent().mapFromGlobal(global_position)):
+            if self._tooltip is None:
+                self._tooltip = PropertyToolTip(self._widget, parent=self.window())
+            self._tooltip.move(self.window().mapFromGlobal(global_position))
+            self._tooltip.show()
+
+
 class PropertyEditor(VerticalScrollArea):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -112,7 +176,7 @@ class PropertyForm(QtWidgets.QWidget):
 
         # label
         if widget.label:
-            label = QtWidgets.QLabel(widget.label, self)
+            label = PropertyLabel(widget, self)
             layout.addWidget(label, row, 1)
             widget.enabled_changed.connect(label.setEnabled)
             widget.enabled_changed.emit(widget.isEnabled())

@@ -17,6 +17,7 @@ class PropertyWidget(QtWidgets.QWidget):
     default: typing.Any = None
     name: str | None = None
     label: str | None = None
+    tooltip: str = ''
 
     def __init__(
         self, name: str | None = None, parent: QtWidgets.QWidget | None = None

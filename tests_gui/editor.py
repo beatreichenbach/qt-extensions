@@ -56,6 +56,11 @@ def main():
     )
     group1_nested.add_property(properties.IntProperty('int'))
     group1_nested.add_property(properties.FloatProperty('float'))
+    nested_prop_tooltip = properties.StringProperty('nested_tooltip')
+    nested_prop_tooltip.tooltip = (
+        'asdfasdfasdf asdf asdf asdf asdfa fdadsfa sdfadfadfasdfadf'
+    )
+    group1_nested.add_property(nested_prop_tooltip)
 
     group3 = editor.add_tab_group(('tab_1', 'tab_2'))
 
@@ -84,11 +89,12 @@ def main():
         ['Mars', 3390, 641.85],
         ['A really big Star', 406320, 339023452345.23450],
     ]
-    prop = TabDataProperty('TabData')
+    prop = TabDataProperty('tabdata')
     prop.default = data
     prop.headers = ['Name', 'Radius', 'Weight']
     prop.types = [str, int, float]
     prop.start_index = 4
+    prop.tooltip = 'By default, labels display left-aligned, vertically-centered text and images, where any tabs in the text to be displayed are automatically expanded. However, the look of a QLabel can be adjusted and fine-tuned in several ways.'
     editor.add_property(prop)
 
     # editor.values_changed.connect(logging.debug)
