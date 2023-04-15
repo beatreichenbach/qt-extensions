@@ -257,12 +257,13 @@ class GraphicsView(QtWidgets.QGraphicsView):
         item = self.scene().item
         if item:
             position = self.mapToScene(event.pos()).toPoint()
+            # get color before inverting y
+            color = item.color_at(position)
             position.setY(item.boundingRect().height() - position.y())
 
             if self._dragging:
                 self.position_changed.emit(position)
 
-            color = item.color_at(position)
             self.pixel_color_changed.emit(color)
             self.pixel_position_changed.emit(position)
 
