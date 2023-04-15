@@ -1,4 +1,3 @@
-import logging
 from enum import Enum, IntEnum, auto
 import math
 import typing
@@ -123,6 +122,7 @@ class IntProperty(PropertyWidget):
     line_min: int | None = None
     line_max: int | None = None
     slider_visible: bool = True
+    commit_on_edit: bool = False
 
     def _init_ui(self) -> None:
         # line
@@ -148,6 +148,9 @@ class IntProperty(PropertyWidget):
         self.setter_signal('slider_min', self.slider.setMinimum)
         self.setter_signal('slider_max', self.slider.setMaximum)
         self.setter_signal('slider_visible', self.toggle_slider)
+        self.setter_signal(
+            'commit_on_edit', partial(setattr, self.line, 'commit_on_edit')
+        )
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -370,7 +373,7 @@ class PathProperty(PropertyWidget):
 class EnumProperty(PropertyWidget):
     # TODO: figure out how to actually handle it
     # EnumProperty's value is actually not of type value but whatever the type of the enum.value is.
-    # this is bad because enumproperty.value = Enum.RED means that enumproperty.value is now 'red'
+    # this is bad because enum_property.value = Enum.RED means that enum_property.value is now 'red'
 
     value_changed: QtCore.Signal = QtCore.Signal(Enum)
 
@@ -774,7 +777,10 @@ class IntLineEdit(QtWidgets.QLineEdit):
         self._maximum = self._abs_maximum
         self._value = 0
 
-        self.editingFinished.connect(self._strip_padding)
+        self.commit_on_edit = False
+
+        self.editingFinished.connect(self.commit)
+        self.textEdited.connect(self._text_edit)
 
     def _init_validator(self) -> None:
         validator = IntValidator()
@@ -812,9 +818,20 @@ class IntLineEdit(QtWidgets.QLineEdit):
         state, text_, pos_ = self.validator().validate(text, 0)
         if state == QtGui.QValidator.State.Acceptable:
             self.setText(text)
-            self._strip_padding()
+            self.commit()
 
-    def keyPressEvent(self, event: QtGui.QResizeEvent) -> None:
+    def commit(self, update_text: bool = True) -> None:
+        # strip padding
+        value = self._text_to_value(self.text())
+        if int(value) == value:
+            value = int(value)
+        if self._value != value:
+            self._value = value
+            self.value_changed.emit(value)
+        if update_text:
+            self.setText(str(value))
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() == QtCore.Qt.Key_Up:
             self._step(add=True)
             event.accept()
@@ -848,6 +865,10 @@ class IntLineEdit(QtWidgets.QLineEdit):
             return int(text)
         except ValueError:
             return 0
+
+    def _text_edit(self):
+        if self.commit_on_edit:
+            self.commit(update_text=False)
 
     def _match_value_to_text(self, value: int, text: str, exponent: int) -> str:
         # exponent is for subclasses
@@ -908,16 +929,6 @@ class IntLineEdit(QtWidgets.QLineEdit):
         position = len(text) - step_index
         return position
 
-    def _strip_padding(self) -> None:
-        value = self._text_to_value(self.text())
-        if int(value) == value:
-            value = int(value)
-        if self._value != value:
-            self._value = value
-            self.value_changed.emit(value)
-
-        self.setText(str(value))
-
 
 class FloatLineEdit(IntLineEdit):
     value_changed = QtCore.Signal(float)
@@ -947,6 +958,18 @@ class FloatLineEdit(IntLineEdit):
             return float(text)
         except ValueError:
             return float(0)
+
+    def commit(self, update_text: bool = True) -> None:
+        # strip padding
+        value = self._text_to_value(self.text())
+        if int(value) == value:
+            value = int(value)
+        if self._value != value:
+            # emit float
+            self._value = float(value)
+            self.value_changed.emit(float(value))
+        if update_text:
+            self.setText(str(value))
 
     def _match_value_to_text(self, value: int, text: str, exponent: int) -> str:
         decimal_index = text.find('.')

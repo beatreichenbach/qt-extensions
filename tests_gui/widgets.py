@@ -14,6 +14,7 @@ from qt_extensions.properties import (
     SizeFProperty,
     BoolProperty,
     EnumProperty,
+    TabDataProperty,
 )
 
 
@@ -78,6 +79,20 @@ def widgets():
     enum_property = EnumProperty('enum')
     enum_property.enum = Enum('Number', ('one', 'two', 'three'))
     widget.layout().addWidget(enum_property)
+
+    data = [
+        ['Sun', 696000, 198],
+        ['Earth', 6371, 5973.6],
+        ['Moon', 1737, 73.5],
+        ['Mars', 3390, 641.85],
+        ['A really big Star', 406320, 339023452345.23450],
+    ]
+    tab_data_property = TabDataProperty('TabData')
+    tab_data_property.default = data
+    tab_data_property.headers = ['Name', 'Radius', 'Weight']
+    tab_data_property.types = [str, int, float]
+    tab_data_property.start_index = 4
+    widget.layout().addWidget(tab_data_property)
 
     widget.show()
 

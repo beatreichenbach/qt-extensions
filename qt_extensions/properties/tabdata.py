@@ -1,7 +1,6 @@
 import logging
 import numbers
 import typing
-from collections.abc import Iterable
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
@@ -11,10 +10,39 @@ from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
 
 
-class IntegerDelegate(QtWidgets.QStyledItemDelegate):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
+class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
+    def set_edit_data(
+        self,
+        value: typing.Any,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        if self.parent():
+            indexes = self.parent().selectedIndexes()
+            if index not in indexes:
+                indexes.append(index)
+        else:
+            indexes = [index]
+        for index in indexes:
+            model.setData(index, value, QtCore.Qt.EditRole)
 
+    def setModelData(
+        self,
+        editor: QtWidgets.QWidget,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        if self.parent():
+            indexes = self.parent().selectedIndexes()
+            if index not in indexes:
+                indexes.append(index)
+        else:
+            indexes = [index]
+        for index in indexes:
+            super().setModelData(editor, model, index)
+
+
+class IntegerDelegate(StyledItemDelegate):
     def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
         return str(value)
 
@@ -28,6 +56,7 @@ class IntegerDelegate(QtWidgets.QStyledItemDelegate):
         editor = IntProperty(parent=parent)
         editor.slider_visible = False
         editor.line.setFrame(False)
+        editor.commit_on_edit = True
         return editor
 
     def setEditorData(
@@ -44,7 +73,7 @@ class IntegerDelegate(QtWidgets.QStyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> None:
         value = editor.value
-        model.setData(index, value, QtCore.Qt.EditRole)
+        self.set_edit_data(value, model, index)
 
     def updateEditorGeometry(
         self,
@@ -55,17 +84,16 @@ class IntegerDelegate(QtWidgets.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
-class FloatDelegate(QtWidgets.QStyledItemDelegate):
+class FloatDelegate(StyledItemDelegate):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-
         self.decimals = None
 
     def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
         if self.decimals is not None:
             return f'{value:.{self.decimals}f}'.rstrip('0').rstrip('.')
         else:
-            return str(value)
+            return f'{value}'.rstrip('0').rstrip('.')
 
     def createEditor(
         self,
@@ -77,6 +105,7 @@ class FloatDelegate(QtWidgets.QStyledItemDelegate):
         editor.slider_visible = False
         editor.decimals = 6
         editor.line.setFrame(False)
+        editor.commit_on_edit = True
         return editor
 
     def setEditorData(
@@ -93,7 +122,7 @@ class FloatDelegate(QtWidgets.QStyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> None:
         value = editor.value
-        model.setData(index, value, QtCore.Qt.EditRole)
+        self.set_edit_data(value, model, index)
 
     def updateEditorGeometry(
         self,
@@ -104,6 +133,29 @@ class FloatDelegate(QtWidgets.QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
+class DataTableModel(QtGui.QStandardItemModel):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.types = []
+
+    def setData(
+        self,
+        index: QtCore.QModelIndex,
+        value: typing.Any,
+        role: int = QtCore.Qt.EditRole,
+    ) -> bool:
+        if role == QtCore.Qt.EditRole:
+            column = index.column()
+            typ = self.types[column] if column < len(self.types) else None
+            if typ is not None:
+                try:
+                    value = typ(value)
+                except (ValueError, TypeError):
+                    value = None
+        return super().setData(index, value, role)
+
+
 class DataTableView(QtWidgets.QTableView):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -111,6 +163,7 @@ class DataTableView(QtWidgets.QTableView):
         self._init_ui()
 
     def _init_ui(self):
+        self.setSelectionMode(QtWidgets.QAbstractItemView.ContiguousSelection)
         self.setAlternatingRowColors(True)
         self.setShowGrid(False)
         self.setSortingEnabled(True)
@@ -123,6 +176,88 @@ class DataTableView(QtWidgets.QTableView):
         self.setSizePolicy(
             QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum
         )
+
+        # context menu
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_menu)
+        self.context_menu = QtWidgets.QMenu(self)
+
+        action = QtWidgets.QAction("Edit", self)
+        action.triggered.connect(self.edit_selected)
+        self.addAction(action)
+        self.context_menu.addAction(action)
+
+        action = QtWidgets.QAction("Copy", self)
+        action.setShortcut(QtGui.QKeySequence.Copy)
+        action.triggered.connect(self.copy_selected)
+        self.addAction(action)
+        self.context_menu.addAction(action)
+
+        action = QtWidgets.QAction("Paste", self)
+        action.setShortcut(QtGui.QKeySequence.Paste)
+        action.triggered.connect(self.paste_selected)
+        self.addAction(action)
+        self.context_menu.addAction(action)
+
+    def copy_selected(self) -> None:
+        selected_indexes = self.selectedIndexes()
+        if not self.model():
+            return
+
+        # create nested list from data
+        data = []
+        row_data = []
+        row = 0
+        for index in selected_indexes:
+            if row != index.row() and row_data:
+                data.append(row_data)
+                row_data = []
+            row = index.row()
+            row_data.append(self.model().data(index))
+        if row_data:
+            data.append(row_data)
+
+        # copy to clipboard
+        text = '\n'.join('\t'.join(str(d) for d in row_data) for row_data in data)
+        clipboard = QtGui.QClipboard()
+        clipboard.setText(text)
+
+    def edit_selected(self) -> None:
+        index = self.currentIndex()
+        if index.isValid():
+            self.edit(index)
+
+    def paste_selected(self) -> None:
+        selected_indexes = self.selectedIndexes()
+        current_index = self.currentIndex()
+        if not current_index and not selected_indexes or not self.model():
+            return
+
+        # get top left index
+        for index in selected_indexes:
+            if (
+                index.row() <= current_index.row()
+                and index.column() <= current_index.column()
+            ):
+                current_index = index
+
+        # get data
+        text = QtGui.QClipboard().text()
+        data = (row_text.split('\t') for row_text in text.split('\n'))
+
+        # set data
+        for row, row_data in enumerate(data):
+            row_index = current_index.siblingAtRow(current_index.row() + row)
+            if not row_index.isValid():
+                continue
+            for column, d in enumerate(row_data):
+                index = row_index.siblingAtColumn(current_index.column() + column)
+                if not index.isValid():
+                    continue
+                self.model().setData(index, d)
+
+    def show_menu(self, position: QtCore.QPoint) -> None:
+        self.context_menu.exec_(self.viewport().mapToGlobal(position))
 
 
 class TabDataProperty(PropertyWidget):
@@ -151,7 +286,7 @@ class TabDataProperty(PropertyWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
 
         # table view
-        self.model = QtGui.QStandardItemModel(parent=self)
+        self.model = DataTableModel(parent=self)
         self.model.itemChanged.connect(self._item_change)
         # self.model.dataChanged.connect(self.)
         self.view = DataTableView(parent=self)
@@ -228,16 +363,21 @@ class TabDataProperty(PropertyWidget):
         labels = list(map(str, rows))
         self.model.setVerticalHeaderLabels(labels)
 
-    def set_types(self, types: Iterable[typing.Type] | None) -> None:
+    def set_types(self, types: list | tuple | None) -> None:
+        self._delegates = []
+        # fill up to column count
         if types is None:
-            return
+            types = []
+        types += [None] * (self.model.columnCount() - len(types))
+        self.model.types = types
+
         for i, type_ in enumerate(types):
             if issubclass(type_, float):
-                delegate = FloatDelegate(self)
+                delegate = FloatDelegate(self.view)
             elif issubclass(type_, int):
-                delegate = IntegerDelegate(self)
+                delegate = IntegerDelegate(self.view)
             else:
-                continue
+                delegate = StyledItemDelegate(self.view)
             self.view.setItemDelegateForColumn(i, delegate)
             self._delegates.append(delegate)
 
@@ -257,7 +397,7 @@ class TabDataProperty(PropertyWidget):
                 row_data = row_data.values()
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
-                if isinstance(cell_data, numbers.Number):
+                if isinstance(cell_data, float):
                     cell_data = round(cell_data, self.decimals)
                 item.setData(cell_data, QtCore.Qt.EditRole)
                 items.append(item)
