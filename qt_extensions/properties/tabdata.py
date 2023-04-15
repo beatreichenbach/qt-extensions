@@ -17,13 +17,11 @@ class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
-        if self.parent():
-            indexes = self.parent().selectedIndexes()
-            if index not in indexes:
-                indexes.append(index)
-        else:
-            indexes = [index]
+        indexes = self.selected_indexes(index)
+        model.blockSignals(True)
         for index in indexes:
+            if index == indexes[-1]:
+                model.blockSignals(False)
             model.setData(index, value, QtCore.Qt.EditRole)
 
     def setModelData(
@@ -32,14 +30,20 @@ class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
+        indexes = self.selected_indexes(index)
+        model.blockSignals(True)
+        for index in indexes:
+            if index == indexes[-1]:
+                model.blockSignals(False)
+            super().setModelData(editor, model, index)
+
+    def selected_indexes(self, current_index: QtCore.QModelIndex | None):
+        indexes = []
         if self.parent():
             indexes = self.parent().selectedIndexes()
-            if index not in indexes:
-                indexes.append(index)
-        else:
-            indexes = [index]
-        for index in indexes:
-            super().setModelData(editor, model, index)
+        if current_index is not None and current_index not in indexes:
+            indexes.append(current_index)
+        return indexes
 
 
 class IntegerDelegate(StyledItemDelegate):
