@@ -181,3 +181,8 @@ def hash_dataclass(cls):
 
     cls.__hash__ = __hash__
     return dataclasses.dataclass(cls)
+
+
+class hashable_dict(dict):
+    def __hash__(self):
+        return hash(tuple(sorted(self.items())))
