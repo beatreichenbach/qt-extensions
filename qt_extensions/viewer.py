@@ -256,7 +256,10 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
         item = self.scene().item
         if item:
-            position = self.mapToScene(event.pos()).toPoint()
+            cursor_position = self.mapToScene(event.pos())
+            position = QtCore.QPoint(
+                np.floor(cursor_position.x()), np.floor(cursor_position.y())
+            )
             # get color before inverting y
             color = item.color_at(position)
             position.setY(item.boundingRect().height() - position.y())

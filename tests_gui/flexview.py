@@ -28,7 +28,7 @@ def flexview():
     for i in range(10):
         model.appendRow(QtGui.QStandardItem(f'Item {i}'))
 
-    splash_path = str(files('flare').joinpath('resources').joinpath('icon.png'))
+    splash_path = str(files('realflare').joinpath('resources').joinpath('icon.png'))
     pixmap = QtGui.QPixmap(splash_path).scaledToWidth(
         200, QtCore.Qt.SmoothTransformation
     )
