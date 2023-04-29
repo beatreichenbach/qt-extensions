@@ -1,5 +1,4 @@
 import enum
-import logging
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from qt_extensions.icons import MaterialIcon
@@ -14,8 +13,7 @@ class CollapsibleHeader(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self.title = title
-
+        self._title = title
         self._collapsed = False
         self._collapsible = None
 
@@ -88,6 +86,15 @@ class CollapsibleHeader(QtWidgets.QWidget):
         self.layout().setContentsMargins(margins)
         self._expand_label.setVisible(self.collapsible)
 
+    @property
+    def title(self) -> str:
+        return self._title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self._title = value
+        self._title_label.setText(value)
+
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
         if self.collapsible:
             self.setAutoFillBackground(True)
@@ -139,15 +146,14 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._actions = []
         self._collapsed = False
 
-        # TODO: make not read-only
-        self.title = title
         self.collapsible = collapsible
         self.frame_style = style
 
         self.header = None
         self.frame = None
-
         self._init_ui()
+
+        self.title = title
 
     def _init_ui(self) -> None:
         self.setSizePolicy(
@@ -158,7 +164,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._layout.setSpacing(0)
         super().setLayout(self._layout)
 
-        self.header = CollapsibleHeader(self.title, self.collapsible)
+        self.header = CollapsibleHeader('', self.collapsible)
         self.header.toggled.connect(self._update_collapsed)
         self.header.menu_requested.connect(self.show_menu)
         self._layout.addWidget(self.header)
@@ -188,6 +194,14 @@ class CollapsibleBox(QtWidgets.QFrame):
         self.header.blockSignals(True)
         self.header.collapsed = value
         self.header.blockSignals(False)
+
+    @property
+    def title(self) -> str:
+        return self.header.title
+
+    @title.setter
+    def title(self, value: str) -> None:
+        self.header.title = value
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
         self.update()
