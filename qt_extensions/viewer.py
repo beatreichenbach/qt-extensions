@@ -1,5 +1,4 @@
 import dataclasses
-import logging
 import typing
 
 import numpy as np
@@ -37,7 +36,7 @@ def convert_array(array: np.ndarray) -> np.ndarray:
 
     # TODO: this whole function would be nice to turn into some sort of a type hint
     # so that it is clear that functions expect an image like array.
-    # TODO: this needs to be done smarter, i shouldn't have to even cocnvert shit here
+    # TODO: this needs to be done smarter, i shouldn't have to even convert shit here
 
     if len(array.shape) == 2:
         array = np.dstack((array, array, array))
@@ -380,6 +379,7 @@ class ToolBar(QtWidgets.QToolBar):
 
         self._zoom = 0
         self._exposure = 0
+        self._exposure_cache = 0
 
         self._init_actions()
 
@@ -387,11 +387,24 @@ class ToolBar(QtWidgets.QToolBar):
         size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
         self.setIconSize(QtCore.QSize(size, size))
 
-        # exposure
+        # exposure toggle
+        icon = MaterialIcon('toggle_on')
+        icon_off = MaterialIcon('toggle_off')
+        palette = self.palette()
+        color = palette.color(QtGui.QPalette.Highlight)
+        pixmap = icon_off.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
+        icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
+
+        self.exposure_toggle_action = QtWidgets.QAction(icon, 'exposure_toggle', self)
+        self.exposure_toggle_action.setCheckable(True)
+        self.exposure_toggle_action.toggled.connect(self._exposure_toggle)
+        self.addAction(self.exposure_toggle_action)
+
+        # exposure slider
         self.exposure_slider = FloatProperty(parent=self)
         self.exposure_slider.slider_min = -10
         self.exposure_slider.slider_max = 10
-        self.exposure_slider.value_changed.connect(self.exposure_changed.emit)
+        self.exposure_slider.value_changed.connect(self._exposure_change)
         palette = self.exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
         self.exposure_slider.slider.setPalette(palette)
@@ -410,7 +423,8 @@ class ToolBar(QtWidgets.QToolBar):
         # pause
         icon = MaterialIcon('pause')
         color = self.pause_color
-        icon.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
+        pixmap = icon.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
+        icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
         pause_action = QtWidgets.QAction(icon, 'pause', self)
         pause_action.setCheckable(True)
         pause_action.toggled.connect(self.paused.emit)
@@ -473,8 +487,20 @@ class ToolBar(QtWidgets.QToolBar):
                 return action
 
     def _exposure_change(self, value: float) -> None:
+        self.exposure_toggle_action.blockSignals(True)
+        self.exposure_toggle_action.setChecked(value != 0)
+        self.exposure_toggle_action.blockSignals(False)
+
         self._exposure = value
+        if value != 0:
+            self._exposure_cache = value
         self.exposure_changed.emit(value)
+
+    def _exposure_toggle(self, value: bool) -> None:
+        if self.exposure != 0:
+            self.exposure = 0
+        else:
+            self.exposure = self._exposure_cache
 
     def _zoom_index_change(self, index: int) -> None:
         if self.zoom_cmb.currentText() == 'fit':
