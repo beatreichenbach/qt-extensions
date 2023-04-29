@@ -1,4 +1,3 @@
-import logging
 import numbers
 import typing
 
@@ -265,9 +264,7 @@ class DataTableView(QtWidgets.QTableView):
 
 
 class TabDataProperty(PropertyWidget):
-    # https://pypi.org/project/tabulate/
     # property to display tabular data in a QTreeWidget
-    # TODO: add support for numpy lists
 
     value_changed: QtCore.Signal = QtCore.Signal(list)
 
@@ -292,7 +289,6 @@ class TabDataProperty(PropertyWidget):
         # table view
         self.model = DataTableModel(parent=self)
         self.model.itemChanged.connect(self._item_change)
-        # self.model.dataChanged.connect(self.)
         self.view = DataTableView(parent=self)
         self.view.setModel(self.model)
         self.view.setSizeAdjustPolicy(QtWidgets.QAbstractScrollArea.AdjustToContents)
@@ -353,11 +349,6 @@ class TabDataProperty(PropertyWidget):
             labels = list(map(helper.title, self.headers))
         else:
             labels = list(map(str, range(self.model.columnCount())))
-
-        # for i, label in enumerate(labels):
-        #     item = QtGui.QStandardItem()
-        #     item.setText(label)
-        #     self.model.setHorizontalHeaderItem(i, item)
 
         self.model.setHorizontalHeaderLabels(labels)
         self.resize_headers()

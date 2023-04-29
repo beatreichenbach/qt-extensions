@@ -1,21 +1,13 @@
 import dataclasses
 import logging
-import sys
 import os
 import shutil
-import re
-from typing import Any
 
 from PySide2 import QtWidgets, QtCore, QtGui
 
-from qt_extensions.helper import unique_name, unique_path
+from qt_extensions.helper import unique_path
 from qt_extensions.icons import MaterialIcon
-from qt_extensions.elementbrowser import (
-    ElementBrowser,
-    Field,
-    ElementDelegate,
-    check_flag,
-)
+from qt_extensions.elementbrowser import ElementBrowser, Field, ElementDelegate
 
 
 @dataclasses.dataclass
@@ -221,7 +213,6 @@ class FileBrowser(ElementBrowser):
         return index
 
     def _change_element(self, element: FileElement, previous: FileElement) -> None:
-        # TODO: don't refresh the whole model
         if element.name == previous.name:
             return
         source_path = previous.path

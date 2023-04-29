@@ -46,7 +46,7 @@ class ElementModel(QtGui.QStandardItemModel):
     ) -> None:
         super().__init__(parent)
 
-        # # this is used to track elements about to be moved
+        # this is used to track elements about to be moved
         self.selected_indexes = []
 
         if not fields:
