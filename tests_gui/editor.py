@@ -6,7 +6,7 @@ from qt_extensions import theme
 from qt_extensions.box import CollapsibleBox
 from qt_extensions.properties import PropertyEditor, TabDataProperty
 from qt_extensions import properties
-from qt_extensions.typeutils import cast_json
+from qt_extensions.typeutils import cast_basic
 
 
 def main():
@@ -103,7 +103,7 @@ def main():
 
     editor.show()
     state = editor.state
-    editor.state = cast_json(state)
+    editor.state = cast_basic(state)
 
     sys.exit(app.exec_())
 

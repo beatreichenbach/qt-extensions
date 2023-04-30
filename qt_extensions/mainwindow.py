@@ -1,5 +1,4 @@
 import logging
-import sys
 import typing
 from collections import OrderedDict
 import dataclasses
@@ -19,7 +18,7 @@ class DockWidgetState:
     auto_delete: bool
     is_center_widget: bool
     geometry: QtCore.QRect = QtCore.QRect()
-    flags: QtCore.Qt.WindowFlags = 0
+    flags: int = 0
 
 
 @dataclasses.dataclass()
@@ -28,7 +27,7 @@ class SplitterState:
     orientation: QtCore.Qt.Orientation
     states: list[typing.Union[DockWidgetState, 'SplitterState', None]]
     geometry: QtCore.QRect = QtCore.QRect()
-    flags: QtCore.Qt.WindowFlags = 0
+    flags: int = 0
 
 
 @dataclasses.dataclass()
@@ -495,7 +494,7 @@ class DockWindow(QtWidgets.QWidget):
 
             if child.isWindow():
                 state.geometry = child.geometry()
-                state.flags = child.windowFlags()
+                state.flags = int(child.windowFlags())
 
             states.append(state)
         return states
@@ -596,7 +595,8 @@ class DockWindow(QtWidgets.QWidget):
 
             # set window
             if state.flags:
-                widget.setWindowFlags(state.flags)
+                flags = QtCore.Qt.WindowFlags(state.flags)
+                widget.setWindowFlags(flags)
                 widget.setGeometry(state.geometry)
                 widget.show()
 
