@@ -3,8 +3,6 @@
 # to go around this issue icons are compiled to qt resource file using compile_icons.py
 
 import enum
-import logging
-import sys
 
 from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
@@ -62,9 +60,8 @@ class MaterialIcon(QIcon):
 
         for state, modes in self._colors.items():
             for mode, color in modes.items():
-                if color is not None:
-                    pixmap = fill_pixmap(self._pixmap, color)
-                    self.addPixmap(pixmap, mode, state)
+                if isinstance(color, QtGui.QColor):
+                    self.set_color(color, mode, state)
 
     def pixmap(
         self,
@@ -81,3 +78,12 @@ class MaterialIcon(QIcon):
                 color = self._colors[QIcon.Off][QIcon.Normal]
         pixmap = QtGui.QIcon(self._path).pixmap(size)
         return fill_pixmap(pixmap, color)
+
+    def set_color(
+        self,
+        color: QtGui.QColor,
+        mode: QtGui.QIcon.Mode = QIcon.Normal,
+        state: QtGui.QIcon.State = QIcon.Off,
+    ):
+        pixmap = fill_pixmap(self._pixmap, color)
+        self.addPixmap(pixmap, mode, state)
