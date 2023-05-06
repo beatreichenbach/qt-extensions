@@ -392,7 +392,7 @@ class ToolBar(QtWidgets.QToolBar):
         icon_off = MaterialIcon('toggle_off')
         palette = self.palette()
         color = palette.color(QtGui.QPalette.Highlight)
-        pixmap = icon_off.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
+        pixmap = icon_off.pixmap(0, QtGui.QIcon.Active, QtGui.QIcon.On, color)
         icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
 
         self.exposure_toggle_action = QtWidgets.QAction(icon, 'exposure_toggle', self)
@@ -423,7 +423,7 @@ class ToolBar(QtWidgets.QToolBar):
         # pause
         icon = MaterialIcon('pause')
         color = self.pause_color
-        pixmap = icon.pixmap(None, QtGui.QIcon.Active, QtGui.QIcon.On, color)
+        pixmap = icon.pixmap(0, QtGui.QIcon.Active, QtGui.QIcon.On, color)
         icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
         pause_action = QtWidgets.QAction(icon, 'pause', self)
         pause_action.setCheckable(True)

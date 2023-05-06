@@ -3,6 +3,7 @@
 # to go around this issue icons are compiled to qt resource file using compile_icons.py
 
 import enum
+import logging
 
 from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
@@ -27,17 +28,26 @@ class MaterialIcon(QIcon):
         SHARP = 'sharp'
         TWO_TONE = 'two-tone'
 
-    def __init__(self, name: str, style: Style | None = None) -> None:
+    def __init__(
+        self, name: str, style: Style | None = None, size: int | None = None
+    ) -> None:
         super().__init__()
 
         # set pixmap
         if style is None:
             style = MaterialIcon.Style.OUTLINED
 
+        self.name = name
         self._path = f':/material-design-icons/svg/{style.value}/{name}.svg'
         self._pixmap = QtGui.QPixmap(self._path)
 
+        if size:
+            self._pixmap = self._pixmap.scaled(QtCore.QSize(size, size))
+
         self._init_colors()
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({self.name})'
 
     def _init_colors(self) -> None:
         # get palette colors
@@ -63,20 +73,35 @@ class MaterialIcon(QIcon):
                 if isinstance(color, QtGui.QColor):
                     self.set_color(color, mode, state)
 
+    def add_icon(
+        self,
+        icon: QIcon,
+        mode: QtGui.QIcon.Mode = QtGui.QIcon.Normal,
+        state: QtGui.QIcon.State = QtGui.QIcon.Off,
+    ):
+        if isinstance(icon, MaterialIcon):
+            pixmap = icon._pixmap
+        else:
+            pixmap = icon.pixmap(self._pixmap.size())
+        self.addPixmap(pixmap, mode, state)
+
     def pixmap(
         self,
-        size: QtCore.QSize | None = None,
+        extent: int = 0,
         mode: QtGui.QIcon.Mode = QtGui.QIcon.Normal,
         state: QtGui.QIcon.State = QtGui.QIcon.Off,
         color: QtGui.QColor | None = None,
     ) -> QtGui.QPixmap:
-        if size is None:
-            size = self._pixmap.size()
+        if extent:
+            pixmap = QtGui.QPixmap(self._path).scaledToWidth(extent)
+        else:
+            pixmap = self._pixmap
+
         if color is None:
             color = self._colors[state][mode]
             if color is None:
                 color = self._colors[QIcon.Off][QIcon.Normal]
-        pixmap = QtGui.QIcon(self._path).pixmap(size)
+
         return fill_pixmap(pixmap, color)
 
     def set_color(
