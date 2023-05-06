@@ -64,8 +64,12 @@ def main():
 
     group3 = editor.add_tab_group(('tab_1', 'tab_2'))
 
-    group3.tabs['tab_1'].add_property(properties.IntProperty('int4'))
-    group3.tabs['tab_1'].add_property(properties.FloatProperty('float4'))
+    prop = properties.IntProperty('int4')
+    prop.setEnabled(False)
+    group3.tabs['tab_1'].add_property(prop)
+    prop = properties.FloatProperty('float4')
+    prop.setEnabled(False)
+    group3.tabs['tab_1'].add_property(prop)
 
     group4 = editor.add_group(
         'group_4', collapsible=True, style=CollapsibleBox.Style.SIMPLE
