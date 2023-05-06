@@ -4,6 +4,7 @@ import typing
 from functools import partial
 from PySide2 import QtWidgets, QtGui, QtCore
 from qt_extensions import helper
+from qt_extensions.button import BaseButton
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
 
@@ -1162,15 +1163,12 @@ class FloatSlider(IntSlider):
             self.valueChanged.emit(value)
 
 
-class LinkButton(QtWidgets.QToolButton):
+class LinkButton(BaseButton):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-
-        icon = MaterialIcon('link')
-        self.setIcon(icon)
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
-        icon_size = QtCore.QSize(size, size)
-        self.setMaximumSize(icon_size)
+        self.setIcon(MaterialIcon('link_off', size=self._icon_size))
+        self.setIcon(MaterialIcon('link', size=self._icon_size), True)
+        self.setMaximumSize(QtCore.QSize(self._icon_size, self._icon_size))
         self.setCheckable(True)
 
 
