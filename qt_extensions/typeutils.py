@@ -169,3 +169,7 @@ def hash_dataclass(cls):
 class hashable_dict(dict):
     def __hash__(self):
         return hash(tuple(sorted(self.items())))
+
+
+def deep_field(obj) -> dataclasses.Field:
+    return dataclasses.field(default_factory=lambda: obj.__class__(obj))
