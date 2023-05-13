@@ -1,8 +1,7 @@
 import dataclasses
 import itertools
-import logging
+import os
 from collections.abc import Iterable
-from functools import partial
 import typing
 from typing_extensions import Self
 
@@ -13,24 +12,6 @@ from qt_extensions.scrollarea import VerticalScrollArea
 from qt_extensions.properties import PropertyWidget
 from qt_extensions.box import CollapsibleBox
 from qt_extensions.typeutils import cast
-
-
-@dataclasses.dataclass()
-class BoxState:
-    child_states: dict[str, 'BoxState'] = dataclasses.field(default_factory=dict)
-    collapsed: bool = True
-
-
-@dataclasses.dataclass()
-class LinkState:
-    child_states: dict[str, 'LinkState'] = dataclasses.field(default_factory=dict)
-    linked: bool = False
-
-
-@dataclasses.dataclass()
-class EditorState:
-    box_states: dict[str, BoxState] = dataclasses.field(default_factory=dict)
-    link_states: dict[str, LinkState] = dataclasses.field(default_factory=dict)
 
 
 class PropertyToolTip(QtWidgets.QFrame):
@@ -145,26 +126,11 @@ class PropertyForm(QtWidgets.QWidget):
             raise RuntimeError('Layout needs to be QGridLayout')
         return layout
 
-    @property
-    def state(self) -> EditorState:
-        box_states = self._box_states()
-        link_states = self._link_states()
-        state = EditorState(box_states=box_states, link_states=link_states)
-        return state
-
-    @state.setter
-    def state(self, value: dict) -> None:
-        state = cast(EditorState, value)
-        self._update_box_states(state.box_states)
-        self._update_link_states(state.link_states)
-
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
 
-    def add_property(
-        self, widget: PropertyWidget, link: PropertyWidget | None = None
-    ) -> PropertyWidget:
+    def add_property(self, widget: PropertyWidget) -> PropertyWidget:
         name = widget.name
         self._validate_name(name)
 
@@ -176,22 +142,13 @@ class PropertyForm(QtWidgets.QWidget):
         # label
         if widget.label:
             label = PropertyLabel(widget, self)
-            layout.addWidget(label, row, 1)
+            layout.addWidget(label, row=row, column=0)
             widget.enabled_changed.connect(label.setEnabled)
             widget.enabled_changed.emit(widget.isEnabled())
 
         # widget
-        layout.addWidget(widget, row, 2)
+        layout.addWidget(widget, row=row, column=1)
         widget.value_changed.connect(lambda: self.property_changed.emit(widget))
-
-        # checkbox
-        if link is not None:
-            widget.link = link
-            checkbox = QtWidgets.QCheckBox(self)
-            layout.addWidget(checkbox, row, 0)
-            checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
-            checkbox.setChecked(False)
-            self._set_widget_row_enabled(checkbox, False)
 
         self._update_stretch()
         return widget
@@ -202,9 +159,8 @@ class PropertyForm(QtWidgets.QWidget):
         label: str = None,
         collapsible: bool = False,
         style: CollapsibleBox.Style = None,
-        link: Self = None,
     ) -> Self:
-        form = self._create_form(name, link)
+        form = self._create_form(name)
         form.property_changed.connect(self.property_changed.emit)
         label = label or helper.title(name)
         group = CollapsibleBox(label, collapsible, style)
@@ -217,22 +173,19 @@ class PropertyForm(QtWidgets.QWidget):
         group.layout().addWidget(form)
 
         # update CollapsibleBox with actions for the menu
-        form.actions_changed.connect(group.update_actions)
+        form.actions_changed.connect(group.set_actions)
 
         self.add_widget(group)
         return form
 
     def add_tab_group(
-        self,
-        names: Iterable[str],
-        labels: Iterable[str] = None,
-        link: Self | None = None,
+        self, names: Iterable[str], labels: Iterable[str] = None
     ) -> QtWidgets.QTabWidget:
         group = QtWidgets.QTabWidget(self)
         group.tabs = {}
         labels = labels or []
         for name, label in itertools.zip_longest(names, labels):
-            form = self._create_form(name, link)
+            form = self._create_form(name)
             label = label or helper.title(name)
             group.addTab(form, label)
             group.tabs[name] = form
@@ -250,18 +203,20 @@ class PropertyForm(QtWidgets.QWidget):
         return line
 
     def add_widget(
-        self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 3
+        self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 2
     ) -> QtWidgets.QWidget:
         layout = self.grid_layout
         row = layout.rowCount() - 1
-        layout.addWidget(widget, row, column, 1, column_span)
+        layout.addWidget(
+            widget, row=row, column=column, rowSpan=1, columnSpan=column_span
+        )
         self._update_stretch()
         return widget
 
     def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
         grid_layout = self.grid_layout
         row = grid_layout.rowCount() - 1
-        grid_layout.addLayout(layout, row, 0, 1, 3)
+        grid_layout.addLayout(layout, row=row, column=0, rowSpan=1, columnSpan=2)
         self._update_stretch()
         return layout
 
@@ -294,7 +249,13 @@ class PropertyForm(QtWidgets.QWidget):
             elif isinstance(widget, dict):
                 self.reset(widget)
 
-    def update_widget_values(
+    def set_state(self, state: dict) -> None:
+        values = {'collapsed_boxes': []}
+        values.update(state)
+        collapsed_boxes = values['collapsed_boxes']
+        self._set_collapsed_boxes(collapsed_boxes)
+
+    def set_values(
         self,
         values: dict,
         widgets: dict[str, PropertyWidget] | None = None,
@@ -307,11 +268,14 @@ class PropertyForm(QtWidgets.QWidget):
                 continue
             widget = widgets[key]
             if isinstance(widget, dict):
-                self.update_widget_values(value, widget, attr)
-            elif widget.isEnabled():
-                # only set values on enabled widgets, otherwise linked widgets
-                # hold the wrong value
+                self.set_values(value, widget, attr)
+            else:
                 setattr(widget, attr, value)
+
+    def state(self) -> dict:
+        collapsed_boxes = self._collapsed_boxes()
+        state = {'collapsed_boxes': collapsed_boxes}
+        return state
 
     def values(self) -> dict[str, typing.Any]:
         # create nested dictionary of all property values
@@ -339,120 +303,29 @@ class PropertyForm(QtWidgets.QWidget):
                 widgets[name] = widget
         return widgets
 
-    @staticmethod
-    def _set_widget_row_enabled(widget: QtWidgets.QWidget, enabled: bool) -> None:
-        # get parent grid layout
-        layout = widget.parentWidget().layout()
-        if not isinstance(layout, QtWidgets.QGridLayout):
-            return
-
-        # find row of widget
-        index = layout.indexOf(widget)
-        if index < 0:
-            return
-        row, column, rowspan, colspan = layout.getItemPosition(index)
-
-        # widget
-        widgets = list(
-            layout.itemAtPosition(row, i).widget() for i in range(layout.columnCount())
-        )
-        item = layout.itemAtPosition(row, 2)
-        if not item or not item.widget():
-            return
-
-        item_widget = item.widget()
-        item_widget.setEnabled(enabled)
-
-        if (
-            isinstance(item_widget, PropertyWidget)
-            and hasattr(item_widget, 'link')
-            and item_widget.link is not None
-        ):
-            if not hasattr(item_widget, 'link_set_value'):
-                item_widget.link_set_value = partial(setattr, item_widget, 'value')
-            if enabled:
-                item_widget.link.value_changed.disconnect(item_widget.link_set_value)
-            else:
-                item_widget.value = item_widget.link.value
-                item_widget.link.value_changed.connect(item_widget.link_set_value)
-
-    def _box_states(
+    def _collapsed_boxes(
         self, boxes: dict[CollapsibleBox, ...] | None = None
-    ) -> dict[str, BoxState]:
-        # returns the state of all collapsible boxes
+    ) -> list[str]:
+        # returns a list of all collapsed boxes
+        # child boxes are separated by dot 'parent.child'
         if boxes is None:
             boxes = self.boxes()
-        # the collapsed state of all box widgets
-        states = {}
+
+        collapsed_boxes = []
         for box, children in boxes.items():
-            child_states = self._box_states(children)
-            state = BoxState(child_states=child_states, collapsed=box.collapsed)
-            states[box.title] = state
-        return states
+            if box.collapsed:
+                collapsed_boxes.append(box.title)
 
-    def _update_box_states(
-        self,
-        values: dict[str, BoxState],
-        boxes: dict[CollapsibleBox, ...] | None = None,
-    ) -> None:
-        # updates the state of all collapsible boxes
-        if boxes is None:
-            boxes = self.boxes()
-        for box, children in boxes.items():
-            state = values.get(box.title)
-            if not state:
-                continue
+            child_boxes = self._collapsed_boxes(children)
+            child_boxes = ['.'.join([box.title, child]) for child in child_boxes]
+            collapsed_boxes.extend(child_boxes)
+        return collapsed_boxes
 
-            box.collapsed = state.collapsed
-            self._update_box_states(state.child_states, children)
-
-    def _link_states(
-        self, widgets: dict[str, PropertyWidget] | None = None
-    ) -> dict[str, LinkState]:
-        if widgets is None:
-            widgets = self.widgets()
-        # the enabled state of linked widgets
-        states = {}
-        for key, widget in widgets.items():
-            if isinstance(widget, dict):
-                child_states = self._link_states(widget)
-                if child_states:
-                    states[key] = LinkState(child_states=child_states)
-            elif hasattr(widget, 'link'):
-                linked = not widget.isEnabled()
-                states[key] = LinkState(linked=linked)
-        return states
-
-    def _update_link_states(
-        self,
-        values: dict[str, LinkState],
-        widgets: dict[str, PropertyWidget] | None = None,
-    ) -> None:
-        if widgets is None:
-            widgets = self.widgets()
-        for key, value in values.items():
-            widget = widgets.get(key)
-            if not widget:
-                continue
-            if isinstance(value, dict):
-                self._update_link_states(values[key].child_states, widget)
-            elif hasattr(widget, 'link'):
-                # TODO: make safe
-                enabled = not value.linked
-                PropertyForm._set_widget_row_enabled(widget, enabled)
-                # logging.debug((widget.name, widget.link.value))
-                # if enabled:
-                #     widget.value = widget.link.value
-
-    def _create_form(self, name, link: Self | None = None) -> Self:
+    def _create_form(self, name) -> Self:
         self._validate_name(name)
 
         form = self.__class__(name=name, root=self)
         self._widgets[name] = form
-
-        if link is not None:
-            link = typing.cast('PropertyForm', link)
-            form._link(link)
 
         return form
 
@@ -466,6 +339,28 @@ class PropertyForm(QtWidgets.QWidget):
                 names.append(name)
         return names
 
+    def _set_collapsed_boxes(
+        self, collapsed_boxes: list[str], boxes: dict[CollapsibleBox, ...] | None = None
+    ) -> None:
+        # collapses the boxes in the list, child boxes are separated by dot 'parent.child'
+
+        if boxes is None:
+            boxes = self.boxes()
+
+        for box, children in boxes.items():
+            box.collapsed = box.title in collapsed_boxes
+            child_boxes = [
+                b.split('.', 1)[-1]
+                for b in collapsed_boxes
+                if b.split('.', 1)[0] == box.title
+            ]
+            self._set_collapsed_boxes(child_boxes, children)
+
+    def _update_stretch(self) -> None:
+        layout = self.grid_layout
+        layout.setRowStretch(layout.rowCount() - 1, 0)
+        layout.setRowStretch(layout.rowCount(), 1)
+
     def _validate_name(self, name: str) -> None:
         if name is None:
             raise ValueError(f'Cannot add widget with name {name}')
@@ -478,21 +373,5 @@ class PropertyForm(QtWidgets.QWidget):
         if name in hierarchical_names:
             raise ValueError(f'Cannot add widget {name} (name already exists)')
 
-    def _link(self, link: Self) -> None:
-        for name, widget in link._widgets.items():
-            if isinstance(widget, self.__class__):
-                # TODO: add support for linking nested groups
-                # this requires to keep track of group type and not just forms
-                pass
-            else:
-                new_widget = widget.__class__(widget.name)
-                new_widget.init_from(widget)
-                self.add_property(new_widget, link=widget)
 
-    def _update_stretch(self) -> None:
-        layout = self.grid_layout
-        layout.setRowStretch(layout.rowCount() - 1, 0)
-        layout.setRowStretch(layout.rowCount(), 1)
-
-
-__all__ = ['PropertyEditor', 'EditorState']
+__all__ = ['PropertyEditor']

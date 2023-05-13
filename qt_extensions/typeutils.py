@@ -9,7 +9,7 @@ from typing import Any, ForwardRef, _UnionGenericAlias, _eval_type
 from PySide2 import QtCore, QtGui
 
 
-def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
+def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
     # casts a value to a type or a type hint
 
     if globalns is None:

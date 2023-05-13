@@ -8,6 +8,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 from qt_extensions import helper
 from qt_extensions.icons import MaterialIcon
+from qt_extensions.typeutils import cast, cast_basic
 
 
 @dataclasses.dataclass()
@@ -214,7 +215,7 @@ class DockWidget(QtWidgets.QTabWidget):
         if not self.dock_window:
             return
 
-        center = self.dock_window.mapToGlobal(self.dock_window.geometry().center())
+        center = self.dock_window.geometry().center()
         x = center.x() - (self.width() // 2)
         y = center.y() - (self.height() // 2)
         self.move(x, y)
@@ -425,6 +426,17 @@ class DockWindow(QtWidgets.QWidget):
 
         return dock_widget
 
+    def dock_widgets(self) -> list[DockWidget]:
+        # return all DockWidgets under this window. They are sorted in a manner
+        # that makes sense for checking dock areas.
+        children = self.findChildren(DockWidget)
+        # floating widgets have the Tool window flag and are always in front:
+        children = sorted(children, key=DockWidget.isWindow)
+        # list deepest nested children first
+        children = reversed(children)
+
+        return list(children)
+
     def register_widget(
         self, cls: type, title: str | None = None, unique: bool = True
     ) -> RegisteredWidget:
@@ -442,20 +454,38 @@ class DockWindow(QtWidgets.QWidget):
         key = cls.__name__ if not isinstance(cls, type) else cls
         self.registered_widgets.pop(key, None)
 
-    def dock_widgets(self) -> list[DockWidget]:
-        # return all DockWidgets under this window. They are sorted in a manner
-        # that makes sense for checking dock areas.
-        children = self.findChildren(DockWidget)
-        # floating widgets have the Tool window flag and are always in front:
-        children = sorted(children, key=DockWidget.isWindow)
-        # list deepest nested children first
-        children = reversed(children)
+    def set_state(self, state: dict) -> None:
+        values = {'geometry': None, 'widgets': []}
+        values.update(state)
 
-        return list(children)
+        self.set_widget_states(values['widgets'])
+        geometry = values['geometry']
+        if isinstance(geometry, QtCore.QRect):
+            self.setGeometry(geometry)
 
-    def states(
-        self, widget: QtWidgets.QWidget | None = None
-    ) -> list[DockWidgetState | SplitterState]:
+    def set_widget_states(
+        self,
+        states: list[dict],
+    ) -> None:
+        # store all current widgets for layout
+        widgets = dict(self._widgets)
+        # unparent all widgets to clean up layout
+        for widget in widgets.values():
+            widget.setParent(None)
+            widget.close()
+
+        states = cast(list[DockWidgetState | SplitterState], states)
+        self._set_widget_states(states, self, widgets)
+
+        # remove unused widgets
+        for title, widget in widgets.items():
+            widget.deleteLater()
+
+    def state(self) -> dict:
+        state = {'geometry': self.geometry(), 'widgets': self.widget_states()}
+        return state
+
+    def widget_states(self, widget: QtWidgets.QWidget | None = None) -> list[dict]:
         states = []
 
         if widget is None:
@@ -492,31 +522,8 @@ class DockWindow(QtWidgets.QWidget):
                 state.geometry = child.geometry()
                 state.flags = int(child.windowFlags())
 
-            states.append(state)
+            states.append(cast_basic(state))
         return states
-
-    def update_states(
-        self,
-        states: list[DockWidgetState | SplitterState],
-    ) -> None:
-        # store all current widgets for layout
-        widgets = dict(self._widgets)
-        # unparent all widgets to clean up layout
-        for widget in widgets.values():
-            widget.setParent(None)
-            widget.close()
-
-        self._update_states_inner(states, self, widgets)
-
-        # float any existing widgets that have not been updated
-        # for title, widget in widgets.items():
-        #     dock_widget = self.create_dock_widget(widget, title)
-        #     dock_widget.float()
-        #     dock_widget.show()
-
-        # remove unused widgets
-        for title, widget in widgets.items():
-            widget.deleteLater()
 
     @staticmethod
     def focus_widget(widget: QtWidgets.QWidget) -> None:
@@ -534,66 +541,6 @@ class DockWindow(QtWidgets.QWidget):
         )
         window.raise_()
         window.activateWindow()
-
-    def _update_states_inner(
-        self,
-        states: list[DockWidgetState | SplitterState],
-        parent: QtWidgets.QWidget,
-        widgets: dict[str, QtWidgets.QWidget],
-    ) -> None:
-        for i, state in enumerate(states):
-            # create widget
-            if isinstance(state, SplitterState):
-                if parent == self:
-                    splitter = self.center_splitter
-                    splitter.setOrientation(state.orientation)
-                else:
-                    splitter = Splitter(state.orientation)
-                self._update_states_inner(state.states, splitter, widgets)
-                splitter.setSizes(state.sizes)
-
-                widget = splitter
-            elif isinstance(state, DockWidgetState):
-                if state.is_center_widget:
-                    dock_widget = self.center_widget
-                else:
-                    dock_widget = DockWidget(self)
-                    dock_widget.detachable = state.detachable
-                    dock_widget.auto_delete = state.auto_delete
-
-                for (title, cls_name) in state.widgets:
-                    # remove widget from dictionary to keep track of
-                    # which widgets have been re-parented
-                    widget = widgets.pop(title, None)
-                    if widget is None:
-                        title, widget = self._add_widget(cls_name)
-                    dock_widget.addTab(widget, title)
-
-                dock_widget.setCurrentIndex(state.current_index)
-
-                widget = dock_widget
-            else:
-                continue
-
-            # parent widget
-            if isinstance(parent, Splitter):
-                if parent.widget(i) is not None:
-                    # don't replace widget with itself (prevent warnings)
-                    if parent.widget(i) != widget:
-                        parent.replaceWidget(i, widget)
-                        widget.setParent(parent)
-                        widget.show()
-                else:
-                    parent.addWidget(widget)
-            else:
-                widget.show()
-
-            # set window
-            if state.flags:
-                flags = QtCore.Qt.WindowFlags(state.flags)
-                widget.setWindowFlags(flags)
-                widget.setGeometry(state.geometry)
-                widget.show()
 
     def _add_protected_dock_widget(self, parent: Splitter) -> DockWidget:
         dock_widget = DockWidget(self, self)
@@ -640,9 +587,6 @@ class DockWindow(QtWidgets.QWidget):
 
         return unique_title, widget
 
-    def _remove_widget(self, title: str) -> None:
-        self._widgets.pop(title)
-
     def _dock_rects(
         self,
     ) -> OrderedDict[DockWidget, dict[QtCore.Qt.DockWidgetArea, QtCore.QRect]]:
@@ -651,6 +595,73 @@ class DockWindow(QtWidgets.QWidget):
         for widget in widgets:
             rects[widget] = widget.dock_rects()
         return rects
+
+    def _remove_widget(self, title: str) -> None:
+        # callback when widget is destroyed
+        self._widgets.pop(title)
+
+    def _set_widget_states(
+        self,
+        states: list[DockWidgetState | SplitterState],
+        parent: QtWidgets.QWidget,
+        widgets: dict[str, QtWidgets.QWidget],
+    ) -> None:
+        # inner loop for setting widget states
+        # removes widgets from widgets dict that have been added to the new layout
+
+        for i, state in enumerate(states):
+            # create widget
+            if isinstance(state, SplitterState):
+                if parent == self:
+                    splitter = self.center_splitter
+                    splitter.setOrientation(state.orientation)
+                else:
+                    splitter = Splitter(state.orientation)
+                self._set_widget_states(state.states, splitter, widgets)
+                splitter.setSizes(state.sizes)
+
+                widget = splitter
+            elif isinstance(state, DockWidgetState):
+                if state.is_center_widget:
+                    dock_widget = self.center_widget
+                else:
+                    dock_widget = DockWidget(self)
+                    dock_widget.detachable = state.detachable
+                    dock_widget.auto_delete = state.auto_delete
+
+                for (title, cls_name) in state.widgets:
+                    # remove widget from dictionary to keep track of
+                    # which widgets have been re-parented
+                    widget = widgets.pop(title, None)
+                    if widget is None:
+                        title, widget = self._add_widget(cls_name)
+                    dock_widget.addTab(widget, title)
+
+                dock_widget.setCurrentIndex(state.current_index)
+
+                widget = dock_widget
+            else:
+                continue
+
+            # parent widget
+            if isinstance(parent, Splitter):
+                if parent.widget(i) is not None:
+                    # not replacing widget with itself prevents warnings
+                    if parent.widget(i) != widget:
+                        parent.replaceWidget(i, widget)
+                        widget.setParent(parent)
+                        widget.show()
+                else:
+                    parent.addWidget(widget)
+            else:
+                widget.show()
+
+            # set window
+            if state.flags:
+                flags = QtCore.Qt.WindowFlags(state.flags)
+                widget.setWindowFlags(flags)
+                widget.setGeometry(state.geometry)
+                widget.show()
 
 
 def area_orientation(area: QtCore.Qt.DockWidgetArea) -> QtCore.Qt.Orientation:
