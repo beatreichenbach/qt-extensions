@@ -3,7 +3,7 @@ import typing
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qt_extensions.properties import PropertyWidget, IntProperty, FloatProperty
+from qt_extensions.parameters import ParameterWidget, IntParameter, FloatParameter
 from qt_extensions import helper
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
@@ -56,7 +56,7 @@ class IntegerDelegate(StyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
 
-        editor = IntProperty(parent=parent)
+        editor = IntParameter(parent=parent)
         editor.slider_visible = False
         editor.line.setFrame(False)
         editor.commit_on_edit = True
@@ -104,7 +104,7 @@ class FloatDelegate(StyledItemDelegate):
         option: QtWidgets.QStyleOptionViewItem,
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
-        editor = FloatProperty(parent=parent)
+        editor = FloatParameter(parent=parent)
         editor.slider_visible = False
         editor.decimals = 6
         editor.line.setFrame(False)
@@ -265,8 +265,8 @@ class DataTableView(QtWidgets.QTableView):
         self.context_menu.exec_(self.viewport().mapToGlobal(position))
 
 
-class TabDataProperty(PropertyWidget):
-    # property to display tabular data in a QTreeWidget
+class TabDataParameter(ParameterWidget):
+    # Parameter to display tabular data in a QTreeWidget
 
     value_changed: QtCore.Signal = QtCore.Signal(list)
 
@@ -431,4 +431,4 @@ class TabDataProperty(PropertyWidget):
             self.view.setColumnWidth(i, size)
 
 
-__all__ = ['TabDataProperty']
+__all__ = ['TabDataParameter']

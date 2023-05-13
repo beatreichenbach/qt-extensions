@@ -5,7 +5,7 @@ import numpy as np
 from PySide2 import QtWidgets, QtGui, QtCore
 
 from qt_extensions.icons import MaterialIcon
-from qt_extensions.properties import FloatProperty
+from qt_extensions.parameters import FloatParameter
 from qt_extensions.combobox import QComboBox
 
 
@@ -399,7 +399,7 @@ class ToolBar(QtWidgets.QToolBar):
         self.addAction(self.exposure_toggle_action)
 
         # exposure slider
-        self.exposure_slider = FloatProperty(parent=self)
+        self.exposure_slider = FloatParameter(parent=self)
         self.exposure_slider.slider_min = -10
         self.exposure_slider.slider_max = 10
         self.exposure_slider.value_changed.connect(self._exposure_change)

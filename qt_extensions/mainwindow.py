@@ -525,8 +525,8 @@ class DockWindow(QtWidgets.QWidget):
             states.append(cast_basic(state))
         return states
 
-    @staticmethod
-    def focus_widget(widget: QtWidgets.QWidget) -> None:
+    # noinspection PyMethodMayBeStatic
+    def focus_widget(self, widget: QtWidgets.QWidget) -> None:
         parent = widget.parent()
         while parent is not None:
             if isinstance(parent, QtWidgets.QTabWidget):

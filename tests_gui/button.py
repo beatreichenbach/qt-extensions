@@ -1,11 +1,9 @@
 import logging
 import sys
-from PySide2 import QtWidgets, QtGui, QtCore
+from PySide2 import QtWidgets, QtGui
 
 from qt_extensions import theme
-from qt_extensions.box import CollapsibleBox
 from qt_extensions.button import Button, CheckBoxButton
-from qt_extensions.icons import MaterialIcon
 
 
 def main():

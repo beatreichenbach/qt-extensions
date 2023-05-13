@@ -1,6 +1,4 @@
-import dataclasses
 import itertools
-import os
 from collections.abc import Iterable
 import typing
 from typing_extensions import Self
@@ -9,14 +7,13 @@ from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions import helper
 from qt_extensions.scrollarea import VerticalScrollArea
-from qt_extensions.properties import PropertyWidget
+from qt_extensions.parameters import ParameterWidget
 from qt_extensions.box import CollapsibleBox
-from qt_extensions.typeutils import cast
 
 
-class PropertyToolTip(QtWidgets.QFrame):
+class ParameterToolTip(QtWidgets.QFrame):
     def __init__(
-        self, widget: PropertyWidget, parent: QtWidgets.QWidget | None = None
+        self, widget: ParameterWidget, parent: QtWidgets.QWidget | None = None
     ) -> None:
         super().__init__(parent)
 
@@ -40,8 +37,8 @@ class PropertyToolTip(QtWidgets.QFrame):
         separator.setFrameShape(QtWidgets.QFrame.HLine)
         self.layout().addWidget(separator)
 
-        typ = type(widget).__name__.replace('Property', '')
-        detail = QtWidgets.QLabel(f'Property: {widget.name} ({typ})', self)
+        typ = type(widget).__name__.replace('Parameter', '')
+        detail = QtWidgets.QLabel(f'Parameter: {widget.name} ({typ})', self)
         self.layout().addWidget(detail)
 
         tooltip = QtWidgets.QLabel(widget.tooltip, self)
@@ -54,13 +51,13 @@ class PropertyToolTip(QtWidgets.QFrame):
         self.hide()
 
 
-class PropertyLabel(QtWidgets.QLabel):
+class ParameterLabel(QtWidgets.QLabel):
     def __init__(
-        self, widget: PropertyWidget, parent: QtWidgets.QWidget | None = None
+        self, widget: ParameterWidget, parent: QtWidgets.QWidget | None = None
     ) -> None:
         super().__init__(widget.label, parent)
 
-        self._tooltip: PropertyToolTip | None = None
+        self._tooltip: ParameterToolTip | None = None
         self._widget = widget
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
@@ -72,16 +69,16 @@ class PropertyLabel(QtWidgets.QLabel):
         global_position = QtGui.QCursor.pos()
         if self.geometry().contains(self.parent().mapFromGlobal(global_position)):
             if self._tooltip is None:
-                self._tooltip = PropertyToolTip(self._widget, parent=self.window())
+                self._tooltip = ParameterToolTip(self._widget, parent=self.window())
             self._tooltip.move(self.window().mapFromGlobal(global_position))
             self._tooltip.show()
 
 
-class PropertyEditor(VerticalScrollArea):
+class ParameterEditor(VerticalScrollArea):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.__dict__['form'] = PropertyForm()
+        self.__dict__['form'] = ParameterForm()
         self.setWidget(self.form)
 
     def __getattr__(self, item: typing.Any) -> typing.Any:
@@ -91,9 +88,9 @@ class PropertyEditor(VerticalScrollArea):
         setattr(self.form, key, value)
 
 
-class PropertyForm(QtWidgets.QWidget):
+class ParameterForm(QtWidgets.QWidget):
     actions_changed: QtCore.Signal = QtCore.Signal(list)
-    property_changed: QtCore.Signal = QtCore.Signal(PropertyWidget)
+    parameter_changed: QtCore.Signal = QtCore.Signal(ParameterWidget)
 
     # require unique names in the whole hierarchy
     unique_hierarchical_names: bool = False
@@ -109,7 +106,7 @@ class PropertyForm(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self._widgets: dict[str, PropertyWidget] = {}
+        self._widgets: dict[str, ParameterWidget] = {}
 
         self.name = name
         self.root = root or self
@@ -130,7 +127,7 @@ class PropertyForm(QtWidgets.QWidget):
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
 
-    def add_property(self, widget: PropertyWidget) -> PropertyWidget:
+    def add_parameter(self, widget: ParameterWidget) -> ParameterWidget:
         name = widget.name
         self._validate_name(name)
 
@@ -141,14 +138,14 @@ class PropertyForm(QtWidgets.QWidget):
 
         # label
         if widget.label:
-            label = PropertyLabel(widget, self)
+            label = ParameterLabel(widget, self)
             layout.addWidget(label, row=row, column=0)
             widget.enabled_changed.connect(label.setEnabled)
             widget.enabled_changed.emit(widget.isEnabled())
 
         # widget
         layout.addWidget(widget, row=row, column=1)
-        widget.value_changed.connect(lambda: self.property_changed.emit(widget))
+        widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
 
         self._update_stretch()
         return widget
@@ -161,7 +158,7 @@ class PropertyForm(QtWidgets.QWidget):
         style: CollapsibleBox.Style = None,
     ) -> Self:
         form = self._create_form(name)
-        form.property_changed.connect(self.property_changed.emit)
+        form.parameter_changed.connect(self.parameter_changed.emit)
         label = label or helper.title(name)
         group = CollapsibleBox(label, collapsible, style)
         if collapsible:
@@ -234,17 +231,17 @@ class PropertyForm(QtWidgets.QWidget):
                 if widget.layout():
                     children = self.boxes(widget.layout())
                     boxes[widget] = children
-            elif isinstance(widget, PropertyForm):
+            elif isinstance(widget, ParameterForm):
                 children = widget.boxes()
                 boxes.update(children)
         return boxes
 
-    def reset(self, widgets: dict[str, PropertyWidget] | None = None) -> None:
+    def reset(self, widgets: dict[str, ParameterWidget] | None = None) -> None:
         if widgets is None:
             widgets = self.widgets()
 
         for widget in widgets.values():
-            if isinstance(widget, PropertyWidget):
+            if isinstance(widget, ParameterWidget):
                 widget.value = widget.default
             elif isinstance(widget, dict):
                 self.reset(widget)
@@ -258,7 +255,7 @@ class PropertyForm(QtWidgets.QWidget):
     def set_values(
         self,
         values: dict,
-        widgets: dict[str, PropertyWidget] | None = None,
+        widgets: dict[str, ParameterWidget] | None = None,
         attr: str = 'value',
     ) -> None:
         if widgets is None:
@@ -278,7 +275,7 @@ class PropertyForm(QtWidgets.QWidget):
         return state
 
     def values(self) -> dict[str, typing.Any]:
-        # create nested dictionary of all property values
+        # create nested dictionary of all Parameter values
         values = {}
         for name, widget in self._widgets.items():
             if isinstance(widget, self.__class__):
@@ -290,8 +287,8 @@ class PropertyForm(QtWidgets.QWidget):
                 values[name] = widget.value
         return values
 
-    def widgets(self) -> dict[str, PropertyWidget]:
-        # create nested dictionary of all property widgets
+    def widgets(self) -> dict[str, ParameterWidget]:
+        # create nested dictionary of all Parameter widgets
         widgets = {}
         for name, widget in self._widgets.items():
             if isinstance(widget, self.__class__):
@@ -374,4 +371,4 @@ class PropertyForm(QtWidgets.QWidget):
             raise ValueError(f'Cannot add widget {name} (name already exists)')
 
 
-__all__ = ['PropertyEditor']
+__all__ = ['ParameterEditor']

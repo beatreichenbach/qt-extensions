@@ -9,7 +9,7 @@ from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
 
 
-class PropertyWidget(QtWidgets.QWidget):
+class ParameterWidget(QtWidgets.QWidget):
     # by not using @property it is easier to set typing hints
     enabled_changed: QtCore.Signal = QtCore.Signal(bool)
     value_changed: QtCore.Signal = QtCore.Signal(object)
@@ -100,7 +100,7 @@ class PropertyWidget(QtWidgets.QWidget):
         # get default values based on annotations
         class_attrs = {}
         cls = self.__class__
-        while issubclass(cls, PropertyWidget):
+        while issubclass(cls, ParameterWidget):
             for key, type_ in cls.__annotations__.items():
                 value = getattr(self, key)
                 if key not in class_attrs and not isinstance(value, QtCore.Signal):
@@ -114,7 +114,7 @@ class PropertyWidget(QtWidgets.QWidget):
         self.value_changed.emit(value)
 
 
-class IntProperty(PropertyWidget):
+class IntParameter(ParameterWidget):
     value_changed: QtCore.Signal = QtCore.Signal(int)
 
     value: int = 0
@@ -186,7 +186,7 @@ class IntProperty(PropertyWidget):
         self.set_line_value(value)
 
 
-class FloatProperty(IntProperty):
+class FloatParameter(IntParameter):
     value_changed: QtCore.Signal = QtCore.Signal(float)
 
     value: float = 0
@@ -219,7 +219,7 @@ class FloatProperty(IntProperty):
         self.setter_signal('decimals', partial(setattr, self.line, 'decimals'))
 
 
-class StringProperty(PropertyWidget):
+class StringParameter(ParameterWidget):
     value_changed: QtCore.Signal = QtCore.Signal(str)
 
     value: str = ''
@@ -307,7 +307,7 @@ class StringProperty(PropertyWidget):
         return menu
 
 
-class PathProperty(PropertyWidget):
+class PathParameter(ParameterWidget):
     class Method(IntEnum):
         OPEN_FILE = auto()
         SAVE_FILE = auto()
@@ -336,20 +336,20 @@ class PathProperty(PropertyWidget):
     def browse(self) -> None:
         start_dir = self.value or self.dir_fallback
         match self.method:
-            case PathProperty.Method.OPEN_FILE:
+            case PathParameter.Method.OPEN_FILE:
                 path, filters = QtWidgets.QFileDialog.getOpenFileName(
                     parent=self,
                     caption='Open File',
                     dir=start_dir,
                 )
-            case PathProperty.Method.SAVE_FILE:
+            case PathParameter.Method.SAVE_FILE:
                 path, filters = QtWidgets.QFileDialog.getSaveFileName(
                     parent=self,
                     caption='Save File',
                     dir=start_dir,
                     filter='*.*',
                 )
-            case PathProperty.Method.EXISTING_DIR:
+            case PathParameter.Method.EXISTING_DIR:
                 path = QtWidgets.QFileDialog.getExistingDirectory(
                     parent=self,
                     caption='Select Directory',
@@ -372,10 +372,10 @@ class PathProperty(PropertyWidget):
         self._value = value
 
 
-class EnumProperty(PropertyWidget):
+class EnumParameter(ParameterWidget):
     # TODO: figure out how to actually handle it
-    # EnumProperty's value is actually not of type value but whatever the type of the enum.value is.
-    # this is bad because enum_property.value = Enum.RED means that enum_property.value is now 'red'
+    # EnumParameter's value is actually not of type value but whatever the type of the enum.value is.
+    # this is bad because enum_parameter.value = Enum.RED means that enum_parameter.value is now 'red'
 
     value_changed: QtCore.Signal = QtCore.Signal(Enum)
 
@@ -422,7 +422,7 @@ class EnumProperty(PropertyWidget):
         super()._set_value(value)
 
 
-class BoolProperty(PropertyWidget):
+class BoolParameter(ParameterWidget):
     value_changed: QtCore.Signal = QtCore.Signal(bool)
 
     value: bool = False
@@ -445,7 +445,7 @@ class BoolProperty(PropertyWidget):
         self.checkbox.blockSignals(False)
 
 
-class PointProperty(PropertyWidget):
+class PointParameter(ParameterWidget):
     value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
 
     value: QtCore.QPoint = QtCore.QPoint(0, 0)
@@ -491,7 +491,7 @@ class PointProperty(PropertyWidget):
         self.line2.maximum = self.line_max
 
 
-class PointFProperty(PointProperty):
+class PointFParameter(PointParameter):
     value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPointF)
 
     value: QtCore.QPointF = QtCore.QPointF(0, 0)
@@ -529,7 +529,7 @@ class PointFProperty(PointProperty):
         self.line2.decimals = decimals
 
 
-class SizeProperty(IntProperty):
+class SizeParameter(IntParameter):
     value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSize)
 
     value: QtCore.QSize = QtCore.QSize(0, 0)
@@ -570,7 +570,7 @@ class SizeProperty(IntProperty):
         self.setFocusProxy(self.line1)
 
     def _init_signals(self) -> None:
-        PropertyWidget._init_signals(self)
+        ParameterWidget._init_signals(self)
         self.setter_signal('line_min', lambda _: self.update_lines())
         self.setter_signal('line_max', lambda _: self.update_lines())
         self.setter_signal('slider_min', self.slider.setMinimum)
@@ -631,7 +631,7 @@ class SizeProperty(IntProperty):
         self.set_line_value(value)
 
 
-class SizeFProperty(SizeProperty):
+class SizeFParameter(SizeParameter):
     value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSizeF)
 
     value: QtCore.QSizeF = QtCore.QSizeF(0, 0)
@@ -695,7 +695,7 @@ class SizeFProperty(SizeProperty):
         self.set_line_value(value)
 
 
-class ColorProperty(PropertyWidget):
+class ColorParameter(ParameterWidget):
     value_changed: QtCore.Signal = QtCore.Signal(QtGui.QColor)
 
     value: QtGui.QColor = QtGui.QColor(0, 0, 0)
@@ -861,8 +861,8 @@ class IntLineEdit(QtWidgets.QLineEdit):
             self._step(add=False)
         event.accept()
 
-    @staticmethod
-    def _text_to_value(text: str) -> int:
+    # noinspection PyMethodMayBeStatic
+    def _text_to_value(self, text: str) -> int:
         try:
             return int(text)
         except ValueError:
@@ -954,8 +954,8 @@ class FloatLineEdit(IntLineEdit):
         self._decimals = value
         self.validator().setDecimals(value)
 
-    @staticmethod
-    def _text_to_value(text: str) -> float:
+    # noinspection PyMethodMayBeStatic
+    def _text_to_value(self, text: str) -> float:
         try:
             return float(text)
         except ValueError:
@@ -1186,16 +1186,16 @@ class TextEdit(QtWidgets.QPlainTextEdit):
 
 
 __all__ = [
-    'PropertyWidget',
-    'IntProperty',
-    'FloatProperty',
-    'PointProperty',
-    'PointFProperty',
-    'SizeProperty',
-    'SizeFProperty',
-    'StringProperty',
-    'PathProperty',
-    'BoolProperty',
-    'EnumProperty',
-    'ColorProperty',
+    'ParameterWidget',
+    'IntParameter',
+    'FloatParameter',
+    'PointParameter',
+    'PointFParameter',
+    'SizeParameter',
+    'SizeFParameter',
+    'StringParameter',
+    'PathParameter',
+    'BoolParameter',
+    'EnumParameter',
+    'ColorParameter',
 ]
