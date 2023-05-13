@@ -498,7 +498,7 @@ class DockWindow(QtWidgets.QWidget):
                 state = SplitterState(
                     sizes=child.sizes(),
                     orientation=child.orientation(),
-                    states=self.states(child),
+                    states=self.widget_states(child),
                 )
 
             elif isinstance(child, DockWidget):
@@ -633,8 +633,12 @@ class DockWindow(QtWidgets.QWidget):
                     # remove widget from dictionary to keep track of
                     # which widgets have been re-parented
                     widget = widgets.pop(title, None)
+
                     if widget is None:
-                        title, widget = self._add_widget(cls_name)
+                        try:
+                            title, widget = self._add_widget(cls_name)
+                        except ValueError:
+                            continue
                     dock_widget.addTab(widget, title)
 
                 dock_widget.setCurrentIndex(state.current_index)

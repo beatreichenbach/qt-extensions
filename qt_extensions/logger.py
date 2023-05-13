@@ -44,7 +44,6 @@ class LogCache(QtCore.QObject):
         self.added.emit(record)
 
     def clear(self) -> None:
-        print('clear')
         self.records = []
         self.cleared.emit()
 
@@ -395,7 +394,7 @@ class LogBar(QtWidgets.QWidget):
 
         self.current_message = logging.makeLogRecord({'levelno': logging.NOTSET})
         self.formatter = logging.Formatter(fmt='[{levelname}] {message}', style='{')
-        self.min_level = logging.WARNING
+        self.level = logging.WARNING
         self.names = set()
 
         self._init_ui()
@@ -475,7 +474,7 @@ class LogBar(QtWidgets.QWidget):
 
     def show_message(self, message: str, level: int = logging.INFO, force=False):
         if not force:
-            if level < self.current_message.levelno or level < self.min_level:
+            if level < self.current_message.levelno or level < self.level:
                 return
 
         if level >= logging.CRITICAL:

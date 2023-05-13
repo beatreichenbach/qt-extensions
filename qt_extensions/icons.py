@@ -1,5 +1,5 @@
 # initially https://github.com/marella/material-design-icons/ was added as a submodule
-# but zip files of the repo on github does not include submodules.
+# but zip files of the repo on GitHub does not include submodules.
 # to go around this issue icons are compiled to qt resource file using compile_icons.py
 
 import enum
@@ -92,7 +92,8 @@ class MaterialIcon(QIcon):
         color: QtGui.QColor | None = None,
     ) -> QtGui.QPixmap:
         if extent:
-            pixmap = QtGui.QPixmap(self._path).scaledToWidth(extent)
+            # pixmap = QtGui.QPixmap(self._path).scaledToWidth(extent)
+            pixmap = QtGui.QIcon(self._path).pixmap(extent)
         else:
             pixmap = self._pixmap
 

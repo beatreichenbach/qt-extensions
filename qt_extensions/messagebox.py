@@ -6,7 +6,7 @@ from qt_extensions.icons import MaterialIcon
 class MessageBox(QtWidgets.QMessageBox):
     @staticmethod
     def critical(
-        parent: QtWidgets.QWidget,
+        parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
@@ -20,7 +20,7 @@ class MessageBox(QtWidgets.QMessageBox):
 
     @staticmethod
     def information(
-        parent: QtWidgets.QWidget,
+        parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
@@ -31,7 +31,7 @@ class MessageBox(QtWidgets.QMessageBox):
 
     @staticmethod
     def question(
-        parent: QtWidgets.QWidget,
+        parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Yes
@@ -43,7 +43,7 @@ class MessageBox(QtWidgets.QMessageBox):
 
     @staticmethod
     def warning(
-        parent: QtWidgets.QWidget,
+        parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
@@ -54,7 +54,7 @@ class MessageBox(QtWidgets.QMessageBox):
 
     @staticmethod
     def message(
-        parent: QtWidgets.QWidget,
+        parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
@@ -68,8 +68,10 @@ class MessageBox(QtWidgets.QMessageBox):
         message_box.setStandardButtons(buttons)
         message_box.setDefaultButton(default_button)
         if icon:
+            if parent is None:
+                parent = QtWidgets.QApplication.instance()
             style = parent.style()
             size = style.pixelMetric(QtWidgets.QStyle.PM_MessageBoxIconSize)
-            pixmap = icon.pixmap(QtCore.QSize(size, size), color=color)
+            pixmap = icon.pixmap(size, color=color)
             message_box.setIconPixmap(pixmap)
         return message_box.exec_()

@@ -61,6 +61,9 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
     elif isinstance(typ, (UnionType, _UnionGenericAlias)):
         # type hints such as int | str, Optional[int]
 
+        if type(value) in typ.__args__:
+            # don't convert if current type comes later in list
+            return value
         # iterate through all types until one works
         for arg in typ.__args__:
             try:

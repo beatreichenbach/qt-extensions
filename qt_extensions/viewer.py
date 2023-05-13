@@ -9,11 +9,6 @@ from qt_extensions.parameters import FloatParameter
 from qt_extensions.combobox import QComboBox
 
 
-@dataclasses.dataclass()
-class ViewerState:
-    exposure: float = 0
-
-
 def image_from_array(array: np.ndarray) -> QtGui.QImage:
     # TODO: profile this
 
@@ -606,12 +601,14 @@ class Viewer(QtWidgets.QWidget):
 
         self.pause_changed.emit(self.paused)
 
-    def state(self) -> ViewerState:
-        state = ViewerState(exposure=self.exposure)
+    def state(self) -> dict:
+        state = {'exposure': self.exposure}
         return state
 
-    def update_state(self, state: ViewerState) -> None:
-        self.exposure = state.exposure
+    def set_state(self, state: dict) -> None:
+        values = {'exposure': 0}
+        values.update(state)
+        self.exposure = values['exposure']
 
     def refresh(self) -> None:
         self.refreshed.emit()
