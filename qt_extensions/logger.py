@@ -1,5 +1,7 @@
-import re
+import dataclasses
+import os
 from functools import partial
+import html
 
 from qt_extensions import theme
 from qt_extensions.button import CheckBoxButton
@@ -7,6 +9,8 @@ from qt_extensions.icons import MaterialIcon
 
 import logging
 from PySide2 import QtWidgets, QtCore, QtGui
+
+from qt_extensions.typeutils import hashable_dataclass, cast
 
 
 class Sender(QtCore.QObject):
@@ -40,48 +44,53 @@ class LogCache(QtCore.QObject):
         self.added.emit(record)
 
     def clear(self) -> None:
+        print('clear')
         self.records = []
         self.cleared.emit()
 
     def connect_logger(self, logger: logging.Logger) -> None:
         logger.addHandler(self.handler)
 
+    def save(self, filename: str) -> None:
+        formatter = logging.Formatter(
+            fmt='[{asctime}][{levelname: <8}][{name}] {message}',
+            datefmt='%I:%M:%S%p',
+            style='{',
+        )
+
+        with open(filename, 'w') as f:
+            text = (f'{formatter.format(record)}\n' for record in self.records)
+            f.writelines(text)
+
 
 class LogViewer(QtWidgets.QWidget):
     def __init__(
-        self, cache: LogCache, parent: QtWidgets.QWidget | None = None
+        self, cache: LogCache | None = None, parent: QtWidgets.QWidget | None = None
     ) -> None:
         super().__init__(parent)
 
-        self.cache = cache
-        self.cache.added.connect(self.add_record)
-        self.cache.cleared.connect(self.clear)
-        self.levels = {
-            logging.ERROR: True,
-            logging.WARNING: True,
-            logging.INFO: True,
-            logging.DEBUG: True,
-        }
-
-        self._init_ui()
-
-        color = self.palette().color(QtGui.QPalette.Text).name()
-        self.formatter = logging.Formatter(
-            fmt='[{asctime}]<font color="{color}"><b>[{levelname: <8}]</b></font> {message}',
-            datefmt='%I:%M:%S%p',
-            style='{',
-            defaults={'color': color},
-        )
-
+        self._cache = None
         self._error_color = theme.Color('error').name()
         self._warning_color = theme.Color('warning').name()
-        self._info_color = theme.Color('info').name()
-
         self._error_count = 0
         self._warning_count = 0
+        self._last_save_path = os.path.expanduser('~')
+        self._names = set()
+        self._levels = set()
 
-        for record in self.cache.records:
-            self.add_record(record)
+        self.formatter = logging.Formatter(
+            fmt='[{asctime}]<font color="{color}"><b>'
+            '[{levelname: <8}]</b></font> {message}',
+            datefmt='%I:%M:%S%p',
+            style='{',
+            defaults={'color': ''},
+        )
+
+        self._init_ui()
+        self.state = {}
+
+        if cache:
+            self._cache = cache
 
     def _init_ui(self) -> None:
         self.setWindowTitle('Log Viewer')
@@ -90,8 +99,9 @@ class LogViewer(QtWidgets.QWidget):
 
         self.text_edit = QtWidgets.QPlainTextEdit()
         self.text_edit.setReadOnly(True)
+        self.text_edit.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
 
-        font = QtGui.QFont('Monospace')
+        font = QtGui.QFont('Roboto Mono')
         font.setStyleHint(QtGui.QFont.Monospace)
         self.text_edit.setFont(font)
 
@@ -106,29 +116,27 @@ class LogViewer(QtWidgets.QWidget):
         # level buttons
         button = CheckBoxButton('Error', color='error')
         button.setFlat(True)
-        button.setChecked(True)
         button.toggled.connect(partial(self._level_toggle, logging.ERROR))
         self.toolbar.addWidget(button)
         self._error_button = button
 
         button = CheckBoxButton('Warning', color='warning')
         button.setFlat(True)
-        button.setChecked(True)
         button.toggled.connect(partial(self._level_toggle, logging.WARNING))
         self.toolbar.addWidget(button)
         self._warning_button = button
 
-        button = CheckBoxButton('Info', color='info')
+        button = CheckBoxButton('Info')
         button.setFlat(True)
-        button.setChecked(True)
         button.toggled.connect(partial(self._level_toggle, logging.INFO))
         self.toolbar.addWidget(button)
+        self._info_button = button
 
-        button = CheckBoxButton('Debug', color='info')
+        button = CheckBoxButton('Debug')
         button.setFlat(True)
-        button.setChecked(True)
         button.toggled.connect(partial(self._level_toggle, logging.DEBUG))
         self.toolbar.addWidget(button)
+        self._debug_button = button
 
         # stretch
         spacer = QtWidgets.QWidget()
@@ -139,20 +147,35 @@ class LogViewer(QtWidgets.QWidget):
 
         # actions
         action = QtWidgets.QAction(self)
+        action.setText('Filter')
+        icon = MaterialIcon('filter_alt')
+        action.setIcon(icon)
+        action.triggered.connect(self._show_filter_menu)
+        self.toolbar.addAction(action)
+        self._filter_action = action
+
+        action = QtWidgets.QAction(self)
         action.setText('Wrap Lines')
         action.setCheckable(True)
-        action.setChecked(True)
         icon = MaterialIcon('wrap_text')
         action.setIcon(icon)
         action.toggled.connect(self._wrap_text)
+        self.toolbar.addAction(action)
+        self._wrap_action = action
+
+        action = QtWidgets.QAction(self)
+        action.setText('Save')
+        icon = MaterialIcon('save')
+        action.setIcon(icon)
+        action.triggered.connect(self.save)
         self.toolbar.addAction(action)
 
         action = QtWidgets.QAction(self)
         action.setText('Clear')
         icon = MaterialIcon('backspace')
         action.setIcon(icon)
-        action.triggered.connect(self.cache.clear)
         self.toolbar.addAction(action)
+        self._clear_action = action
 
     @property
     def error_count(self) -> int:
@@ -172,49 +195,186 @@ class LogViewer(QtWidgets.QWidget):
         self._warning_count = value
         self._warning_button.setText(f'Warning: {value}')
 
-    def clear(self) -> None:
-        self.text_edit.clear()
-        self.error_count = 0
-        self.warning_count = 0
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        super().closeEvent(event)
+        self._disconnect_cache()
+
+    def showEvent(self, event: QtGui.QShowEvent) -> None:
+        super().showEvent(event)
+        self._connect_cache()
+        self.refresh()
+
+    def add_name(self, name: str, add: bool = True) -> None:
+        if add:
+            self._names.add(name)
+        else:
+            try:
+                self._names.remove(name)
+            except KeyError:
+                pass
+        self.refresh()
 
     def add_record(self, record: logging.LogRecord, count: bool = True):
+        if self._names and not record.name.startswith(tuple(self._names)):
+            return
+
         if record.levelno >= logging.ERROR:
             if count:
                 self.error_count += 1
-            if not self.levels[logging.ERROR]:
+            if logging.ERROR not in self._levels:
                 return
             record.color = self._error_color
         elif record.levelno >= logging.WARNING:
             if count:
                 self.warning_count += 1
-            if not self.levels[logging.WARNING]:
+            if logging.WARNING not in self._levels:
                 return
             record.color = self._warning_color
         elif record.levelno >= logging.INFO:
-            if not self.levels[logging.INFO]:
+            if logging.INFO not in self._levels:
                 return
-            record.color = self._info_color
         elif record.levelno >= logging.DEBUG:
-            if not self.levels[logging.DEBUG]:
+            if logging.DEBUG not in self._levels:
                 return
-            record.color = self._info_color
         else:
             return
 
-        text = self.formatter.format(record)
-        for match in re.findall(r'>.*?</', text):
-            html = match.replace(' ', '&nbsp;')
-            text = text.replace(match, html)
-        self.text_edit.appendHtml(text)
+        message = self.formatter.format(record)
+        if record.exc_info:
+            lines = message.split('\n')
+            try:
+                header = lines.pop(0)
+                trace = '\n'.join(lines)
+                message = f'{header}\n<font color="{self._error_color}">{trace}</font>'
+            except IndexError:
+                pass
+        inner_html = f'<pre><code data-lang="python">{message}</code></pre>'
+
+        self.text_edit.appendHtml(inner_html)
+
+    def clear(self) -> None:
+        self.text_edit.clear()
+        self.error_count = 0
+        self.warning_count = 0
+
+    def refresh(self):
+        self.clear()
+        if self._cache:
+            for record in self._cache.records:
+                self.add_record(record)
+
+    def save(self):
+        if not self._cache:
+            return
+        filename, selected_filter = QtWidgets.QFileDialog.getSaveFileName(
+            parent=self,
+            caption='Save File',
+            dir=self._last_save_path,
+            filter='*.log',
+        )
+
+        if filename:
+            path = os.path.dirname(filename)
+            self._last_save_path = path
+            if not os.path.exists(path):
+                os.makedirs(path)
+            self._cache.save(filename)
+
+    def set_cache(self, cache: LogCache) -> None:
+        self._disconnect_cache()
+        self._cache = cache
+        self._clear_action.triggered.connect(self._cache.clear)
+        if self.isVisible():
+            self._connect_cache()
+
+    def set_levels(self, levels: set[int] | list[int] | tuple[int]) -> None:
+        self._levels = set(levels)
+        self._error_button.setChecked(logging.ERROR in self._levels)
+        self._warning_button.setChecked(logging.WARNING in self._levels)
+        self._info_button.setChecked(logging.INFO in self._levels)
+        self._debug_button.setChecked(logging.DEBUG in self._levels)
+
+    def set_names(self, names: set[str] | list[str] | tuple[str]) -> None:
+        self._names = set(names)
+        self.refresh()
+
+    def set_state(self, state: dict) -> None:
+        values = {
+            'names': set(),
+            'levels': {logging.ERROR, logging.WARNING, logging.INFO},
+            'wrap': False,
+        }
+        values.update(state)
+
+        self.set_levels(values['levels'])
+        self.set_names(values['names'])
+        self._wrap_action.setChecked(values['wrap'])
+
+    def state(self) -> dict:
+        log_viewer_state = LogViewer.State(
+            names=self._names,
+            levels=self._levels,
+            wrap=self._wrap_action.isChecked(),
+        )
+        return log_viewer_state
+
+    def _connect_cache(self) -> None:
+        if self._cache:
+            self._cache.added.connect(self.add_record)
+            self._cache.cleared.connect(self.clear)
+
+    def _disconnect_cache(self) -> None:
+        if self._cache:
+            try:
+                self._cache.added.disconnect(self.add_record)
+                self._cache.cleared.disconnect(self.clear)
+            except RuntimeError:
+                pass
+            self.clear()
 
     def _filter(self):
         self.text_edit.clear()
-        for record in self.cache.records:
-            self.add_record(record, count=False)
+        if self._cache:
+            for record in self._cache.records:
+                self.add_record(record, count=False)
 
     def _level_toggle(self, level: int, checked: bool) -> None:
-        self.levels[level] = checked
+        if checked:
+            self._levels.add(level)
+        else:
+            try:
+                self._levels.remove(level)
+            except KeyError:
+                pass
         self._filter()
+
+    def _show_filter_menu(self) -> None:
+        if not self._cache:
+            return
+        widget = self.toolbar.widgetForAction(self._filter_action)
+        relative_pos = widget.rect().topRight()
+        relative_pos.setX(relative_pos.x() + 2)
+        position = widget.mapToGlobal(relative_pos)
+
+        names = set()
+        for record in self._cache.records:
+            name = record.name.split('.')[0]
+            names.add(name)
+
+        for name in self._names:
+            names.add(name)
+
+        menu = QtWidgets.QMenu(self)
+        for name in names:
+            action = QtWidgets.QAction(self)
+            action.setText(name)
+            action.setCheckable(True)
+            action.toggled.connect(partial(self.add_name, name))
+            menu.addAction(action)
+
+            if name in self._names:
+                action.setChecked(True)
+        menu.exec_(position)
 
     def _wrap_text(self, checked: bool) -> None:
         if checked:
@@ -230,20 +390,18 @@ class LogBar(QtWidgets.QWidget):
     ) -> None:
         super().__init__(parent)
 
-        self.cache = cache
-        self.current_message = logging.makeLogRecord({'levelno': 0})
+        self._cache = cache
         self._viewer = None
 
+        self.current_message = logging.makeLogRecord({'levelno': logging.NOTSET})
         self.formatter = logging.Formatter(fmt='[{levelname}] {message}', style='{')
+        self.min_level = logging.WARNING
+        self.names = set()
 
         self._init_ui()
 
-        self.cache.added.connect(
-            lambda record: self.show_message(
-                self.formatter.format(record), level=record.levelno
-            )
-        )
-        self.cache.cleared.connect(lambda: self.show_message('', force=True))
+        self._cache.added.connect(self.show_record)
+        self._cache.cleared.connect(lambda: self.show_message('', force=True))
 
     def _init_ui(self):
         # colors
@@ -252,15 +410,13 @@ class LogBar(QtWidgets.QWidget):
         self._warning_color = theme.Color('warning')
 
         # log icons
-        self.log_icons = {
-            logging.CRITICAL: MaterialIcon('report'),
-            logging.ERROR: MaterialIcon('error'),
-            logging.WARNING: MaterialIcon('warning'),
-            logging.INFO: MaterialIcon('article'),
-        }
-        self.log_icons[logging.CRITICAL].set_color(self._critical_color)
-        self.log_icons[logging.ERROR].set_color(self._error_color)
-        self.log_icons[logging.WARNING].set_color(self._warning_color)
+        self._critical_icon = MaterialIcon('report')
+        self._critical_icon.set_color(self._critical_color)
+        self._error_icon = MaterialIcon('error')
+        self._error_icon.set_color(self._error_color)
+        self._warning_icon = MaterialIcon('warning')
+        self._warning_icon.set_color(self._warning_color)
+        self._info_icon = MaterialIcon('article')
 
         # layout
         size_policy = self.sizePolicy()
@@ -278,7 +434,7 @@ class LogBar(QtWidgets.QWidget):
 
         # message button
         self.log_button = QtWidgets.QToolButton(self)
-        self.log_button.setIcon(self.log_icons[logging.INFO])
+        self.log_button.setIcon(self._info_icon)
         self.log_button.setAutoRaise(True)
         self.log_button.setFocusPolicy(QtCore.Qt.NoFocus)
         self.log_button.pressed.connect(self.open_viewer)
@@ -286,7 +442,7 @@ class LogBar(QtWidgets.QWidget):
         message_layout.addWidget(self.log_button)
 
         # message line
-        self.message_line = QtWidgets.QLineEdit()
+        self.message_line = QtWidgets.QLineEdit(self)
         self.message_line.setReadOnly(True)
         self.message_line.setFocusPolicy(QtCore.Qt.NoFocus)
 
@@ -306,38 +462,45 @@ class LogBar(QtWidgets.QWidget):
         count = self.layout().count()
         self.layout().insertWidget(count - 1, widget)
 
+    def clear_message(self):
+        self.show_message('', level=logging.NOTSET, force=True)
+
+    def open_viewer(self):
+        if self._viewer is None:
+            self._viewer = LogViewer(self._cache)
+        self._viewer.show()
+
     def remove_widget(self, widget: QtWidgets.QWidget):
         self.layout().removeWidget(widget)
 
-    def clear_message(self):
-        self.show_message('', force=True)
-
     def show_message(self, message: str, level: int = logging.INFO, force=False):
-        if not force and level < self.current_message.levelno:
-            return
-
-        self.message_line.setText(message)
+        if not force:
+            if level < self.current_message.levelno or level < self.min_level:
+                return
 
         if level >= logging.CRITICAL:
-            self.log_button.setIcon(self.log_icons[logging.CRITICAL])
+            self.log_button.setIcon(self._critical_icon)
             color = self._critical_color
         elif level >= logging.ERROR:
-            self.log_button.setIcon(self.log_icons[logging.ERROR])
+            self.log_button.setIcon(self._error_icon)
             color = self._error_color
         elif level >= logging.WARNING:
-            self.log_button.setIcon(self.log_icons[logging.WARNING])
+            self.log_button.setIcon(self._warning_icon)
             color = self._warning_color
         else:
-            self.log_button.setIcon(self.log_icons[logging.INFO])
+            self.log_button.setIcon(self._info_icon)
             color = self.palette().color(QtGui.QPalette.Window)
 
+        self.message_line.setText(message)
         palette = self.message_line.palette()
         palette.setColor(QtGui.QPalette.Window, color)
         self.message_line.setPalette(palette)
 
         self.current_message = logging.makeLogRecord({'msg': message, 'levelno': level})
 
-    def open_viewer(self):
-        if self._viewer is None:
-            self._viewer = LogViewer(self.cache)
-        self._viewer.show()
+    def show_record(self, record: logging.LogRecord) -> None:
+        if self.names and not record.name.startswith(tuple(self.names)):
+            return
+        message = self.formatter.format(record)
+        message = message.split('\n')[-1]
+        self.show_message(message, level=record.levelno)

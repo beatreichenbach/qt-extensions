@@ -1,9 +1,16 @@
-from dataclasses import dataclass, asdict
+import dataclasses
+from dataclasses import dataclass
 from enum import Enum
 
 from PySide2 import QtGui, QtCore
 
-from qt_extensions.typeutils import hash_dataclass, hashable_dict, cast, cast_basic
+from qt_extensions.typeutils import (
+    hashable_dataclass,
+    HashableDict,
+    cast,
+    cast_basic,
+    deep_field,
+)
 
 
 @dataclass
@@ -63,3 +70,30 @@ def test_cast_basic():
         'product_number': {'number': 2},
         'quantity_on_hand': 0,
     }
+
+
+def test_hashable_dataclass():
+    @hashable_dataclass
+    class TestClass:
+        name: str
+        count: int
+
+    test = TestClass('Apple', 2)
+    hash(test)
+
+
+def test_hashable_dict():
+    test = HashableDict([(0, 'a'), (1, 'b')])
+    hash(test)
+
+
+def test_deep_field():
+    @dataclasses.dataclass
+    class Test:
+        color: QtGui.QColor = deep_field(QtGui.QColor(255, 255, 255))
+
+    test1 = Test()
+    test1.color.setRed(0)
+
+    test2 = Test()
+    assert test1 != test2

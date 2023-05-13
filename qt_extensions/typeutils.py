@@ -1,6 +1,5 @@
 import dataclasses
 import json
-import logging
 import sys
 from dataclasses import is_dataclass, fields
 from enum import Enum
@@ -97,7 +96,7 @@ def cast(typ: type, value: Any, globalns: dict | None = None) -> Any:
             return typ(value)
         return typ(**kwargs)
 
-    elif isinstance(typ, type) and issubclass(typ, tuple):
+    elif isinstance(typ, type) and issubclass(typ, (tuple, set)):
         return typ(value)
 
     elif isinstance(typ, type) and issubclass(typ, Enum):
@@ -136,6 +135,8 @@ def cast_basic(obj: Any) -> Any:
             return type(obj)((k, cast_basic(v)) for k, v in obj.items())
         case tuple():
             return type(obj)(cast_basic(v) for v in obj)
+        case set():
+            return [cast_basic(v) for v in obj]
         case Enum():
             return obj.name
         case QtCore.QPoint() | QtCore.QPointF():
@@ -157,7 +158,11 @@ def cast_basic(obj: Any) -> Any:
     raise TypeError(f'Cannot convert {obj.__class__} to basic type.')
 
 
-def hash_dataclass(cls):
+def deep_field(obj) -> dataclasses.Field:
+    return dataclasses.field(default_factory=lambda: obj.__class__(obj))
+
+
+def hashable_dataclass(cls):
     def __hash__(self):
         json_data = cast_basic(self)
         return hash(json.dumps(json_data, sort_keys=True))
@@ -166,10 +171,6 @@ def hash_dataclass(cls):
     return dataclasses.dataclass(cls)
 
 
-class hashable_dict(dict):
+class HashableDict(dict):
     def __hash__(self):
         return hash(tuple(sorted(self.items())))
-
-
-def deep_field(obj) -> dataclasses.Field:
-    return dataclasses.field(default_factory=lambda: obj.__class__(obj))
