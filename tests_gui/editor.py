@@ -106,8 +106,9 @@ def main():
     editor.property_changed.connect(logging.debug)
 
     editor.show()
-    state = editor.state
-    editor.state = cast_basic(state)
+
+    state = editor.state()
+    editor.set_state(state)
 
     sys.exit(app.exec_())
 

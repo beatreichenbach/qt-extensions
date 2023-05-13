@@ -165,7 +165,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         super().setLayout(self._layout)
 
         self.header = CollapsibleHeader('', self.collapsible)
-        self.header.toggled.connect(self._update_collapsed)
+        self.header.toggled.connect(self._header_toggle)
         self.header.menu_requested.connect(self.show_menu)
         self._layout.addWidget(self.header)
 
@@ -235,7 +235,7 @@ class CollapsibleBox(QtWidgets.QFrame):
             QtWidgets.QStyle.PE_PanelButtonCommand, option, painter, self
         )
 
-    def update_actions(self, actions: list[QtWidgets.QAction]) -> None:
+    def set_actions(self, actions: list[QtWidgets.QAction]) -> None:
         self._actions = actions
 
         # hide menu button if there are no actions
@@ -248,5 +248,5 @@ class CollapsibleBox(QtWidgets.QFrame):
         menu.exec_(position)
         self.header.menu_button.setDown(False)
 
-    def _update_collapsed(self, collapsed: bool) -> None:
+    def _header_toggle(self, collapsed: bool) -> None:
         self.collapsed = collapsed
