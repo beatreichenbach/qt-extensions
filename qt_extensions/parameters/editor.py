@@ -153,10 +153,16 @@ class ParameterForm(QtWidgets.QWidget):
         self.add_widget(group)
         return form
 
-    def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
+    def add_layout(
+        self,
+        layout: QtWidgets.QLayout,
+        column: int = 0,
+        row_span: int = 1,
+        column_span: int = 2,
+    ) -> QtWidgets.QLayout:
         grid_layout = self.grid_layout
         row = grid_layout.rowCount() - 1
-        grid_layout.addLayout(layout, row=row, column=0, rowSpan=1, columnSpan=2)
+        grid_layout.addLayout(layout, row, column, row_span, column_span)
         self._update_stretch()
         return layout
 
@@ -197,17 +203,17 @@ class ParameterForm(QtWidgets.QWidget):
     def add_tab_group(
         self, names: Iterable[str], labels: Iterable[str] = None
     ) -> QtWidgets.QTabWidget:
-        group = QtWidgets.QTabWidget(self)
-        group.tabs = {}
+        tab_widget = QtWidgets.QTabWidget(self)
+        tab_widget.tabs = {}
         labels = labels or []
         for name, label in itertools.zip_longest(names, labels):
             form = self._create_form(name)
             label = label or helper.title(name)
-            group.addTab(form, label)
-            group.tabs[name] = form
+            tab_widget.addTab(form, label)
+            tab_widget.tabs[name] = form
 
-        self.add_widget(group)
-        return group
+        self.add_widget(tab_widget)
+        return tab_widget
 
     def add_widget(
         self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 2

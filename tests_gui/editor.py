@@ -75,12 +75,12 @@ def main():
 
     group3 = editor.add_tab_group(('tab_1', 'tab_2'))
 
-    prop = IntParameter('int4')
-    prop.setEnabled(False)
-    group3.tabs['tab_1'].add_parameter(prop)
-    prop = FloatParameter('float4')
-    prop.setEnabled(False)
-    group3.tabs['tab_1'].add_parameter(prop)
+    parm = IntParameter('int4')
+    parm.setEnabled(False)
+    group3.tabs['tab_1'].add_parameter(parm)
+    parm = FloatParameter('float4')
+    parm.setEnabled(False)
+    group3.tabs['tab_1'].add_parameter(parm)
 
     group4 = editor.add_group(
         'group_4', collapsible=True, style=CollapsibleBox.Style.SIMPLE
@@ -93,9 +93,9 @@ def main():
     group4.addAction(QtWidgets.QAction('Save1', group4))
     group4.addAction(QtWidgets.QAction('Save2', group4))
 
-    prop = StringParameter('text')
-    prop.area = True
-    editor.add_parameter(prop)
+    parm = StringParameter('text')
+    parm.area = True
+    editor.add_parameter(parm)
 
     data = [
         ['Sun', 696000, 198],
@@ -104,13 +104,13 @@ def main():
         ['Mars', 3390, 641.85],
         ['A really big Star', 406320, 339023452345.23450],
     ]
-    prop = TabDataParameter('tabdata')
-    prop.default = data
-    prop.headers = ['Name', 'Radius', 'Weight']
-    prop.types = [str, int, float]
-    prop.start_index = 4
-    prop.tooltip = 'By default, labels display left-aligned, vertically-centered text and images, where any tabs in the text to be displayed are automatically expanded. However, the look of a QLabel can be adjusted and fine-tuned in several ways.'
-    editor.add_parameter(prop)
+    parm = TabDataParameter('tabdata')
+    parm.default = data
+    parm.headers = ['Name', 'Radius', 'Weight']
+    parm.types = [str, int, float]
+    parm.start_index = 4
+    parm.tooltip = 'By default, labels display left-aligned, vertically-centered text and images, where any tabs in the text to be displayed are automatically expanded. However, the look of a QLabel can be adjusted and fine-tuned in several ways.'
+    editor.add_parameter(parm)
 
     # editor.values_changed.connect(logging.debug)
     # logging.debug(json.dumps(editor.values(), indent=4, default=lambda x: str(x)))
