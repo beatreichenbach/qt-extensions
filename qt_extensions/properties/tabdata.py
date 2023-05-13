@@ -192,12 +192,14 @@ class DataTableView(QtWidgets.QTableView):
 
         action = QtWidgets.QAction("Copy", self)
         action.setShortcut(QtGui.QKeySequence.Copy)
+        action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         action.triggered.connect(self.copy_selected)
         self.addAction(action)
         self.context_menu.addAction(action)
 
         action = QtWidgets.QAction("Paste", self)
         action.setShortcut(QtGui.QKeySequence.Paste)
+        action.setShortcutContext(QtCore.Qt.WidgetShortcut)
         action.triggered.connect(self.paste_selected)
         self.addAction(action)
         self.context_menu.addAction(action)

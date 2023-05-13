@@ -562,7 +562,7 @@ class SizeProperty(IntProperty):
         self.layout().setStretch(2, 1)
 
         # keep ratio button
-        self.keep_ratio_button = LinkButton()
+        self.keep_ratio_button = RatioButton()
         self.keep_ratio_button.setMaximumSize(line_height, line_height)
         self.keep_ratio_button.toggled.connect(partial(setattr, self, 'keep_ratio'))
         self.layout().addWidget(self.keep_ratio_button)
@@ -663,7 +663,7 @@ class SizeFProperty(SizeProperty):
         self.layout().setStretch(2, 1)
 
         # keep ratio button
-        self.keep_ratio_button = LinkButton()
+        self.keep_ratio_button = RatioButton()
         self.keep_ratio_button.setMaximumSize(line_height, line_height)
         self.keep_ratio_button.toggled.connect(partial(setattr, self, 'keep_ratio'))
         self.layout().addWidget(self.keep_ratio_button)
@@ -1163,7 +1163,7 @@ class FloatSlider(IntSlider):
             self.valueChanged.emit(value)
 
 
-class LinkButton(BaseButton):
+class RatioButton(BaseButton):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setIcon(MaterialIcon('link_off', size=self._icon_size))

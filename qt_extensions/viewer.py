@@ -331,9 +331,7 @@ class Footer(QtWidgets.QWidget):
         self._background_color = value
         palette = self.palette()
         palette.setColor(QtGui.QPalette.Window, value)
-        palette.setColor(
-            QtGui.QPalette.WindowText, palette.color(QtGui.QPalette.BrightText)
-        )
+        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(255, 255, 255))
         self.setPalette(palette)
 
     def update_pixel_color(self, color: QtGui.QColor | None) -> None:
