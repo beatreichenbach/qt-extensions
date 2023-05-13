@@ -1,4 +1,5 @@
 import itertools
+import logging
 from collections.abc import Iterable
 import typing
 from typing_extensions import Self
@@ -127,29 +128,6 @@ class ParameterForm(QtWidgets.QWidget):
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
 
-    def add_parameter(self, widget: ParameterWidget) -> ParameterWidget:
-        name = widget.name
-        self._validate_name(name)
-
-        self._widgets[name] = widget
-
-        layout = self.grid_layout
-        row = layout.rowCount() - 1
-
-        # label
-        if widget.label:
-            label = ParameterLabel(widget, self)
-            layout.addWidget(label, row=row, column=0)
-            widget.enabled_changed.connect(label.setEnabled)
-            widget.enabled_changed.emit(widget.isEnabled())
-
-        # widget
-        layout.addWidget(widget, row=row, column=1)
-        widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
-
-        self._update_stretch()
-        return widget
-
     def add_group(
         self,
         name: str,
@@ -175,6 +153,47 @@ class ParameterForm(QtWidgets.QWidget):
         self.add_widget(group)
         return form
 
+    def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
+        grid_layout = self.grid_layout
+        row = grid_layout.rowCount() - 1
+        grid_layout.addLayout(layout, row=row, column=0, rowSpan=1, columnSpan=2)
+        self._update_stretch()
+        return layout
+
+    def add_parameter(self, widget: ParameterWidget) -> ParameterWidget:
+        name = widget.name
+        self._validate_name(name)
+
+        self._widgets[name] = widget
+
+        layout = self.grid_layout
+        row = layout.rowCount() - 1
+
+        # label
+        if widget.label:
+            column = 0
+            label = ParameterLabel(widget, self)
+            layout.addWidget(label, row, column)
+            widget.enabled_changed.connect(label.setEnabled)
+            widget.enabled_changed.emit(widget.isEnabled())
+
+        # widget
+        column = 1
+        layout.addWidget(widget, row, column)
+        widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
+
+        self._update_stretch()
+        return widget
+
+    def add_separator(self) -> QtWidgets.QFrame:
+        line = QtWidgets.QFrame(self)
+        line.setFixedHeight(1)
+        line.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        line.setFrameShadow(QtWidgets.QFrame.Sunken)
+
+        self.add_widget(line)
+        return line
+
     def add_tab_group(
         self, names: Iterable[str], labels: Iterable[str] = None
     ) -> QtWidgets.QTabWidget:
@@ -190,32 +209,15 @@ class ParameterForm(QtWidgets.QWidget):
         self.add_widget(group)
         return group
 
-    def add_separator(self) -> QtWidgets.QFrame:
-        line = QtWidgets.QFrame(self)
-        line.setFixedHeight(1)
-        line.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        line.setFrameShadow(QtWidgets.QFrame.Sunken)
-
-        self.add_widget(line)
-        return line
-
     def add_widget(
         self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 2
     ) -> QtWidgets.QWidget:
         layout = self.grid_layout
         row = layout.rowCount() - 1
-        layout.addWidget(
-            widget, row=row, column=column, rowSpan=1, columnSpan=column_span
-        )
+        row_span = 1
+        layout.addWidget(widget, row, column, row_span, column_span)
         self._update_stretch()
         return widget
-
-    def add_layout(self, layout: QtWidgets.QLayout) -> QtWidgets.QLayout:
-        grid_layout = self.grid_layout
-        row = grid_layout.rowCount() - 1
-        grid_layout.addLayout(layout, row=row, column=0, rowSpan=1, columnSpan=2)
-        self._update_stretch()
-        return layout
 
     def boxes(
         self, layout: QtWidgets.QLayout | None = None

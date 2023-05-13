@@ -15,7 +15,7 @@ def main():
     logging.getLogger().setLevel(logging.DEBUG)
 
     app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.modern_dark)
+    theme.apply_theme(theme.monokai)
 
     cache = LogCache()
     cache.connect_logger(logging.getLogger())
@@ -38,11 +38,11 @@ def main():
         logger2.critical('critical')
         logger2.warning('warning')
 
-    # dialog = QtWidgets.QDialog()
-    # dialog.resize(QtCore.QSize(800, 100))
-    # dialog.setLayout(QtWidgets.QVBoxLayout())
-    # dialog.layout().setContentsMargins(QtCore.QMargins())
-    #
+    dialog = QtWidgets.QDialog()
+    dialog.resize(QtCore.QSize(800, 100))
+    dialog.setLayout(QtWidgets.QVBoxLayout())
+    dialog.layout().setContentsMargins(QtCore.QMargins())
+
     # button = QtWidgets.QPushButton('Error')
     # button.pressed.connect(lambda: logger.error('This is an Error message'))
     # dialog.layout().addWidget(button)
@@ -60,21 +60,21 @@ def main():
     #     lambda: logger.exception(Exception('This is an Exception message'))
     # )
     # dialog.layout().addWidget(button)
-    #
-    # dialog.layout().addStretch()
-    #
-    # status_bar = LogBar(cache)
-    # dialog.layout().addWidget(status_bar)
-    # dialog.show()
-    #
-    # status_bar.open_viewer()
 
-    viewer = LogViewer()
-    viewer.set_cache(cache)
-    window = DockWindow()
-    dock_widget = DockWidget(dock_window=window)
-    dock_widget.addTab(viewer, 'Status_Bar')
-    window.show()
+    dialog.layout().addStretch()
+
+    status_bar = LogBar(cache)
+    dialog.layout().addWidget(status_bar)
+    dialog.show()
+
+    status_bar.open_viewer()
+
+    # viewer = LogViewer()
+    # viewer.set_cache(cache)
+    # window = DockWindow()
+    # dock_widget = DockWidget(dock_window=window)
+    # dock_widget.addTab(viewer, 'Status_Bar')
+    # window.show()
 
     logging.debug('debug')
     logging.error('error')

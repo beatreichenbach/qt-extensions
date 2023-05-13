@@ -3,17 +3,17 @@
 This is a collection of widgets and utility functions to extend Qt.
 Some example usages can be found in gui_tests.
 
-## properties
-A collection of modules for a unified property editor. It has widgets for most common variable types similar to the Nuke knobs.
+## parameters
+A collection of modules for a unified parameter editor. It has widgets for most common variable types similar to the Nuke knobs.
 
-![Screenshot of the box widget](/.github/assets/propertyeditor.png)
+![Screenshot of the box widget](/.github/assets/parameter_editor.png)
 
 ## box
 A collapsible box with multiple styles.
 
 ![Screenshot of the box widget](/.github/assets/box.png)
 
-## button
+## buttons
 A helper module to create styled buttons.
 
 ![Screenshot of the buttons widget](/.github/assets/buttons.png)
@@ -31,6 +31,10 @@ A StandardItemView that displays items in a flex view.
 
 ## icons
 A module that provides easy creation of QIcons based on Google Material Design Icons.
+
+## logger
+A status bar and log viewer that provides a gui interface for the logging module.
+![Screenshot of the logbar and logviewer widget](/.github/assets/logger.png)
 
 ## mainwindow
 A main window widget that allows the docking of panels.
