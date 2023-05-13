@@ -1,6 +1,3 @@
-import enum
-import logging
-
 from PySide2 import QtWidgets, QtGui, QtCore
 
 from qt_extensions import theme

@@ -1,6 +1,3 @@
-import logging
-import sys
-
 from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions.icons import MaterialIcon

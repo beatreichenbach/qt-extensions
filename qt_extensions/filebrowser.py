@@ -9,6 +9,8 @@ from qt_extensions.helper import unique_path
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.elementbrowser import ElementBrowser, Field, ElementDelegate
 
+logger = logging.getLogger(__name__)
+
 
 @dataclasses.dataclass
 class FileElement:
@@ -120,7 +122,7 @@ class FileBrowser(ElementBrowser):
             f = open(path, 'x')
             f.close()
         except OSError as e:
-            logging.exception(e)
+            logger.exception(e)
             return QtCore.QModelIndex()
         index = self._append_file(path, parent)
         return index
@@ -140,7 +142,7 @@ class FileBrowser(ElementBrowser):
         try:
             os.makedirs(path)
         except OSError as e:
-            logging.exception(e)
+            logger.exception(e)
             return QtCore.QModelIndex()
         index = self._append_dir(path, parent)
         return index
@@ -153,7 +155,7 @@ class FileBrowser(ElementBrowser):
             try:
                 shutil.copy(element.path, path)
             except OSError as e:
-                logging.exception(e)
+                logger.exception(e)
                 continue
             copied_index = self.model.duplicate_index(index)
             copied_element = self.model.element(copied_index)
@@ -195,7 +197,7 @@ class FileBrowser(ElementBrowser):
                 elif os.path.isfile(element.path):
                     os.remove(element.path)
         except OSError as e:
-            logging.exception(e)
+            logger.exception(e)
             return
         super().remove_selected()
 
@@ -221,7 +223,7 @@ class FileBrowser(ElementBrowser):
         try:
             shutil.move(source_path, destination_path)
         except OSError as e:
-            logging.exception(e)
+            logger.exception(e)
         self.refresh()
 
     def _move_element(self, element: FileElement, parent: QtCore.QModelIndex) -> None:
@@ -241,5 +243,5 @@ class FileBrowser(ElementBrowser):
                 raise FileExistsError(f'File Exists: {destination_path}')
             shutil.move(source_path, destination_path)
         except OSError as e:
-            logging.exception(e)
+            logger.exception(e)
         self.refresh()

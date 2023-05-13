@@ -1,4 +1,3 @@
-import logging
 from enum import auto, Enum
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -88,7 +87,6 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
     ) -> QtCore.QSize:
         size_hint = super().sizeHint(option, index)
         # size_hint = option.rect.size()
-        logging.debug(f'size_hint: {size_hint}')
         return size_hint
 
         # value = index.data(QtCore.Qt.SizeHintRole)

@@ -376,9 +376,6 @@ class DockWindow(QtWidgets.QWidget):
         self.center_widget = self._add_protected_dock_widget(self.center_splitter)
         self.layout().addWidget(self.center_splitter)
 
-        # status bar
-        self.status_bar = QtWidgets.QStatusBar(self)
-        self.layout().addWidget(self.status_bar)
         self.layout().setStretch(0, 1)
 
     def add_dock_widget(
@@ -418,7 +415,6 @@ class DockWindow(QtWidgets.QWidget):
         for title_, widget_ in self._widgets.items():
             if widget == widget_:
                 unique_title, widget_instance = title_, widget_
-                logging.debug((unique_title, widget_instance))
                 break
         else:
             unique_title, widget_instance = self._add_widget(widget, title)
@@ -507,7 +503,6 @@ class DockWindow(QtWidgets.QWidget):
         widgets = dict(self._widgets)
         # unparent all widgets to clean up layout
         for widget in widgets.values():
-            logging.debug(widget)
             widget.setParent(None)
             widget.close()
 

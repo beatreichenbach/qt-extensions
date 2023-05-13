@@ -1,9 +1,8 @@
-# initially I had https://github.com/marella/material-design-icons/ added as a submodule
+# initially https://github.com/marella/material-design-icons/ was added as a submodule
 # but zip files of the repo on github does not include submodules.
 # to go around this issue icons are compiled to qt resource file using compile_icons.py
 
 import enum
-import logging
 
 from PySide2 import QtWidgets, QtGui, QtCore
 from PySide2.QtGui import QIcon, QPalette
