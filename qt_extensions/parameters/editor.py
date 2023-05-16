@@ -1,7 +1,8 @@
 import itertools
-import logging
 from collections.abc import Iterable
 import typing
+from functools import partial
+
 from typing_extensions import Self
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -75,20 +76,6 @@ class ParameterLabel(QtWidgets.QLabel):
             self._tooltip.show()
 
 
-class ParameterEditor(VerticalScrollArea):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-
-        self.__dict__['form'] = ParameterForm()
-        self.setWidget(self.form)
-
-    def __getattr__(self, item: typing.Any) -> typing.Any:
-        return getattr(self.form, item)
-
-    def __setattr__(self, key: str, value: typing.Any) -> None:
-        setattr(self.form, key, value)
-
-
 class ParameterForm(QtWidgets.QWidget):
     actions_changed: QtCore.Signal = QtCore.Signal(list)
     parameter_changed: QtCore.Signal = QtCore.Signal(ParameterWidget)
@@ -156,9 +143,9 @@ class ParameterForm(QtWidgets.QWidget):
     def add_layout(
         self,
         layout: QtWidgets.QLayout,
-        column: int = 0,
+        column: int = 1,
         row_span: int = 1,
-        column_span: int = 2,
+        column_span: int = -1,
     ) -> QtWidgets.QLayout:
         grid_layout = self.grid_layout
         row = grid_layout.rowCount() - 1
@@ -166,7 +153,9 @@ class ParameterForm(QtWidgets.QWidget):
         self._update_stretch()
         return layout
 
-    def add_parameter(self, widget: ParameterWidget) -> ParameterWidget:
+    def add_parameter(
+        self, widget: ParameterWidget, checkable: bool = False
+    ) -> ParameterWidget:
         name = widget.name
         self._validate_name(name)
 
@@ -177,16 +166,25 @@ class ParameterForm(QtWidgets.QWidget):
 
         # label
         if widget.label:
-            column = 0
             label = ParameterLabel(widget, self)
+            column = 1
             layout.addWidget(label, row, column)
             widget.enabled_changed.connect(label.setEnabled)
             widget.enabled_changed.emit(widget.isEnabled())
 
         # widget
-        column = 1
+        column = 2
         layout.addWidget(widget, row, column)
         widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
+
+        # checkbox
+        if checkable:
+            checkbox = QtWidgets.QCheckBox(self)
+            column = 0
+            layout.addWidget(checkbox, row, column)
+            checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
+            checkbox.setChecked(False)
+            self._set_widget_row_enabled(checkbox, False)
 
         self._update_stretch()
         return widget
@@ -208,6 +206,7 @@ class ParameterForm(QtWidgets.QWidget):
         labels = labels or []
         for name, label in itertools.zip_longest(names, labels):
             form = self._create_form(name)
+            form.parameter_changed.connect(self.parameter_changed.emit)
             label = label or helper.title(name)
             tab_widget.addTab(form, label)
             tab_widget.tabs[name] = form
@@ -216,7 +215,7 @@ class ParameterForm(QtWidgets.QWidget):
         return tab_widget
 
     def add_widget(
-        self, widget: QtWidgets.QWidget, column: int = 0, column_span: int = 2
+        self, widget: QtWidgets.QWidget, column: int = 1, column_span: int = -1
     ) -> QtWidgets.QWidget:
         layout = self.grid_layout
         row = layout.rowCount() - 1
@@ -242,6 +241,12 @@ class ParameterForm(QtWidgets.QWidget):
             elif isinstance(widget, ParameterForm):
                 children = widget.boxes()
                 boxes.update(children)
+            elif isinstance(widget, ParameterTabWidget):
+                children = []
+                for tab in widget.tabs:
+                    children.extend(self.boxes(tab.layout()))
+                boxes[widget] = children
+
         return boxes
 
     def reset(self, widgets: dict[str, ParameterWidget] | None = None) -> None:
@@ -361,6 +366,27 @@ class ParameterForm(QtWidgets.QWidget):
             ]
             self._set_collapsed_boxes(child_boxes, children)
 
+    # noinspection PyMethodMayBeStatic
+    def _set_widget_row_enabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
+        # get parent grid layout
+        layout = widget.parentWidget().layout()
+        if not isinstance(layout, QtWidgets.QGridLayout):
+            return
+
+        # find row of widget
+        index = layout.indexOf(widget)
+        if index < 0:
+            return
+        row, column, row_span, col_span = layout.getItemPosition(index)
+
+        # widget
+        item = layout.itemAtPosition(row, 2)
+        if not item or not item.widget():
+            return
+
+        item_widget = item.widget()
+        item_widget.setEnabled(enabled)
+
     def _update_stretch(self) -> None:
         layout = self.grid_layout
         layout.setRowStretch(layout.rowCount() - 1, 0)
@@ -377,6 +403,26 @@ class ParameterForm(QtWidgets.QWidget):
             hierarchical_names = list(self._widgets.keys())
         if name in hierarchical_names:
             raise ValueError(f'Cannot add widget {name} (name already exists)')
+
+
+class ParameterTabWidget(QtWidgets.QTabWidget):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.tabs: list[ParameterForm] = []
+
+
+class ParameterEditor(VerticalScrollArea):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self.__dict__['form'] = ParameterForm()
+        self.setWidget(self.form)
+
+    def __getattr__(self, item: typing.Any) -> typing.Any:
+        return getattr(self.form, item)
+
+    def __setattr__(self, key: str, value: typing.Any) -> None:
+        setattr(self.form, key, value)
 
 
 __all__ = ['ParameterEditor']

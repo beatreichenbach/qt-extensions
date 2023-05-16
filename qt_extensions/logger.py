@@ -1,7 +1,5 @@
-import dataclasses
 import os
 from functools import partial
-import html
 
 from qt_extensions import theme
 from qt_extensions.button import CheckBoxButton
@@ -9,8 +7,6 @@ from qt_extensions.icons import MaterialIcon
 
 import logging
 from PySide2 import QtWidgets, QtCore, QtGui
-
-from qt_extensions.typeutils import hashable_dataclass, cast
 
 
 class Sender(QtCore.QObject):
@@ -86,7 +82,6 @@ class LogViewer(QtWidgets.QWidget):
         )
 
         self._init_ui()
-        self.state = {}
 
         if cache:
             self._cache = cache
@@ -310,11 +305,11 @@ class LogViewer(QtWidgets.QWidget):
         self._wrap_action.setChecked(values['wrap'])
 
     def state(self) -> dict:
-        log_viewer_state = LogViewer.State(
-            names=self._names,
-            levels=self._levels,
-            wrap=self._wrap_action.isChecked(),
-        )
+        log_viewer_state = {
+            'names': self._names,
+            'levels': self._levels,
+            'wrap': self._wrap_action.isChecked(),
+        }
         return log_viewer_state
 
     def _connect_cache(self) -> None:

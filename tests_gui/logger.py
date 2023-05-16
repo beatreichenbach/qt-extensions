@@ -3,7 +3,7 @@ import sys
 from qt_extensions import theme
 
 import logging
-from PySide2 import QtWidgets, QtCore, QtGui
+from PySide2 import QtWidgets, QtCore
 
 from qt_extensions.logger import LogCache, LogBar, LogViewer
 from qt_extensions.mainwindow import DockWidget, DockWindow

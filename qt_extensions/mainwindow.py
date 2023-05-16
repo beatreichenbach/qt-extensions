@@ -1,4 +1,3 @@
-import logging
 import typing
 from collections import OrderedDict
 import dataclasses
@@ -454,7 +453,7 @@ class DockWindow(QtWidgets.QWidget):
         key = cls.__name__ if not isinstance(cls, type) else cls
         self.registered_widgets.pop(key, None)
 
-    def set_state(self, state: dict) -> None:
+    def set_window_state(self, state: dict) -> None:
         values = {'geometry': None, 'widgets': []}
         values.update(state)
 
@@ -483,9 +482,17 @@ class DockWindow(QtWidgets.QWidget):
 
     def state(self) -> dict:
         state = {'geometry': self.geometry(), 'widgets': self.widget_states()}
+        state = cast_basic(state)
         return state
 
-    def widget_states(self, widget: QtWidgets.QWidget | None = None) -> list[dict]:
+    def widget_title(self, widget: QtWidgets.QWidget) -> str | None:
+        for k, v in self._widgets.items():
+            if widget == v:
+                return k
+
+    def widget_states(
+        self, widget: QtWidgets.QWidget | None = None
+    ) -> list[SplitterState | DockWidgetState]:
         states = []
 
         if widget is None:
@@ -522,7 +529,7 @@ class DockWindow(QtWidgets.QWidget):
                 state.geometry = child.geometry()
                 state.flags = int(child.windowFlags())
 
-            states.append(cast_basic(state))
+            states.append(state)
         return states
 
     # noinspection PyMethodMayBeStatic
@@ -581,7 +588,7 @@ class DockWindow(QtWidgets.QWidget):
         titles = list(self._widgets.keys())
         unique_title = helper.unique_name(title, titles)
 
-        widget.destroyed.connect(lambda: self._remove_widget(unique_title))
+        widget.destroyed.connect(lambda: self._widget_destroy(widget))
         self._widgets[unique_title] = widget
         self.widget_added.emit(widget)
 
@@ -595,10 +602,6 @@ class DockWindow(QtWidgets.QWidget):
         for widget in widgets:
             rects[widget] = widget.dock_rects()
         return rects
-
-    def _remove_widget(self, title: str) -> None:
-        # callback when widget is destroyed
-        self._widgets.pop(title)
 
     def _set_widget_states(
         self,
@@ -666,6 +669,12 @@ class DockWindow(QtWidgets.QWidget):
                 widget.setWindowFlags(flags)
                 widget.setGeometry(state.geometry)
                 widget.show()
+
+    def _widget_destroy(self, widget: QtWidgets.QWidget) -> None:
+        title = self.widget_title(widget)
+        if title is not None:
+            # self.widget_removed.emit(widget)
+            self._widgets.pop(title)
 
 
 def area_orientation(area: QtCore.Qt.DockWidgetArea) -> QtCore.Qt.Orientation:

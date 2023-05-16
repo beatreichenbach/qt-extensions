@@ -1,5 +1,7 @@
 import logging
 import sys
+from enum import Enum
+
 from PySide2 import QtWidgets
 
 from qt_extensions import theme
@@ -17,6 +19,7 @@ from qt_extensions.parameters import (
     PathParameter,
     StringParameter,
     ColorParameter,
+    EnumParameter,
 )
 
 
@@ -39,9 +42,9 @@ def main():
     editor.add_parameter(PathParameter('path'))
     editor.add_parameter(StringParameter('string'))
     editor.add_parameter(ColorParameter('color'))
-    # editor.add_parameter(
-    #     EnumParameter('enum', enum=enum.Enum('Number', ('one', 'two', 'three')))
-    # )
+    parm = EnumParameter('enum')
+    parm.enum = Enum('Number', ('one', 'two', 'three'))
+    editor.add_parameter(parm)
 
     group1 = editor.add_group(
         'group_1', collapsible=True, style=CollapsibleBox.Style.BUTTON

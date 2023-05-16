@@ -1,6 +1,6 @@
-from enum import Enum, IntEnum, auto
+from enum import Enum, IntEnum, auto, EnumMeta
 import math
-import typing
+from typing import Any, Callable
 from functools import partial
 from PySide2 import QtWidgets, QtGui, QtCore
 from qt_extensions import helper
@@ -14,8 +14,8 @@ class ParameterWidget(QtWidgets.QWidget):
     enabled_changed: QtCore.Signal = QtCore.Signal(bool)
     value_changed: QtCore.Signal = QtCore.Signal(object)
 
-    value: typing.Any = None
-    default: typing.Any = None
+    value: Any = None
+    default: Any = None
     name: str | None = None
     label: str | None = None
     tooltip: str = ''
@@ -40,7 +40,7 @@ class ParameterWidget(QtWidgets.QWidget):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name)})'
 
-    def __setattr__(self, key: str, value: typing.Any) -> None:
+    def __setattr__(self, key: str, value: Any) -> None:
         super().__setattr__(key, value)
         if not hasattr(self, '_setter_signals'):
             return
@@ -86,17 +86,17 @@ class ParameterWidget(QtWidgets.QWidget):
             setattr(self, attr, value)
         self.value = current_value
 
-    def set_value(self, value: typing.Any) -> None:
+    def set_value(self, value: Any) -> None:
         self.value_changed.emit(value)
 
-    def set_default(self, value: typing.Any) -> None:
+    def set_default(self, value: Any) -> None:
         self.value = value
 
-    def setter_signal(self, attr: str, func: typing.Callable) -> None:
+    def setter_signal(self, attr: str, func: Callable) -> None:
         # helper function to register signals when attrs are set
         self._setter_signals[attr] = func
 
-    def _class_attrs(self) -> dict[str, typing.Any]:
+    def _class_attrs(self) -> dict[str, Any]:
         # get default values based on annotations
         class_attrs = {}
         cls = self.__class__
@@ -108,7 +108,7 @@ class ParameterWidget(QtWidgets.QWidget):
             cls = cls.__base__
         return class_attrs
 
-    def _set_value(self, value: typing.Any) -> None:
+    def _set_value(self, value: Any) -> None:
         # this is only used internally to not trigger any recursive loops
         super().__setattr__('value', value)
         self.value_changed.emit(value)
@@ -326,8 +326,8 @@ class PathParameter(ParameterWidget):
         self.layout().addWidget(self.line)
 
         self.button = QtWidgets.QToolButton()
+        self.button.setIcon(MaterialIcon('file_open'))
         self.button.clicked.connect(self.browse)
-        self.button.setText('...')
         self.layout().addWidget(self.button)
 
         self.layout().setStretch(0, 1)
@@ -373,16 +373,10 @@ class PathParameter(ParameterWidget):
 
 
 class EnumParameter(ParameterWidget):
-    # TODO: figure out how to actually handle it
-    # EnumParameter's value is actually not of type value but whatever the type of the enum.value is.
-    # this is bad because enum_parameter.value = Enum.RED means that enum_parameter.value is now 'red'
-
-    value_changed: QtCore.Signal = QtCore.Signal(Enum)
-
-    value: typing.Any | None = None
-    default: Enum | None = None
-    formatter: typing.Callable = staticmethod(helper.title)
-    enum: Enum | None = None
+    value: Enum = None
+    default: Enum = None
+    formatter: Callable = staticmethod(helper.title)
+    enum: EnumMeta | None = None
 
     def _init_ui(self) -> None:
         self.combo = QtWidgets.QComboBox()
@@ -396,30 +390,56 @@ class EnumParameter(ParameterWidget):
         self.setter_signal('formatter', lambda _: self.update_items())
         self.setter_signal('enum', lambda _: self.update_items())
 
-    def set_value(self, value: Enum | None) -> None:
+    def set_value(self, value: Any) -> None:
+        value = self._enum_from_value(value)
         super().set_value(value)
 
-        if value is not None and isinstance(value, self.enum):
+        self.combo.blockSignals(True)
+        if value is None:
+            index = -1
+        else:
             index = self.combo.findData(value.value)
-            self.combo.setCurrentIndex(index)
+        self.combo.setCurrentIndex(index)
+        self.combo.blockSignals(False)
 
     def update_items(self) -> None:
+        self.combo.blockSignals(True)
         for index in reversed(range(self.combo.count())):
             self.combo.removeItem(index)
 
-        if self.enum is not None:
+        if isinstance(self.enum, EnumMeta):
             for member in self.enum:
                 label = self.formatter(member.name)
                 self.combo.addItem(label, member.value)
-            self._value = self.combo.itemData(0)
+        self.combo.blockSignals(False)
+
+        self.combo.setCurrentIndex(0)
 
     def _current_index_change(self, index: int) -> None:
-        self._value = self.combo.itemData(index)
+        value = self.combo.itemData(index)
+        self._value = self._enum_from_value(value)
 
-    def _set_value(self, value: typing.Any) -> None:
-        if isinstance(value, Enum):
-            value = value.value
-        super()._set_value(value)
+    def _enum_from_value(self, value: Any) -> Enum | None:
+        try:
+            # value is Enum
+            if isinstance(value, self.enum):
+                return value
+        except TypeError:
+            pass
+
+        try:
+            # value is Enum.name
+            return self.enum[value]
+        except KeyError:
+            pass
+        except TypeError:
+            return None
+
+        try:
+            # value is Enum.value
+            return self.enum(value)
+        except (ValueError, TypeError):
+            return None
 
 
 class BoolParameter(ParameterWidget):
@@ -1030,7 +1050,12 @@ class FloatLineEdit(IntLineEdit):
 
 class IntValidator(QtGui.QIntValidator):
     def fixup(self, text: str) -> str:
-        text = super().fixup(text).replace(',', '')
+        text = str(super().fixup(text))
+        text = text.replace(',', '')
+        try:
+            text = str(max(min(int(text), self.top()), self.bottom()))
+        except ValueError:
+            pass
         return text
 
 

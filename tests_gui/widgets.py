@@ -33,6 +33,7 @@ def widgets():
 
     int_parameter = IntParameter('int')
     int_parameter.value = 9
+    int_parameter.line_min = 2
     int_parameter.slider_max = 50
     widget.layout().addWidget(int_parameter)
 

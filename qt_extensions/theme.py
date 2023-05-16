@@ -1,5 +1,4 @@
 import dataclasses
-import logging
 import sys
 from PySide2 import QtWidgets, QtGui
 from PySide2.QtGui import QPalette, QColor
