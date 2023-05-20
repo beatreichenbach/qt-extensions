@@ -113,24 +113,28 @@ class LogViewer(QtWidgets.QWidget):
         # level buttons
         button = CheckBoxButton('Error', color='error')
         button.setFlat(True)
+        button.setFocusPolicy(QtCore.Qt.NoFocus)
         button.toggled.connect(partial(self._level_toggle, logging.ERROR))
         self.toolbar.addWidget(button)
         self._error_button = button
 
         button = CheckBoxButton('Warning', color='warning')
         button.setFlat(True)
+        button.setFocusPolicy(QtCore.Qt.NoFocus)
         button.toggled.connect(partial(self._level_toggle, logging.WARNING))
         self.toolbar.addWidget(button)
         self._warning_button = button
 
         button = CheckBoxButton('Info')
         button.setFlat(True)
+        button.setFocusPolicy(QtCore.Qt.NoFocus)
         button.toggled.connect(partial(self._level_toggle, logging.INFO))
         self.toolbar.addWidget(button)
         self._info_button = button
 
         button = CheckBoxButton('Debug')
         button.setFlat(True)
+        button.setFocusPolicy(QtCore.Qt.NoFocus)
         button.toggled.connect(partial(self._level_toggle, logging.DEBUG))
         self.toolbar.addWidget(button)
         self._debug_button = button
