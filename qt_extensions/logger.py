@@ -44,6 +44,7 @@ class LogCache(QtCore.QObject):
         self.cleared.emit()
 
     def connect_logger(self, logger: logging.Logger) -> None:
+        logger.setLevel(logging.NOTSET)
         logger.addHandler(self.handler)
 
     def save(self, filename: str) -> None:
@@ -82,6 +83,8 @@ class LogViewer(QtWidgets.QWidget):
         )
 
         self._init_ui()
+
+        self.set_levels((logging.ERROR, logging.WARNING))
 
         if cache:
             self._cache = cache
@@ -281,7 +284,7 @@ class LogViewer(QtWidgets.QWidget):
         if self.isVisible():
             self._connect_cache()
 
-    def set_levels(self, levels: set[int] | list[int] | tuple[int]) -> None:
+    def set_levels(self, levels: set[int] | list[int] | tuple[int, ...]) -> None:
         self._levels = set(levels)
         self._error_button.setChecked(logging.ERROR in self._levels)
         self._warning_button.setChecked(logging.WARNING in self._levels)
