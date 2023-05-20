@@ -432,7 +432,7 @@ class ToolBar(QtWidgets.QToolBar):
         self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
 
         # currently AdjustToContents doesn't do anything, but this might be because
-        # the placeholder text is broken, thus setting minimContentsLength works for
+        # the placeholder text is broken, thus setting setMinimumContentsLength works for
         # ensuring that the full placeholder text is visible.
         self.zoom_cmb.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
         self.zoom_cmb.setMinimumContentsLength(6)
