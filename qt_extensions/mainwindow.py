@@ -671,6 +671,8 @@ class DockWindow(QtWidgets.QWidget):
                 widget.show()
 
     def _widget_destroy(self, widget: QtWidgets.QWidget) -> None:
+        # NOTE: At the point destroyed() is emitted, the widget isn't a QWidget anymore,
+        #   just a QObject (as destroyed() is emitted from QObject)
         title = self.widget_title(widget)
         if title is not None:
             # self.widget_removed.emit(widget)
