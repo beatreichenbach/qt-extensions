@@ -390,6 +390,10 @@ class EnumParameter(ParameterWidget):
         self.setter_signal('formatter', lambda _: self.update_items())
         self.setter_signal('enum', lambda _: self.update_items())
 
+    def set_default(self, value: Any) -> None:
+        value = self._enum_from_value(value)
+        super().set_default(value)
+
     def set_value(self, value: Any) -> None:
         value = self._enum_from_value(value)
         super().set_value(value)
