@@ -13,6 +13,20 @@ from qt_extensions.parameters import ParameterWidget
 from qt_extensions.box import CollapsibleBox
 
 
+class ParameterToggle(QtWidgets.QCheckBox):
+    def __init__(self, name: str, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.name = name
+
+    @property
+    def value(self) -> bool:
+        return self.isChecked()
+
+    @value.setter
+    def value(self, value: bool) -> None:
+        self.setChecked(value)
+
+
 class ParameterToolTip(QtWidgets.QFrame):
     def __init__(
         self, widget: ParameterWidget, parent: QtWidgets.QWidget | None = None
@@ -179,12 +193,16 @@ class ParameterForm(QtWidgets.QWidget):
 
         # checkbox
         if checkable:
-            checkbox = QtWidgets.QCheckBox(self)
+            checkbox_name = f'{name}_enabled'
+            checkbox = ParameterToggle(checkbox_name)
             column = 0
             layout.addWidget(checkbox, row, column)
             checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
-            checkbox.setChecked(False)
+            checkbox.toggled.connect(lambda: self.parameter_changed.emit(checkbox))
+            checkbox.value = False
             self._set_widget_row_enabled(checkbox, False)
+
+            self._widgets[checkbox_name] = checkbox
 
         self._update_stretch()
         return widget
