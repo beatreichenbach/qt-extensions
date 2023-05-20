@@ -18,6 +18,9 @@ class ParameterToggle(QtWidgets.QCheckBox):
         super().__init__(parent)
         self.name = name
 
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({repr(self.name)})'
+
     @property
     def value(self) -> bool:
         return self.isChecked()
@@ -76,6 +79,9 @@ class ParameterLabel(QtWidgets.QLabel):
         self._tooltip: ParameterToolTip | None = None
         self._widget = widget
 
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__}({repr(self.text())})'
+
     def enterEvent(self, event: QtCore.QEvent) -> None:
         if self._widget.tooltip:
             QtCore.QTimer.singleShot(600, self.show_tooltip)
@@ -88,6 +94,12 @@ class ParameterLabel(QtWidgets.QLabel):
                 self._tooltip = ParameterToolTip(self._widget, parent=self.window())
             self._tooltip.move(self.window().mapFromGlobal(global_position))
             self._tooltip.show()
+
+
+class ParameterTabWidget(QtWidgets.QTabWidget):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.tabs: dict[str, ParameterForm] = {}
 
 
 class ParameterForm(QtWidgets.QWidget):
@@ -218,8 +230,8 @@ class ParameterForm(QtWidgets.QWidget):
 
     def add_tab_group(
         self, names: Iterable[str], labels: Iterable[str] = None
-    ) -> QtWidgets.QTabWidget:
-        tab_widget = QtWidgets.QTabWidget(self)
+    ) -> ParameterTabWidget:
+        tab_widget = ParameterTabWidget(self)
         tab_widget.tabs = {}
         labels = labels or []
         for name, label in itertools.zip_longest(names, labels):
@@ -260,10 +272,9 @@ class ParameterForm(QtWidgets.QWidget):
                 children = widget.boxes()
                 boxes.update(children)
             elif isinstance(widget, ParameterTabWidget):
-                children = []
-                for tab in widget.tabs:
-                    children.extend(self.boxes(tab.layout()))
-                boxes[widget] = children
+                for form in widget.tabs.values():
+                    children = self.boxes(form.layout())
+                    boxes[form] = children
 
         return boxes
 
@@ -309,7 +320,7 @@ class ParameterForm(QtWidgets.QWidget):
         # create nested dictionary of all Parameter values
         values = {}
         for name, widget in self._widgets.items():
-            if isinstance(widget, self.__class__):
+            if isinstance(widget, ParameterForm):
                 if widget.create_hierarchy:
                     values[name] = widget.values()
                 else:
@@ -322,7 +333,7 @@ class ParameterForm(QtWidgets.QWidget):
         # create nested dictionary of all Parameter widgets
         widgets = {}
         for name, widget in self._widgets.items():
-            if isinstance(widget, self.__class__):
+            if isinstance(widget, ParameterForm):
                 if widget.create_hierarchy:
                     widgets[name] = widget.widgets()
                 else:
@@ -341,18 +352,24 @@ class ParameterForm(QtWidgets.QWidget):
 
         collapsed_boxes = []
         for box, children in boxes.items():
-            if box.collapsed:
-                collapsed_boxes.append(box.title)
+            if isinstance(box, CollapsibleBox):
+                title = box.title
+                if box.collapsed:
+                    collapsed_boxes.append(box.title)
+            elif isinstance(box, ParameterForm):
+                title = box.name
+            else:
+                continue
 
             child_boxes = self._collapsed_boxes(children)
-            child_boxes = ['.'.join([box.title, child]) for child in child_boxes]
+            child_boxes = ['.'.join([title, child]) for child in child_boxes]
             collapsed_boxes.extend(child_boxes)
         return collapsed_boxes
 
     def _create_form(self, name) -> Self:
         self._validate_name(name)
 
-        form = self.__class__(name=name, root=self)
+        form = ParameterForm(name=name, root=self)
         self._widgets[name] = form
 
         return form
@@ -361,7 +378,7 @@ class ParameterForm(QtWidgets.QWidget):
         # generate a flat list of all child widget names
         names = []
         for name, widget in self._widgets.items():
-            if isinstance(widget, self.__class__):
+            if isinstance(widget, ParameterForm):
                 names.extend(widget.hierarchical_names())
             else:
                 names.append(name)
@@ -376,11 +393,18 @@ class ParameterForm(QtWidgets.QWidget):
             boxes = self.boxes()
 
         for box, children in boxes.items():
-            box.collapsed = box.title in collapsed_boxes
+            if isinstance(box, CollapsibleBox):
+                box.collapsed = box.title in collapsed_boxes
+                title = box.title
+            elif isinstance(box, ParameterForm):
+                title = box.name
+            else:
+                continue
+
             child_boxes = [
                 b.split('.', 1)[-1]
                 for b in collapsed_boxes
-                if b.split('.', 1)[0] == box.title
+                if b.split('.', 1)[0] == title
             ]
             self._set_collapsed_boxes(child_boxes, children)
 
@@ -423,24 +447,31 @@ class ParameterForm(QtWidgets.QWidget):
             raise ValueError(f'Cannot add widget {name} (name already exists)')
 
 
-class ParameterTabWidget(QtWidgets.QTabWidget):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.tabs: list[ParameterForm] = []
+class ParameterEditor(ParameterForm):
+    def __init__(
+        self,
+        name: str | None = None,
+        root: Self | None = None,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
+        super().__init__(name, root, parent)
 
+        self.setLayout(QtWidgets.QVBoxLayout())
+        scroll_area = VerticalScrollArea()
+        self.layout().addWidget(scroll_area)
+        self.layout().setContentsMargins(QtCore.QMargins())
 
-class ParameterEditor(VerticalScrollArea):
-    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
-        super().__init__(parent)
+        self._form_widget = QtWidgets.QWidget()
+        scroll_area.setWidget(self._form_widget)
 
-        self.__dict__['form'] = ParameterForm()
-        self.setWidget(self.form)
+        self._form_widget.setLayout(QtWidgets.QGridLayout())
 
-    def __getattr__(self, item: typing.Any) -> typing.Any:
-        return getattr(self.form, item)
-
-    def __setattr__(self, key: str, value: typing.Any) -> None:
-        setattr(self.form, key, value)
+    @property
+    def grid_layout(self) -> QtWidgets.QGridLayout:
+        layout = self._form_widget.layout()
+        if not isinstance(layout, QtWidgets.QGridLayout):
+            raise RuntimeError('Layout needs to be QGridLayout')
+        return layout
 
 
 __all__ = ['ParameterEditor']
