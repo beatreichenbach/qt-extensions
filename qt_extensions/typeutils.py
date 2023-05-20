@@ -1,8 +1,11 @@
 import dataclasses
 import json
+import logging
 import sys
 from dataclasses import is_dataclass, fields
 from enum import Enum
+from functools import reduce
+from operator import xor
 from types import GenericAlias, UnionType, GeneratorType, NoneType
 from typing import Any, ForwardRef, _UnionGenericAlias, _eval_type
 
@@ -166,10 +169,19 @@ def deep_field(obj) -> dataclasses.Field:
 
 
 def hashable_dataclass(cls):
-    def __hash__(self):
-        json_data = cast_basic(self)
-        return hash(json.dumps(json_data, sort_keys=True))
+    def __hash__(self) -> int:
+        if self._hash is None:
+            data = cast_basic(self)
+            _hash = hash(json.dumps(data, sort_keys=True))
+            super(cls, self).__setattr__('_hash', _hash)
+        return self._hash
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        super(cls, self).__setattr__(name, value)
+        super(cls, self).__setattr__('_hash', None)
+
+    cls._hash = None
+    cls.__setattr__ = __setattr__
     cls.__hash__ = __hash__
     return dataclasses.dataclass(cls)
 
