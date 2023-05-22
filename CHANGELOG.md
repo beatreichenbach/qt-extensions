@@ -2,6 +2,11 @@
 
 <!--next-version-placeholder-->
 
+## v0.1.1 (2023-05-21)
+### Fix
+* **logger:** Avoid multiple cache connections ([`3803f8c`](https://github.com/beatreichenbach/qt-extensions/commit/3803f8c2104e8038f1d1fc2201d99ac7d561282e))
+* **mainwindow:** Set geometry ([`3436b29`](https://github.com/beatreichenbach/qt-extensions/commit/3436b2914bfa1cf7654157b6715badff1f7475fe))
+
 ## v0.1.0 (2023-05-20)
 ### Feature
 * **editor:** Add support for checkable parms ([`5372e24`](https://github.com/beatreichenbach/qt-extensions/commit/5372e245cab4f46f1713e25ff9989d520a0824bf))
