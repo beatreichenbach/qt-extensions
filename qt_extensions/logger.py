@@ -66,6 +66,7 @@ class LogViewer(QtWidgets.QWidget):
         super().__init__(parent)
 
         self._cache = None
+        self._cache_connected = False
         self._error_color = theme.Color('error').name()
         self._warning_color = theme.Color('warning').name()
         self._error_count = 0
@@ -197,12 +198,12 @@ class LogViewer(QtWidgets.QWidget):
         self._warning_button.setText(f'Warning: {value}')
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        super().closeEvent(event)
         self._disconnect_cache()
+        super().closeEvent(event)
 
     def showEvent(self, event: QtGui.QShowEvent) -> None:
-        super().showEvent(event)
         self._connect_cache()
+        super().showEvent(event)
         self.refresh()
 
     def add_name(self, name: str, add: bool = True) -> None:
@@ -320,9 +321,10 @@ class LogViewer(QtWidgets.QWidget):
         return log_viewer_state
 
     def _connect_cache(self) -> None:
-        if self._cache:
+        if self._cache and not self._cache_connected:
             self._cache.added.connect(self.add_record)
             self._cache.cleared.connect(self.clear)
+            self._cache_connected = True
 
     def _disconnect_cache(self) -> None:
         if self._cache:
@@ -331,6 +333,7 @@ class LogViewer(QtWidgets.QWidget):
                 self._cache.cleared.disconnect(self.clear)
             except RuntimeError:
                 pass
+            self._cache_connected = False
             self.clear()
 
     def _filter(self):
