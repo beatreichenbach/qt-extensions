@@ -1,3 +1,4 @@
+import logging
 import typing
 from collections import OrderedDict
 import dataclasses
@@ -458,9 +459,12 @@ class DockWindow(QtWidgets.QWidget):
         values.update(state)
 
         self.set_widget_states(values['widgets'])
-        geometry = values['geometry']
-        if isinstance(geometry, QtCore.QRect):
+
+        try:
+            geometry = cast(QtCore.QRect, values['geometry'])
             self.setGeometry(geometry)
+        except TypeError:
+            pass
 
     def set_widget_states(
         self,
