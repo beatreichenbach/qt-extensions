@@ -1,12 +1,14 @@
+from __future__ import annotations
+
+import logging
 import os
 from functools import partial
+
+from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions import theme
 from qt_extensions.button import CheckBoxButton
 from qt_extensions.icons import MaterialIcon
-
-import logging
-from PySide2 import QtWidgets, QtCore, QtGui
 
 
 class Sender(QtCore.QObject):
@@ -75,12 +77,13 @@ class LogViewer(QtWidgets.QWidget):
         self._names = set()
         self._levels = set()
 
+        fmt = (
+            '[{asctime}]<font color="{color}"><b>[{levelname: <8}]</b></font> {message}'
+        )
         self.formatter = logging.Formatter(
-            fmt='[{asctime}]<font color="{color}"><b>'
-            '[{levelname: <8}]</b></font> {message}',
+            fmt=fmt,
             datefmt='%I:%M:%S%p',
             style='{',
-            defaults={'color': ''},
         )
 
         self._init_ui()
@@ -88,7 +91,7 @@ class LogViewer(QtWidgets.QWidget):
         self.set_levels((logging.ERROR, logging.WARNING))
 
         if cache:
-            self._cache = cache
+            self.set_cache(cache)
 
     def _init_ui(self) -> None:
         self.setWindowTitle('Log Viewer')
@@ -216,9 +219,12 @@ class LogViewer(QtWidgets.QWidget):
                 pass
         self.refresh()
 
-    def add_record(self, record: logging.LogRecord, count: bool = True):
+    def add_record(self, record: logging.LogRecord, count: bool = True) -> None:
         if self._names and not record.name.startswith(tuple(self._names)):
             return
+
+        # python 3.9 does not allow defaults
+        record.color = ''
 
         if record.levelno >= logging.ERROR:
             if count:
@@ -259,13 +265,13 @@ class LogViewer(QtWidgets.QWidget):
         self.error_count = 0
         self.warning_count = 0
 
-    def refresh(self):
+    def refresh(self) -> None:
         self.clear()
         if self._cache:
             for record in self._cache.records:
                 self.add_record(record)
 
-    def save(self):
+    def save(self) -> None:
         if not self._cache:
             return
         filename, selected_filter = QtWidgets.QFileDialog.getSaveFileName(
@@ -336,7 +342,7 @@ class LogViewer(QtWidgets.QWidget):
             self._cache_connected = False
             self.clear()
 
-    def _filter(self):
+    def _filter(self) -> None:
         self.text_edit.clear()
         if self._cache:
             for record in self._cache.records:
@@ -390,11 +396,11 @@ class LogViewer(QtWidgets.QWidget):
 
 class LogBar(QtWidgets.QWidget):
     def __init__(
-        self, cache: LogCache, parent: QtWidgets.QWidget | None = None
+        self, cache: LogCache | None = None, parent: QtWidgets.QWidget | None = None
     ) -> None:
         super().__init__(parent)
 
-        self._cache = cache
+        self._cache = None
         self._viewer = None
 
         self.current_message = logging.makeLogRecord({'levelno': logging.NOTSET})
@@ -404,10 +410,10 @@ class LogBar(QtWidgets.QWidget):
 
         self._init_ui()
 
-        self._cache.added.connect(self.show_record)
-        self._cache.cleared.connect(lambda: self.show_message('', force=True))
+        if cache:
+            self.set_cache(cache)
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         # colors
         self._critical_color = theme.Color('critical')
         self._error_color = theme.Color('error')
@@ -462,22 +468,29 @@ class LogBar(QtWidgets.QWidget):
         size_grip = QtWidgets.QSizeGrip(self)
         layout.addWidget(size_grip, 0, QtCore.Qt.AlignBottom | QtCore.Qt.AlignRight)
 
-    def add_widget(self, widget: QtWidgets.QWidget):
+    def add_widget(self, widget: QtWidgets.QWidget) -> None:
         count = self.layout().count()
         self.layout().insertWidget(count - 1, widget)
 
-    def clear_message(self):
+    def clear_message(self) -> None:
         self.show_message('', level=logging.NOTSET, force=True)
 
-    def open_viewer(self):
+    def open_viewer(self) -> None:
         if self._viewer is None:
             self._viewer = LogViewer(self._cache)
         self._viewer.show()
 
-    def remove_widget(self, widget: QtWidgets.QWidget):
+    def remove_widget(self, widget: QtWidgets.QWidget) -> None:
         self.layout().removeWidget(widget)
 
-    def show_message(self, message: str, level: int = logging.INFO, force=False):
+    def set_cache(self, cache: LogCache) -> None:
+        self._cache = cache
+        self._cache.added.connect(self.show_record)
+        self._cache.cleared.connect(self.clear_message)
+
+    def show_message(
+        self, message: str, level: int = logging.INFO, force=False
+    ) -> None:
         if not force:
             if level < self.current_message.levelno or level < self.level:
                 return

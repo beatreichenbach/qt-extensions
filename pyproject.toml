@@ -5,7 +5,10 @@ description = "Various QtWidgets extending the functionality of PySide2"
 authors = [
     {name = "Beat Reichenbach"}
 ]
-dependencies = ["PySide2"]
+dependencies = [
+    "PySide2",
+    "typing_extensions"
+]
 requires-python = ">=3.9, <3.11"
 license = {text = "MIT"}
 readme = "README.md"

@@ -1,8 +1,12 @@
-from enum import Enum, IntEnum, auto, EnumMeta
+from __future__ import annotations
+
 import math
+from enum import Enum, IntEnum, auto, EnumMeta
 from typing import Any, Callable
 from functools import partial
+
 from PySide2 import QtWidgets, QtGui, QtCore
+
 from qt_extensions import helper
 from qt_extensions.button import BaseButton
 from qt_extensions.icons import MaterialIcon
@@ -335,28 +339,27 @@ class PathParameter(ParameterWidget):
 
     def browse(self) -> None:
         start_dir = self.value or self.dir_fallback
-        match self.method:
-            case PathParameter.Method.OPEN_FILE:
-                path, filters = QtWidgets.QFileDialog.getOpenFileName(
-                    parent=self,
-                    caption='Open File',
-                    dir=start_dir,
-                )
-            case PathParameter.Method.SAVE_FILE:
-                path, filters = QtWidgets.QFileDialog.getSaveFileName(
-                    parent=self,
-                    caption='Save File',
-                    dir=start_dir,
-                    filter='*.*',
-                )
-            case PathParameter.Method.EXISTING_DIR:
-                path = QtWidgets.QFileDialog.getExistingDirectory(
-                    parent=self,
-                    caption='Select Directory',
-                    dir=start_dir,
-                )
-            case _:
-                return
+        if self.method == PathParameter.Method.OPEN_FILE:
+            path, filters = QtWidgets.QFileDialog.getOpenFileName(
+                parent=self,
+                caption='Open File',
+                dir=start_dir,
+            )
+        elif self.method == PathParameter.Method.SAVE_FILE:
+            path, filters = QtWidgets.QFileDialog.getSaveFileName(
+                parent=self,
+                caption='Save File',
+                dir=start_dir,
+                filter='*.*',
+            )
+        elif self.method == PathParameter.Method.EXISTING_DIR:
+            path = QtWidgets.QFileDialog.getExistingDirectory(
+                parent=self,
+                caption='Select Directory',
+                dir=start_dir,
+            )
+        else:
+            return
 
         if path:
             self.value = path

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import enum
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -102,7 +104,6 @@ class CollapsibleHeader(QtWidgets.QWidget):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-
         if self.collapsible:
             if event.button() == QtCore.Qt.LeftButton:
                 self.toggle_collapsed()

@@ -1,11 +1,9 @@
-from importlib.resources import files
-
 from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions.flexview import FlexView
 
 
-def flexview():
+def main():
     import sys
     import logging
     from qt_extensions import theme
@@ -28,10 +26,7 @@ def flexview():
     for i in range(10):
         model.appendRow(QtGui.QStandardItem(f'Item {i}'))
 
-    splash_path = str(files('realflare').joinpath('resources').joinpath('icon.png'))
-    pixmap = QtGui.QPixmap(splash_path).scaledToWidth(
-        200, QtCore.Qt.SmoothTransformation
-    )
+    pixmap = QtGui.QPixmap().scaledToWidth(200, QtCore.Qt.SmoothTransformation)
     for row in range(model.rowCount()):
         model.item(row, 0).setData(pixmap, QtCore.Qt.DecorationRole)
 
@@ -41,4 +36,4 @@ def flexview():
 
 
 if __name__ == '__main__':
-    flexview()
+    main()

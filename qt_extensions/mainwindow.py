@@ -1,8 +1,10 @@
-import logging
+from __future__ import annotations
+
+import dataclasses
 import typing
 from collections import OrderedDict
-import dataclasses
 from functools import partial
+from typing import Union
 
 from PySide2 import QtCore, QtGui, QtWidgets
 
@@ -311,25 +313,25 @@ class DockWidget(QtWidgets.QTabWidget):
     ) -> QtCore.QRect:
         size = self.size() * factor
         rect = self.rect()
-        match area:
-            case QtCore.Qt.LeftDockWidgetArea:
-                rect.setWidth(size.width())
-                return rect
-            case QtCore.Qt.RightDockWidgetArea:
-                right = rect.right()
-                rect.setWidth(size.width())
-                rect.moveRight(right)
-                return rect
-            case QtCore.Qt.TopDockWidgetArea:
-                rect.setHeight(size.height())
-                return rect
-            case QtCore.Qt.BottomDockWidgetArea:
-                bottom = rect.bottom()
-                rect.setHeight(size.height())
-                rect.moveBottom(bottom)
-                return rect
-            case QtCore.Qt.NoDockWidgetArea:
-                return rect
+        if area == QtCore.Qt.LeftDockWidgetArea:
+            rect.setWidth(size.width())
+            return rect
+        elif area == QtCore.Qt.RightDockWidgetArea:
+            right = rect.right()
+            rect.setWidth(size.width())
+            rect.moveRight(right)
+            return rect
+        elif area == QtCore.Qt.TopDockWidgetArea:
+            rect.setHeight(size.height())
+            return rect
+        elif area == QtCore.Qt.BottomDockWidgetArea:
+            bottom = rect.bottom()
+            rect.setHeight(size.height())
+            rect.moveBottom(bottom)
+            return rect
+        elif area == QtCore.Qt.NoDockWidgetArea:
+            return rect
+        return rect
 
     def _hide_recursively(self, widget) -> None:
         # hides the top most widget without deleting it
@@ -477,7 +479,7 @@ class DockWindow(QtWidgets.QWidget):
             widget.setParent(None)
             widget.close()
 
-        states = cast(list[DockWidgetState | SplitterState], states)
+        states = cast(list[Union[DockWidgetState, SplitterState]], states)
         self._set_widget_states(states, self, widgets)
 
         # remove unused widgets
@@ -496,7 +498,7 @@ class DockWindow(QtWidgets.QWidget):
 
     def widget_states(
         self, widget: QtWidgets.QWidget | None = None
-    ) -> list[SplitterState | DockWidgetState]:
+    ) -> list[Union[DockWidgetState, SplitterState]]:
         states = []
 
         if widget is None:
@@ -636,7 +638,7 @@ class DockWindow(QtWidgets.QWidget):
                     dock_widget.detachable = state.detachable
                     dock_widget.auto_delete = state.auto_delete
 
-                for (title, cls_name) in state.widgets:
+                for title, cls_name in state.widgets:
                     # remove widget from dictionary to keep track of
                     # which widgets have been re-parented
                     widget = widgets.pop(title, None)

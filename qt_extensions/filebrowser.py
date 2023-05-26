@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import dataclasses
 import logging
 import os
@@ -178,7 +180,6 @@ class FileBrowser(ElementBrowser):
         self.blockSignals(False)
 
     def remove_selected(self) -> None:
-
         # text = 'Are you sure you want to permanently remove {} and all {} contents?'
         # if len(indices) == 1:
         #     index = self.proxy.mapToSource(indices[0])

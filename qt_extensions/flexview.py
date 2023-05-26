@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from enum import auto, Enum
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -272,19 +274,20 @@ class FlexView(QtWidgets.QAbstractItemView):
             min_row = 0
             max_row = self.model().rowCount(index.parent()) - 1
 
-            match cursor_action:
-                case view.MoveLeft | view.MoveUp | view.MovePrevious:
-                    row -= 1
-                case view.MoveRight | view.MoveDown | view.MoveNext:
-                    row += 1
-                case view.MoveHome:
-                    row = min_row
-                case view.MoveEnd:
-                    row = max_row
-                case view.MovePageUp:
-                    row -= 10
-                case view.MovePageDown:
-                    row += 10
+            if cursor_action in (view.MoveLeft | view.MoveUp | view.MovePrevious):
+                row -= 1
+            elif cursor_action in (view.MoveRight | view.MoveDown | view.MoveNext):
+                row += 1
+            elif cursor_action == view.MoveHome:
+                row = min_row
+            elif cursor_action == view.MoveEnd:
+                row = max_row
+            elif cursor_action == view.MovePageUp:
+                row -= 10
+            elif cursor_action == view.MovePageDown:
+                row += 10
+            else:
+                return index
 
             row = max(min_row, min(max_row, row))
 
@@ -444,25 +447,23 @@ class FlexView(QtWidgets.QAbstractItemView):
     def _horizontal_scroll_to_value(
         self, rect: QtCore.QRect, hint: QtWidgets.QAbstractItemView.ScrollHint
     ) -> float:
-        match hint:
-            case QtWidgets.QAbstractItemView.PositionAtBottom:
-                value = rect.right() - self.viewport().width() + self.spacing
-            case QtWidgets.QAbstractItemView.PositionAtCenter:
-                value = rect.left() + rect.width() / 2 - (self.viewport().width() / 2)
-            case _:
-                value = rect.left() - self.spacing
+        if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
+            value = rect.right() - self.viewport().width() + self.spacing
+        elif hint == QtWidgets.QAbstractItemView.PositionAtCenter:
+            value = rect.left() + rect.width() / 2 - (self.viewport().width() / 2)
+        else:
+            value = rect.left() - self.spacing
         return value
 
     def _vertical_scroll_to_value(
         self, rect: QtCore.QRect, hint: QtWidgets.QAbstractItemView.ScrollHint
     ) -> float:
-        match hint:
-            case QtWidgets.QAbstractItemView.PositionAtBottom:
-                value = rect.bottom() - self.viewport().height() + self.spacing
-            case QtWidgets.QAbstractItemView.PositionAtCenter:
-                value = rect.top() + rect.height() / 2 - (self.viewport().height() / 2)
-            case _:
-                value = rect.top() - self.spacing
+        if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
+            value = rect.bottom() - self.viewport().height() + self.spacing
+        elif hint == QtWidgets.QAbstractItemView.PositionAtCenter:
+            value = rect.top() + rect.height() / 2 - (self.viewport().height() / 2)
+        else:
+            value = rect.top() - self.spacing
         return value
 
     def _map_to_viewport(

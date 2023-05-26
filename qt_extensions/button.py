@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from PySide2 import QtWidgets, QtGui, QtCore
 
 from qt_extensions import theme

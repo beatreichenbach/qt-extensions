@@ -19,6 +19,7 @@ def main():
     array = np.tile(
         np.linspace(start=0, stop=2, num=512, dtype=np.float32), reps=(512, 1)
     )
+    array = np.swapaxes(array, 0, 1)
     image_array = np.dstack((array, array, np.zeros((512, 512), np.float64)))
 
     viewer = Viewer()

@@ -1,6 +1,7 @@
 # initially https://github.com/marella/material-design-icons/ was added as a submodule
 # but zip files of the repo on GitHub does not include submodules.
 # to go around this issue icons are compiled to qt resource file using compile_icons.py
+from __future__ import annotations
 
 import enum
 

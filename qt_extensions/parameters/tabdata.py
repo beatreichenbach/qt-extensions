@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import numbers
 import typing
 
@@ -55,7 +57,6 @@ class IntegerDelegate(StyledItemDelegate):
         option: QtWidgets.QStyleOptionViewItem,
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
-
         editor = IntParameter(parent=parent)
         editor.slider_visible = False
         editor.line.setFrame(False)

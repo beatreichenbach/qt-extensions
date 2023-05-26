@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import copy
 import dataclasses
-
 from typing import Any, Callable
 
 from PySide2 import QtGui, QtCore, QtWidgets

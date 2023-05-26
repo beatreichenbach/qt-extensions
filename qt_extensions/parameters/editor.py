@@ -1,11 +1,12 @@
+from __future__ import annotations
+
 import itertools
-from collections.abc import Iterable
 import typing
+from collections.abc import Iterable
 from functools import partial
 
-from typing_extensions import Self
-
 from PySide2 import QtWidgets, QtCore, QtGui
+from typing_extensions import Self
 
 from qt_extensions import helper
 from qt_extensions.scrollarea import VerticalScrollArea

@@ -1,13 +1,24 @@
+from __future__ import annotations
+
 import dataclasses
 import json
-import logging
 import sys
 from dataclasses import is_dataclass, fields
 from enum import Enum
-from functools import reduce
-from operator import xor
-from types import GenericAlias, UnionType, GeneratorType, NoneType
-from typing import Any, ForwardRef, _UnionGenericAlias, _eval_type
+
+from types import GenericAlias, GeneratorType
+
+try:
+    from types import UnionType, NoneType
+except ImportError:
+    # python 3.9
+    from typing import Union
+
+    UnionType = type(Union)
+    NoneType = None
+
+from typing import Any, ForwardRef
+from typing import _UnionGenericAlias, _eval_type
 
 from PySide2 import QtCore, QtGui
 
@@ -131,28 +142,29 @@ def cast_basic(obj: Any) -> Any:
     if dataclasses.is_dataclass(obj):
         obj = dataclasses.asdict(obj)
 
-    match obj:
-        case str() | int() | float() | bool() | None:
-            # basic types as defined in json library
-            return obj
-        case list() | GeneratorType():
-            return type(obj)(cast_basic(v) for v in obj)
-        case dict():
-            return type(obj)((k, cast_basic(v)) for k, v in obj.items())
-        case tuple():
-            return type(obj)(cast_basic(v) for v in obj)
-        case set():
-            return [cast_basic(v) for v in obj]
-        case Enum():
-            return obj.name
-        case QtCore.QPoint() | QtCore.QPointF():
-            return [obj.x(), obj.y()]
-        case QtCore.QSize() | QtCore.QSizeF():
-            return [obj.width(), obj.height()]
-        case QtCore.QRect() | QtCore.QRectF():
-            return [obj.x(), obj.y(), obj.width(), obj.height()]
-        case QtGui.QColor():
-            return obj.getRgbF()
+    if obj is None:
+        return None
+    if isinstance(obj, (str, int, float, bool)):
+        # basic types as defined in json library
+        return obj
+    elif isinstance(obj, (list, GeneratorType)):
+        return type(obj)(cast_basic(v) for v in obj)
+    elif isinstance(obj, dict):
+        return type(obj)((k, cast_basic(v)) for k, v in obj.items())
+    elif isinstance(obj, tuple):
+        return type(obj)(cast_basic(v) for v in obj)
+    elif isinstance(obj, set):
+        return [cast_basic(v) for v in obj]
+    elif isinstance(obj, Enum):
+        return obj.name
+    elif isinstance(obj, (QtCore.QPoint, QtCore.QPointF)):
+        return [obj.x(), obj.y()]
+    elif isinstance(obj, (QtCore.QSize, QtCore.QSizeF)):
+        return [obj.width(), obj.height()]
+    elif isinstance(obj, (QtCore.QRect, QtCore.QRectF)):
+        return [obj.x(), obj.y(), obj.width(), obj.height()]
+    elif isinstance(obj, QtGui.QColor):
+        return obj.getRgb()
 
     try:
         # convert enum, flags to int
