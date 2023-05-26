@@ -8,90 +8,10 @@ from qt_extensions.icons import MaterialIcon
 from qt_extensions.parameters import FloatParameter
 
 
-def image_from_array(array: np.ndarray) -> QtGui.QImage:
-    # TODO: profile this
-
-    array = np.clip(array, 0, 1)
-    array = array * 255
-    array = array.astype(np.uint8)
-
-    height, width, channels = array.shape
-    bytes_per_line = width * channels
-    image_format = QtGui.QImage.Format_BGR888
-    image = QtGui.QImage(array.data, width, height, bytes_per_line, image_format)
-    image = image.rgbSwapped()
-
-    return image
-
-
-def convert_array(array: np.ndarray) -> np.ndarray:
-    # checks whether the array has either 1, 3 or 4 channels and converts
-    # it to a 3 channel array while this is the only supported format
-
-    # TODO: this whole function would be nice to turn into some sort of a type hint
-    # so that it is clear that functions expect an image like array.
-    # TODO: this needs to be done smarter, i shouldn't have to even convert shit here
-
-    if len(array.shape) == 2:
-        array = np.dstack((array, array, array))
-        return array
-    if len(array.shape) == 3:
-        if array.shape[2] > 3:
-            array = array[:, :, :3]
-            return array
-        elif array.shape[2] == 3:
-            return array
-        elif array.shape[2] == 1:
-            array = np.dstack((array[:, :, 0], array[:, :, 0], array[:, :, 0]))
-            return array
-    raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
-
-
 class GraphicsItem(QtWidgets.QGraphicsItem):
     def __init__(self, parent: QtWidgets.QGraphicsItem | None = None) -> None:
         super().__init__(parent)
-
-        self._exposure: float = 0
-        self._array = np.ndarray((0, 0, 3), np.float32)
         self.image = QtGui.QImage()
-        self.post_processes: list[typing.Callable[[np.ndarray], np.ndarray]] = [
-            self._expose
-        ]
-
-    @property
-    def array(self) -> np.ndarray:
-        return self._array
-
-    @array.setter
-    def array(self, value: np.ndarray) -> None:
-        array = convert_array(value)
-        self._array = array
-        self.update_image()
-
-    @property
-    def exposure(self) -> float:
-        return self._exposure
-
-    @exposure.setter
-    def exposure(self, value: float) -> None:
-        self._exposure = value
-        self.update_image()
-
-    def boundingRect(self) -> QtCore.QRectF:
-        rect = QtCore.QRectF(self.image.rect())
-        return rect
-
-    def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
-        height, width = self.array.shape[:2]
-        x = position.x()
-        y = position.y()
-        if x < 0 or x >= width or y < 0 or y >= height:
-            color = QtGui.QColor()
-            color.convertTo(QtGui.QColor.Invalid)
-        else:
-            rgb = self.array[y, x]
-            color = QtGui.QColor.fromRgbF(*rgb)
-        return color
 
     def paint(
         self,
@@ -101,17 +21,9 @@ class GraphicsItem(QtWidgets.QGraphicsItem):
     ) -> None:
         painter.drawImage(option.rect, self.image)
 
-    def update_image(self) -> None:
-        array = self.array.copy()
-        for post_process in self.post_processes:
-            array = post_process(array)
-        self.image = image_from_array(array)
-        self.update()
-
-    def _expose(self, array: np.ndarray) -> np.ndarray:
-        gain = pow(2, self.exposure)
-        array = array * gain
-        return array
+    def boundingRect(self) -> QtCore.QRectF:
+        rect = QtCore.QRectF(self.image.rect())
+        return rect
 
 
 class GraphicsScene(QtWidgets.QGraphicsScene):
@@ -184,7 +96,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
     @property
     def absolute_scale(self) -> float:
-        # since there will never be rotation, and scale in x and y are the same,
+        # NOTE: since there will never be rotation, and scale in x and y are the same,
         # m11 can be used as scale
         return self.transform().m11()
 
@@ -253,14 +165,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
             position = QtCore.QPoint(
                 np.floor(cursor_position.x()), np.floor(cursor_position.y())
             )
-            # get color before inverting y
-            color = item.color_at(position)
             position.setY(item.boundingRect().height() - position.y())
-
             if self._dragging:
                 self.position_changed.emit(position)
-
-            self.pixel_color_changed.emit(color)
             self.pixel_position_changed.emit(position)
 
     def wheelEvent(self, event: QtGui.QWheelEvent) -> None:
@@ -277,8 +184,8 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.zoom_changed.emit(self.absolute_scale)
         event.accept()
 
-    def setScene(self, scene: GraphicsScene) -> None:
-        super().setScene(scene)
+    # def setScene(self, scene: GraphicsScene) -> None:
+    #     super().setScene(scene)
 
     def zoom(self, factor: float) -> None:
         if factor == 0:
@@ -389,14 +296,14 @@ class ToolBar(QtWidgets.QToolBar):
 
         self.exposure_toggle_action = QtWidgets.QAction(icon, 'exposure_toggle', self)
         self.exposure_toggle_action.setCheckable(True)
-        self.exposure_toggle_action.toggled.connect(self._exposure_toggle)
+        self.exposure_toggle_action.toggled.connect(self._exposure_toggled)
         self.addAction(self.exposure_toggle_action)
 
         # exposure slider
         self.exposure_slider = FloatParameter(parent=self)
         self.exposure_slider.slider_min = -10
         self.exposure_slider.slider_max = 10
-        self.exposure_slider.value_changed.connect(self._exposure_change)
+        self.exposure_slider.value_changed.connect(self._exposure_changed)
         palette = self.exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
         self.exposure_slider.slider.setPalette(palette)
@@ -429,9 +336,9 @@ class ToolBar(QtWidgets.QToolBar):
         for factor in reversed(factors):
             self.zoom_cmb.addItem(f'{factor:2.0%}', factor)
         self.zoom_cmb.setMaxVisibleItems(self.zoom_cmb.count())
-        self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_change)
+        self.zoom_cmb.currentIndexChanged.connect(self._zoom_index_changed)
 
-        # currently AdjustToContents doesn't do anything, but this might be because
+        # NOTE: currently AdjustToContents doesn't do anything, but this might be because
         # the placeholder text is broken, thus setting setMinimumContentsLength works for
         # ensuring that the full placeholder text is visible.
         self.zoom_cmb.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
@@ -441,18 +348,6 @@ class ToolBar(QtWidgets.QToolBar):
         zoom_action.setText('zoom')
         zoom_action.setDefaultWidget(self.zoom_cmb)
         self.addAction(zoom_action)
-
-        # proxy resolution
-        # proxy_items = OrderedDict()
-        # for i in range(6):
-        #     ratio = 2**i
-        #     proxy_items[f'1:{ratio}'] = ratio
-        # proxy_enum = Enum('Proxy_Resolution', proxy_items)
-        # self.proxy_cmb = EnumProperty(
-        #     name='proxy',
-        #     enum=proxy_enum
-        #     )
-        # header_lay.addWidget(self.proxy_cmb)
 
     @property
     def exposure(self) -> float:
@@ -478,7 +373,7 @@ class ToolBar(QtWidgets.QToolBar):
             if action.text() == text:
                 return action
 
-    def _exposure_change(self, value: float) -> None:
+    def _exposure_changed(self, value: float) -> None:
         self.exposure_toggle_action.blockSignals(True)
         self.exposure_toggle_action.setChecked(value != 0)
         self.exposure_toggle_action.blockSignals(False)
@@ -488,13 +383,13 @@ class ToolBar(QtWidgets.QToolBar):
             self._exposure_cache = value
         self.exposure_changed.emit(value)
 
-    def _exposure_toggle(self, value: bool) -> None:
+    def _exposure_toggled(self, value: bool) -> None:
         if self.exposure != 0:
             self.exposure = 0
         else:
             self.exposure = self._exposure_cache
 
-    def _zoom_index_change(self, index: int) -> None:
+    def _zoom_index_changed(self, index: int) -> None:
         if self.zoom_cmb.currentText() == 'fit':
             self._zoom = 0
         elif index > 0:
@@ -505,10 +400,6 @@ class ToolBar(QtWidgets.QToolBar):
 
 
 class Viewer(QtWidgets.QWidget):
-    # https://cyrille.rossant.net/a-tutorial-on-openglopencl-interoperability-in-python/
-    # Using OpenGL/OpenCL interoperability is currently not feasible as pyopencl
-    # needs to be built with opengl support. There is no pip package with it enabled
-
     refreshed: QtCore.Signal = QtCore.Signal()
     pause_changed: QtCore.Signal = QtCore.Signal(bool)
     position_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
@@ -522,6 +413,12 @@ class Viewer(QtWidgets.QWidget):
         self.paused = False
         self._post_processes = []
         self._resolution = QtCore.QSize()
+        self._exposure: float = 0
+        self._array = np.ndarray((0, 0, 3), np.float32)
+
+        self.post_processes: list[typing.Callable[[np.ndarray], np.ndarray]] = [
+            self._expose
+        ]
 
         self._init_ui()
 
@@ -535,8 +432,8 @@ class Viewer(QtWidgets.QWidget):
         self.toolbar.pause_color = self.pause_color
         self.toolbar.refreshed.connect(self.refresh)
         self.toolbar.paused.connect(self.pause)
-        self.toolbar.exposure_changed.connect(self._exposure_change)
-        self.toolbar.zoom_changed.connect(self._toolbar_zoom_change)
+        self.toolbar.exposure_changed.connect(self._exposure_changed)
+        self.toolbar.zoom_changed.connect(self._toolbar_zoom_changed)
         self.layout().addWidget(self.toolbar)
 
         # view
@@ -548,7 +445,7 @@ class Viewer(QtWidgets.QWidget):
 
         self.view = GraphicsView()
         self.view.setScene(self.scene)
-        self.view.zoom_changed.connect(self._view_zoom_change)
+        self.view.zoom_changed.connect(self._view_zoom_changed)
         self.view.fit()
         self.layout().addWidget(self.view)
 
@@ -558,8 +455,9 @@ class Viewer(QtWidgets.QWidget):
         self.layout().addWidget(self.footer)
 
         # signals
-        self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
-        self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
+        # self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
+        self.view.pixel_position_changed.connect(self._pixel_position_changed)
+        # self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
         self.view.position_changed.connect(self.position_changed.emit)
 
     @property
@@ -576,13 +474,25 @@ class Viewer(QtWidgets.QWidget):
 
     @property
     def exposure(self) -> float:
-        return self.item.exposure
+        return self._exposure
 
     @exposure.setter
     def exposure(self, value: float) -> None:
-        self.item.exposure = value
+        self._exposure = value
         self.toolbar.exposure = value
-        self._exposure_change(value)
+        self._exposure_changed(value)
+
+    def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
+        height, width = self._array.shape[:2]
+        x = position.x()
+        y = position.y()
+        if x < 0 or x >= width or y < 0 or y >= height:
+            color = QtGui.QColor()
+            color.convertTo(QtGui.QColor.Invalid)
+        else:
+            rgb = self._array[y, x]
+            color = QtGui.QColor.fromRgbF(*rgb)
+        return color
 
     def pause(self, state=True) -> None:
         self.paused = state
@@ -600,15 +510,6 @@ class Viewer(QtWidgets.QWidget):
 
         self.pause_changed.emit(self.paused)
 
-    def state(self) -> dict:
-        state = {'exposure': self.exposure}
-        return state
-
-    def set_state(self, state: dict) -> None:
-        values = {'exposure': 0}
-        values.update(state)
-        self.exposure = values['exposure']
-
     def refresh(self) -> None:
         self.refreshed.emit()
 
@@ -618,17 +519,82 @@ class Viewer(QtWidgets.QWidget):
             (position.y() / self.resolution.height() - 0.5) * 2,
         )
 
-    def update_image(self, image: np.ndarray) -> None:
-        if not self.paused:
-            self.item.array = image
-            self.resolution = QtCore.QSize(image.shape[1], image.shape[0])
+    def set_array(self, array: np.ndarray) -> None:
+        array = self._array_as_image(array)
 
-    def _exposure_change(self, value: float) -> None:
-        if not self.paused:
-            self.item.exposure = value
+        if self.paused:
+            return
 
-    def _toolbar_zoom_change(self, zoom: float) -> None:
+        self._array = array
+        height, width = array.shape[:2]
+        self.resolution = QtCore.QSize(width, height)
+
+        self._update_image()
+
+    def set_state(self, state: dict) -> None:
+        values = {'exposure': 0}
+        values.update(state)
+        self.exposure = values['exposure']
+
+    def state(self) -> dict:
+        state = {'exposure': self.exposure}
+        return state
+
+    # noinspection PyMethodMayBeStatic
+    def _array_as_image(self, array: np.ndarray) -> np.ndarray:
+        # checks whether the array has either 1, 3 or 4 channels and converts
+        # it to a 3 channel array while this is the only supported format
+
+        if len(array.shape) == 2:
+            array = np.dstack((array, array, array))
+            return array
+        if len(array.shape) == 3:
+            if array.shape[2] > 3:
+                array = array[:, :, :3]
+                return array
+            elif array.shape[2] == 3:
+                return array
+            elif array.shape[2] == 1:
+                array = np.dstack((array[:, :, 0], array[:, :, 0], array[:, :, 0]))
+                return array
+        raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
+
+    def _expose(self, array: np.ndarray):
+        gain = pow(2, self.exposure)
+        np.multiply(array, gain, out=array)
+
+    def _exposure_changed(self, value: float) -> None:
+        if not self.paused:
+            self._exposure = value
+            self._update_image()
+
+    def _pixel_position_changed(self, position: QtCore.QPoint) -> None:
+        self.footer.update_pixel_position(position)
+        # TODO: inverted
+        color = self.color_at(position)
+        self.footer.update_pixel_color(color)
+
+    def _toolbar_zoom_changed(self, zoom: float) -> None:
         self.view.zoom(zoom)
 
-    def _view_zoom_change(self, zoom: float) -> None:
+    def _update_image(self):
+        array = self._array.copy()
+
+        for post_process in self.post_processes:
+            post_process(array)
+
+        np.clip(array, 0, 1, out=array)
+        np.multiply(array, 255, out=array)
+        array = array.astype(np.uint8)
+
+        height, width, channels = array.shape
+        bytes_per_line = width * channels * array.dtype.itemsize
+        image = QtGui.QImage(
+            array.data, width, height, bytes_per_line, QtGui.QImage.Format_RGB888
+        )
+        # QImage is only valid as long as array stays in memory, so it is copied
+        self.item.image = image.copy()
+        self.item.update()
+
+    def _view_zoom_changed(self, zoom: float) -> None:
         self.toolbar.zoom = zoom
