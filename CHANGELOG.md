@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.1.2 (2023-05-26)
+### Fix
+* Make python 3.9 compatible ([`d217fae`](https://github.com/beatreichenbach/qt-extensions/commit/d217fae17b4f8152e7798f94a60ca0dc2345f858))
+* **viewer:** Inverted pixel position ([`0b5494a`](https://github.com/beatreichenbach/qt-extensions/commit/0b5494a8ff54251552be79b1b82be204a82b52c1))
+* **viewer:** Clean up ([`cd94323`](https://github.com/beatreichenbach/qt-extensions/commit/cd94323be908463508e9cfba5ec20e9900658a13))
+
 ## v0.1.1 (2023-05-21)
 ### Fix
 * **logger:** Avoid multiple cache connections ([`3803f8c`](https://github.com/beatreichenbach/qt-extensions/commit/3803f8c2104e8038f1d1fc2201d99ac7d561282e))
