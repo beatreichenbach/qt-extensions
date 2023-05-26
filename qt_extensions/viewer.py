@@ -163,9 +163,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
         if item:
             cursor_position = self.mapToScene(event.pos())
             position = QtCore.QPoint(
-                np.floor(cursor_position.x()), np.floor(cursor_position.y())
+                np.floor(cursor_position.x()),
+                np.floor(item.boundingRect().height() - cursor_position.y()),
             )
-            position.setY(item.boundingRect().height() - position.y())
             if self._dragging:
                 self.position_changed.emit(position)
             self.pixel_position_changed.emit(position)
@@ -485,7 +485,7 @@ class Viewer(QtWidgets.QWidget):
     def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
         height, width = self._array.shape[:2]
         x = position.x()
-        y = position.y()
+        y = height - position.y()
         if x < 0 or x >= width or y < 0 or y >= height:
             color = QtGui.QColor()
             color.convertTo(QtGui.QColor.Invalid)
@@ -570,7 +570,6 @@ class Viewer(QtWidgets.QWidget):
 
     def _pixel_position_changed(self, position: QtCore.QPoint) -> None:
         self.footer.update_pixel_position(position)
-        # TODO: inverted
         color = self.color_at(position)
         self.footer.update_pixel_color(color)
 
