@@ -529,9 +529,11 @@ class Viewer(QtWidgets.QWidget):
 
         self._array = array
         height, width = array.shape[:2]
-        self.resolution = QtCore.QSize(width, height)
 
         self._update_image()
+
+        # trigger fit to view
+        self.resolution = QtCore.QSize(width, height)
 
     def set_state(self, state: dict) -> None:
         values = {'exposure': 0}
