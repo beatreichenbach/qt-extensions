@@ -118,6 +118,9 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
 
     elif isinstance(typ, type) and issubclass(typ, Enum):
         # type hints such as enum.Enum
+        if isinstance(value, typ):
+            # value is Enum
+            return value
         try:
             enum = typ[value]
             return enum
