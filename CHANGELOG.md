@@ -2,6 +2,12 @@
 
 <!--next-version-placeholder-->
 
+## v0.1.3 (2023-06-01)
+### Fix
+
+* **typeutils:** Don't cast existing enums ([`07a8943`](https://github.com/beatreichenbach/qt-extensions/commit/07a8943f267de78371b66547c8e753bf34d6474a))
+* **viewer:** Trigger fit to view ([`761fcd7`](https://github.com/beatreichenbach/qt-extensions/commit/761fcd766f996eb3f32ff355d0215fc20327d015))
+
 ## v0.1.2 (2023-05-26)
 ### Fix
 * Make python 3.9 compatible ([`d217fae`](https://github.com/beatreichenbach/qt-extensions/commit/d217fae17b4f8152e7798f94a60ca0dc2345f858))
