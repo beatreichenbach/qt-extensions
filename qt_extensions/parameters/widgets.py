@@ -627,6 +627,8 @@ class SizeParameter(IntParameter):
     def set_value(self, value: QtCore.QSize | list | tuple) -> None:
         if isinstance(value, (list, tuple)):
             value = QtCore.QSize(value[0], value[1])
+        if value.width() != value.height():
+            self.keep_ratio = False
         if self.keep_ratio:
             value.setHeight(value.width())
         super().set_value(value)
@@ -646,10 +648,14 @@ class SizeParameter(IntParameter):
         self.keep_ratio_button.setChecked(value)
         self.line2.setVisible(not value)
         self.toggle_slider(value)
+        if self.line1.value != self.line2.value:
+            self.line2.value = self.line1.value
 
     def _line_value_change(self, _) -> None:
         value = QtCore.QSize(self.line1.value, self.line2.value)
-        self._value = value
+        if self.keep_ratio:
+            value.setHeight(value.width())
+        self.value = value
         self.set_slider_value(value)
 
     def _slider_value_change(self, value) -> None:
@@ -713,6 +719,8 @@ class SizeFParameter(SizeParameter):
 
     def _line_value_change(self, _) -> None:
         value = QtCore.QSizeF(self.line1.value, self.line2.value)
+        if self.keep_ratio:
+            value.setHeight(value.width())
         self._value = value
         self.set_slider_value(value)
 
@@ -934,7 +942,10 @@ class IntLineEdit(QtWidgets.QLineEdit):
         if state != QtGui.QValidator.State.Acceptable:
             return False
         self.setText(text)
-        self.value = value
+
+        # don't commit change to preserve padding
+        self._value = value
+        self.value_changed.emit(value)
 
         # get new position and set selection
         position = self._step_index_to_position(step_index, text)
