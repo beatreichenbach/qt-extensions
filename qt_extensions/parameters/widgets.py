@@ -655,7 +655,8 @@ class SizeParameter(IntParameter):
         value = QtCore.QSize(self.line1.value, self.line2.value)
         if self.keep_ratio:
             value.setHeight(value.width())
-        self.value = value
+            self.line2.value = self.line1.value
+        self._value = value
         self.set_slider_value(value)
 
     def _slider_value_change(self, value) -> None:
@@ -721,6 +722,7 @@ class SizeFParameter(SizeParameter):
         value = QtCore.QSizeF(self.line1.value, self.line2.value)
         if self.keep_ratio:
             value.setHeight(value.width())
+            self.line2.value = self.line1.value
         self._value = value
         self.set_slider_value(value)
 
