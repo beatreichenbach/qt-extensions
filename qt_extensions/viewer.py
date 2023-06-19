@@ -166,7 +166,7 @@ class GraphicsView(QtWidgets.QGraphicsView):
             cursor_position = self.mapToScene(event.pos())
             position = QtCore.QPoint(
                 np.floor(cursor_position.x()),
-                np.floor(item.boundingRect().height() - cursor_position.y()),
+                np.ceil(item.boundingRect().height() - cursor_position.y()),
             )
             if self._dragging:
                 self.position_changed.emit(position)
@@ -581,6 +581,10 @@ class Viewer(QtWidgets.QWidget):
         self.view.zoom(zoom)
 
     def _update_image(self):
+        height, width, channels = self._array.shape
+        if not height or not width:
+            return
+
         array = self._array.copy()
 
         for post_process in self.post_processes:
@@ -590,7 +594,6 @@ class Viewer(QtWidgets.QWidget):
         np.multiply(array, 255, out=array)
         array = array.astype(np.uint8)
 
-        height, width, channels = array.shape
         bytes_per_line = width * channels * array.dtype.itemsize
         image = QtGui.QImage(
             array.data, width, height, bytes_per_line, QtGui.QImage.Format_RGB888
