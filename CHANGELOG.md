@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v0.1.4 (2023-06-19)
+### Fix
+
+* **parameters:** Ratio typos ([`d7db65b`](https://github.com/beatreichenbach/qt-extensions/commit/d7db65bdfdccbb62100d5ad5ec3a08dd1091fd94))
+* **viewer:** Ignore empty images ([`f888d11`](https://github.com/beatreichenbach/qt-extensions/commit/f888d110210d93179a6853df2496c15a33e55170))
+* **parameters:** Keep_ratio toggle ([`5c97bad`](https://github.com/beatreichenbach/qt-extensions/commit/5c97bad3dea1eed43bb60d6f634f85676b5582f5))
+
 ## v0.1.3 (2023-06-01)
 ### Fix
 
