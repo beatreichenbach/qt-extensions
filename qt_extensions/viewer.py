@@ -413,14 +413,11 @@ class Viewer(QtWidgets.QWidget):
         super().__init__(parent)
 
         self.paused = False
-        self._post_processes = []
         self._resolution = QtCore.QSize()
         self._exposure: float = 0
         self._array = np.ndarray((0, 0, 3), np.float32)
 
-        self.post_processes: list[typing.Callable[[np.ndarray], np.ndarray]] = [
-            self._expose
-        ]
+        self.post_processes: list[typing.Callable] = [self._expose]
 
         self._init_ui()
 
@@ -563,7 +560,7 @@ class Viewer(QtWidgets.QWidget):
                 return array
         raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
 
-    def _expose(self, array: np.ndarray):
+    def _expose(self, array: np.ndarray) -> None:
         gain = pow(2, self.exposure)
         np.multiply(array, gain, out=array)
 
