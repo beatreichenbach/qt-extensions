@@ -6,155 +6,36 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from qt_extensions.icons import MaterialIcon
 
 
-class CollapsibleHeader(QtWidgets.QWidget):
-    toggled = QtCore.Signal(bool)
-    menu_requested = QtCore.Signal(QtCore.QPoint)
-
-    def __init__(
-        self, title, collapsible: bool = True, parent: QtWidgets.QWidget | None = None
-    ) -> None:
-        super().__init__(parent)
-
-        self._title = title
-        self._collapsed = False
-        self._collapsible = None
-
-        self._expand_more_icon = MaterialIcon('chevron_right')
-        self._expand_less_icon = MaterialIcon('expand_more')
-
-        self._expand_label = None
-        self._title_label = None
-        self.menu_button = None
-
-        self._init_ui()
-
-        self.collapsible = collapsible
-
-    def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QHBoxLayout())
-
-        self._expand_label = QtWidgets.QLabel(self)
-        self.layout().addWidget(self._expand_label)
-
-        self._title_label = QtWidgets.QLabel(self.title, self)
-        self.layout().addWidget(self._title_label)
-        self.layout().addStretch()
-
-        self.menu_button = QtWidgets.QToolButton(self)
-        self.menu_button.setIcon(MaterialIcon('menu'))
-        self.menu_button.setAutoRaise(True)
-        self.menu_button.setVisible(False)
-        self.menu_button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
-        self.menu_button.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.menu_button.pressed.connect(self.request_menu)
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
-        self.menu_button.setMaximumSize(QtCore.QSize(size, size))
-        self.layout().addWidget(self.menu_button)
-
-        self._update_icon()
-
-        self.setFocusPolicy(QtCore.Qt.ClickFocus)
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.title)})'
-
-    @property
-    def collapsed(self) -> bool:
-        return self._collapsed
-
-    @collapsed.setter
-    def collapsed(self, value: bool) -> None:
-        if value != self._collapsed:
-            self._collapsed = value
-            self._update_icon()
-            self.toggled.emit(self.collapsed)
-
-    @property
-    def collapsible(self) -> bool:
-        return self._collapsible
-
-    @collapsible.setter
-    def collapsible(self, value: bool) -> None:
-        self._collapsible = value
-        if self.collapsible:
-            margins = QtCore.QMargins(4, 4, 4, 4)
-        else:
-            left = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutLeftMargin)
-            top = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutTopMargin)
-            right = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutRightMargin)
-            bottom = self.style().pixelMetric(QtWidgets.QStyle.PM_LayoutBottomMargin)
-            margins = QtCore.QMargins(left, top, right, bottom)
-
-        self.layout().setContentsMargins(margins)
-        self._expand_label.setVisible(self.collapsible)
-
-    @property
-    def title(self) -> str:
-        return self._title
-
-    @title.setter
-    def title(self, value: str) -> None:
-        self._title = value
-        self._title_label.setText(value)
-
-    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        if self.collapsible:
-            self.setAutoFillBackground(True)
-
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-        if self.collapsible:
-            if event.button() == QtCore.Qt.LeftButton:
-                self.toggle_collapsed()
-            self.setAutoFillBackground(False)
-
-        super().mouseReleaseEvent(event)
-
-    def request_menu(self) -> None:
-        relative_pos = self.menu_button.rect().topRight()
-        relative_pos.setX(relative_pos.x() + 2)
-        position = self.menu_button.mapToGlobal(relative_pos)
-
-        self.menu_requested.emit(position)
-
-    def toggle_collapsed(self) -> None:
-        self.collapsed = not self.collapsed
-
-    def _update_icon(self) -> None:
-        icon = self._expand_more_icon if self.collapsed else self._expand_less_icon
-        style = self.style()
-        size = style.pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
-        self._expand_label.setPixmap(icon.pixmap(size))
-
-
 class CollapsibleBox(QtWidgets.QFrame):
-    class Style(enum.IntFlag):
+    class Style(enum.Enum):
         NONE = 0
-        SIMPLE = enum.auto()
-        BUTTON = enum.auto()
+        SIMPLE = 1
+        BUTTON = 2
 
-    def __init__(
-        self,
-        title: str,
-        collapsible: bool = True,
-        style: Style = Style.NONE,
-        parent: QtWidgets.QWidget | None = None,
-    ) -> None:
+    NONE = Style.NONE
+    SIMPLE = Style.SIMPLE
+    BUTTON = Style.BUTTON
+
+    def __init__(self, title: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
         self._maximum_height = self.maximumHeight()
-        self._actions = []
         self._collapsed = False
+        self._checkable = False
+        self._collapsible = False
+        self._style = CollapsibleBox.NONE
 
-        self.collapsible = collapsible
-        self.frame_style = style
+        self._title_label = None
+        self._expand_label = None
+        self._expand_more_icon = MaterialIcon('chevron_right')
+        self._expand_less_icon = MaterialIcon('expand_more')
+        self._menu_button = None
 
-        self.header = None
         self.frame = None
+        self.header = None
         self._init_ui()
 
-        self.title = title
+        self.set_title(title)
 
     def _init_ui(self) -> None:
         self.setSizePolicy(
@@ -165,48 +46,71 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._layout.setSpacing(0)
         super().setLayout(self._layout)
 
-        self.header = CollapsibleHeader('', self.collapsible)
-        self.header.toggled.connect(self._header_toggle)
-        self.header.menu_requested.connect(self.show_menu)
+        # header
+        self.header = QtWidgets.QWidget()
+        self.header.setFocusPolicy(QtCore.Qt.ClickFocus)
+        self.header.installEventFilter(self)
+        self.header.setBackgroundRole(QtGui.QPalette.Base)
         self._layout.addWidget(self.header)
 
+        header_layout = QtWidgets.QHBoxLayout()
+        self.header.setLayout(header_layout)
+
+        self._expand_label = QtWidgets.QLabel(self.header)
+        self._expand_label.setVisible(False)
+        header_layout.addWidget(self._expand_label)
+
+        self.checkbox = QtWidgets.QCheckBox(self.header)
+        self.checkbox.setVisible(False)
+        header_layout.addWidget(self.checkbox)
+
+        self._title_label = QtWidgets.QLabel(self.header)
+        header_layout.addWidget(self._title_label)
+        header_layout.addStretch()
+
+        self._menu_button = QtWidgets.QToolButton(self.header)
+        self._menu_button.setIcon(MaterialIcon('menu'))
+        self._menu_button.setAutoRaise(True)
+        self._menu_button.setVisible(False)
+        self._menu_button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        self._menu_button.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._menu_button.pressed.connect(self._show_menu)
+        size = self.header.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
+        self._menu_button.setMaximumSize(QtCore.QSize(size, size))
+        header_layout.addWidget(self._menu_button)
+
+        self._update_icon()
+
+        # frame
         self.frame = QtWidgets.QFrame(self)
         self._layout.addWidget(self.frame)
         self._layout.setStretch(1, 1)
 
-        if self.frame_style == CollapsibleBox.Style.SIMPLE:
-            self.setFrameShape(QtWidgets.QFrame.StyledPanel)
-        if self.frame_style == CollapsibleBox.Style.BUTTON:
-            self._layout.setContentsMargins(2, 2, 2, 2)
-        else:
-            self._layout.setContentsMargins(0, 0, 0, 0)
-
     def __repr__(self):
-        return f'{self.__class__.__name__}({repr(self.title)})'
+        return f'{self.__class__.__name__}({repr(self.title())})'
 
-    @property
-    def collapsed(self) -> bool:
-        return self._collapsed
-
-    @collapsed.setter
-    def collapsed(self, value: bool) -> None:
-        self.frame.setMaximumHeight(0 if value else self._maximum_height)
-        self._collapsed = value
-        self.header.blockSignals(True)
-        self.header.collapsed = value
-        self.header.blockSignals(False)
-
-    @property
-    def title(self) -> str:
-        return self.header.title
-
-    @title.setter
-    def title(self, value: str) -> None:
-        self.header.title = value
+    def actionEvent(self, event: QtGui.QActionEvent) -> None:
+        self._menu_button.setVisible(bool(self.actions()))
+        super().actionEvent(event)
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
         self.update()
         super().enterEvent(event)
+
+    def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
+        if watched == self.header and self._collapsible:
+            if (
+                event.type() == QtCore.QEvent.MouseButtonPress
+                and event.button() == QtCore.Qt.LeftButton
+            ):
+                self.header.setAutoFillBackground(True)
+            if (
+                event.type() == QtCore.QEvent.MouseButtonRelease
+                and event.button() == QtCore.Qt.LeftButton
+            ):
+                self.set_collapsed(not self._collapsed)
+                self.header.setAutoFillBackground(False)
+        return super().eventFilter(watched, event)
 
     def leaveEvent(self, event: QtCore.QEvent) -> None:
         self.update()
@@ -219,15 +123,15 @@ class CollapsibleBox(QtWidgets.QFrame):
         self.frame.setLayout(layout)
 
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
-        if not self.frame_style == CollapsibleBox.Style.BUTTON:
+        if not self._style == CollapsibleBox.BUTTON:
             return super().paintEvent(event)
 
         option = QtWidgets.QStyleOptionButton()
         option.initFrom(self)
 
-        if not self.collapsed or not self.frame_style == CollapsibleBox.Style.BUTTON:
+        if not self._collapsed:
             option.state |= QtWidgets.QStyle.State_Sunken
-        if self.collapsed and self.underMouse():
+        if self._collapsed and self.underMouse():
             option.state |= QtWidgets.QStyle.State_MouseOver
 
         style = self.style()
@@ -236,18 +140,93 @@ class CollapsibleBox(QtWidgets.QFrame):
             QtWidgets.QStyle.PE_PanelButtonCommand, option, painter, self
         )
 
+    def setMaximumHeight(self, maxh: int) -> None:
+        self._maximum_height = maxh
+        super().setMaximumHeight(maxh)
+
+    def setMaximumSize(self, size: QtCore.QSize) -> None:
+        self._maximum_height = size.height()
+        super().setMaximumSize(size)
+
+    def box_style(self) -> Style:
+        return self._style
+
+    def checkable(self) -> bool:
+        return self._checkable
+
+    def checked(self) -> bool:
+        return self._checkable and self.checkbox.isChecked()
+
+    def collapsible(self) -> bool:
+        return self._collapsible
+
+    def collapsed(self) -> bool:
+        return self._collapsible and self._collapsed
+
+    def title(self) -> str:
+        return self._title_label.text()
+
     def set_actions(self, actions: list[QtWidgets.QAction]) -> None:
-        self._actions = actions
+        for action in self.actions():
+            self.removeAction(action)
+        self.addActions(actions)
 
-        # hide menu button if there are no actions
-        self.header.menu_button.setVisible(bool(self._actions))
+    def set_checkable(self, checkable: bool) -> None:
+        self._checkable = checkable
+        self.checkbox.setVisible(checkable)
 
-    def show_menu(self, position: QtCore.QPoint) -> None:
+    def set_checked(self, checked: bool) -> None:
+        if self.checkable():
+            self.checkbox.setChecked(checked)
+
+    def set_collapsible(self, collapsible: bool) -> None:
+        if collapsible:
+            margins = QtCore.QMargins(4, 4, 4, 4)
+        else:
+            self.set_collapsed(False)
+            style = self.header.style()
+            left = style.pixelMetric(QtWidgets.QStyle.PM_LayoutLeftMargin)
+            top = style.pixelMetric(QtWidgets.QStyle.PM_LayoutTopMargin)
+            right = style.pixelMetric(QtWidgets.QStyle.PM_LayoutRightMargin)
+            bottom = style.pixelMetric(QtWidgets.QStyle.PM_LayoutBottomMargin)
+            margins = QtCore.QMargins(left, top, right, bottom)
+
+        self._collapsible = collapsible
+        self.header.layout().setContentsMargins(margins)
+        self._expand_label.setVisible(collapsible)
+
+    def set_collapsed(self, collapsed: bool) -> None:
+        if self.collapsible():
+            self._collapsed = collapsed
+            self.frame.setMaximumHeight(0 if collapsed else self._maximum_height)
+            self._update_icon()
+
+    def set_box_style(self, style: Style) -> None:
+        self._style = style
+        if style == CollapsibleBox.Style.SIMPLE:
+            self.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        else:
+            self.setFrameShape(QtWidgets.QFrame.NoFrame)
+        if style == CollapsibleBox.Style.BUTTON:
+            self._layout.setContentsMargins(2, 2, 2, 2)
+        else:
+            self._layout.setContentsMargins(0, 0, 0, 0)
+
+    def set_title(self, title: str) -> None:
+        self._title_label.setText(title)
+
+    def _show_menu(self) -> None:
+        relative_pos = self._menu_button.rect().topRight()
+        relative_pos.setX(relative_pos.x() + 2)
+        position = self._menu_button.mapToGlobal(relative_pos)
+
         menu = QtWidgets.QMenu(self)
-        menu.addActions(self._actions)
-
+        menu.addActions(self.actions())
         menu.exec_(position)
-        self.header.menu_button.setDown(False)
 
-    def _header_toggle(self, collapsed: bool) -> None:
-        self.collapsed = collapsed
+        self._menu_button.setDown(False)
+
+    def _update_icon(self) -> None:
+        icon = self._expand_more_icon if self._collapsed else self._expand_less_icon
+        size = self.style().pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
+        self._expand_label.setPixmap(icon.pixmap(size))

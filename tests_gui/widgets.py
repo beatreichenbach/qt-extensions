@@ -32,34 +32,36 @@ def widgets():
     widget.setLayout(QtWidgets.QVBoxLayout())
 
     int_parameter = IntParameter('int')
-    int_parameter.value = 9
-    int_parameter.line_min = 2
-    int_parameter.slider_max = 50
+    int_parameter.set_value(9)
+    int_parameter.set_line_min(2)
+    int_parameter.set_slider_max(50)
     widget.layout().addWidget(int_parameter)
 
     float_parameter = FloatParameter('float')
-    float_parameter.decimals = 2
-    float_parameter.value = 13.5234
-    float_parameter.slider_min = 300
-    float_parameter.slider_max = 700
+    float_parameter.set_decimals(2)
+    float_parameter.set_value(13.5234)
+    float_parameter.set_slider_min(300)
+    float_parameter.set_slider_max(700)
     widget.layout().addWidget(float_parameter)
 
     string_parameter = StringParameter('string')
-    string_parameter.value = 'asd'
-    string_parameter.area = True
+    string_parameter.set_value('asd')
+    string_parameter.set_area(True)
     widget.layout().addWidget(string_parameter)
 
     string_parameter = StringParameter('string_menu')
-    string_parameter.value = '$PATH/file.json'
-    string_parameter.menu = {
-        'Presets': {'File': 'file.json', 'Empty': ''},
-        'Bob': 'bob.txt',
-    }
+    string_parameter.set_value('$PATH/file.json')
+    string_parameter.set_menu(
+        {
+            'Presets': {'File': 'file.json', 'Empty': ''},
+            'Bob': 'bob.txt',
+        }
+    )
     widget.layout().addWidget(string_parameter)
 
     path_parameter = PathParameter('path')
-    path_parameter.value = 'asd'
-    path_parameter.method = PathParameter.Method.EXISTING_DIR
+    path_parameter.set_value('asd')
+    path_parameter.set_method(PathParameter.EXISTING_DIR)
     widget.layout().addWidget(path_parameter)
 
     widget.layout().addWidget(ColorParameter('color'))
@@ -70,7 +72,7 @@ def widgets():
     widget.layout().addWidget(PointFParameter('pointf'))
 
     size_parameter = SizeParameter('size')
-    size_parameter.value = QtCore.QSize(17, 56)
+    size_parameter.set_value(QtCore.QSize(17, 56))
     widget.layout().addWidget(size_parameter)
 
     widget.layout().addWidget(SizeFParameter('sizef'))
@@ -78,7 +80,7 @@ def widgets():
     widget.layout().addWidget(BoolParameter('bool'))
 
     enum_parameter = EnumParameter('enum')
-    enum_parameter.enum = Enum('Number', ('one', 'two', 'three'))
+    enum_parameter.set_enum(Enum('Number', ('one', 'two', 'three')))
     widget.layout().addWidget(enum_parameter)
 
     data = [
@@ -89,10 +91,10 @@ def widgets():
         ['A really big Star', 406320, 339023452345.23450],
     ]
     tab_data_parameter = TabDataParameter('TabData')
-    tab_data_parameter.default = data
-    tab_data_parameter.headers = ['Name', 'Radius', 'Weight']
-    tab_data_parameter.types = [str, int, float]
-    tab_data_parameter.start_index = 4
+    tab_data_parameter.set_default(data)
+    tab_data_parameter.set_headers(['Name', 'Radius', 'Weight'])
+    tab_data_parameter.set_types([str, int, float])
+    tab_data_parameter.set_start_index(4)
     widget.layout().addWidget(tab_data_parameter)
 
     widget.show()

@@ -18,25 +18,26 @@ def main():
 
     group = CollapsibleBox('Settings')
     group.setLayout(QtWidgets.QVBoxLayout())
+    group.addActions([QtWidgets.QAction('Help', group)])
     group.layout().addWidget(QtWidgets.QPushButton('Button'))
 
-    starburst = CollapsibleBox(
-        'Settings', collapsible=True, style=CollapsibleBox.Style.BUTTON
-    )
+    starburst = CollapsibleBox('Settings')
+    starburst.set_box_style(CollapsibleBox.BUTTON)
+    starburst.set_collapsible(True)
     starburst.setLayout(QtWidgets.QVBoxLayout())
     starburst.layout().addWidget(QtWidgets.QPushButton('Button'))
     group.layout().addWidget(starburst)
 
-    aperture = CollapsibleBox(
-        'Settings', collapsible=True, style=CollapsibleBox.Style.SIMPLE
-    )
+    aperture = CollapsibleBox('Settings')
+    aperture.set_box_style(CollapsibleBox.SIMPLE)
+    aperture.set_collapsible(True)
     aperture.setLayout(QtWidgets.QVBoxLayout())
     aperture.layout().addWidget(QtWidgets.QPushButton('Button'))
     starburst.layout().addWidget(aperture)
 
-    ghost = CollapsibleBox(
-        'Settings', collapsible=False, style=CollapsibleBox.Style.SIMPLE
-    )
+    ghost = CollapsibleBox('Settings')
+    ghost.set_box_style(CollapsibleBox.SIMPLE)
+    ghost.set_checkable(True)
     ghost.setLayout(QtWidgets.QVBoxLayout())
     ghost.layout().addWidget(QtWidgets.QPushButton('Button'))
     group.layout().addWidget(ghost)

@@ -1,3 +1,4 @@
+import json
 import logging
 import sys
 from enum import Enum
@@ -5,7 +6,6 @@ from enum import Enum
 from PySide2 import QtWidgets
 
 from qt_extensions import theme
-from qt_extensions.box import CollapsibleBox
 from qt_extensions.parameters import (
     ParameterEditor,
     TabDataParameter,
@@ -21,6 +21,7 @@ from qt_extensions.parameters import (
     ColorParameter,
     EnumParameter,
 )
+from qt_extensions.parameters.editor import ParameterBox
 
 
 def main():
@@ -31,74 +32,118 @@ def main():
 
     editor = ParameterEditor()
 
-    editor.add_parameter(IntParameter('int'))
-    editor.add_parameter(FloatParameter('float'))
-    editor.add_separator()
-    editor.add_parameter(PointParameter('point'))
-    editor.add_parameter(PointFParameter('pointf'))
-    editor.add_parameter(SizeParameter('size'))
-    editor.add_parameter(SizeFParameter('sizef'))
-    editor.add_parameter(BoolParameter('bool'))
-    editor.add_parameter(PathParameter('path'))
-    editor.add_parameter(StringParameter('string'))
-    editor.add_parameter(ColorParameter('color'))
+    # default parameters
+    box = editor.add_group('default')
+    box.set_collapsed(False)
+    box.set_box_style(ParameterBox.SIMPLE)
+    form = box.form
+
+    # action
+    action = QtWidgets.QAction('Reset', form)
+    action.triggered.connect(lambda: form.reset())
+    form.addAction(action)
+
+    form.add_parameter(IntParameter('int'))
+    form.add_parameter(FloatParameter('float'))
+    form.add_parameter(StringParameter('string'))
+    form.add_parameter(PathParameter('path'))
+    form.add_parameter(BoolParameter('bool'))
     parm = EnumParameter('enum')
-    parm.enum = Enum('Number', ('one', 'two', 'three'))
-    editor.add_parameter(parm)
+    enum = Enum('Number', ('one', 'two', 'three'))
+    parm.set_enum(enum)
+    form.add_parameter(parm)
+    form.add_parameter(ColorParameter('color'))
+    form.add_parameter(PointParameter('point'))
+    form.add_parameter(PointFParameter('pointf'))
+    form.add_parameter(SizeParameter('size'))
+    form.add_parameter(SizeFParameter('sizef'))
 
-    group1 = editor.add_group(
-        'group_1', collapsible=True, style=CollapsibleBox.Style.BUTTON
-    )
+    # attributes
+    box = editor.add_group('attributes')
+    box.set_collapsed(False)
+    box.set_box_style(ParameterBox.SIMPLE)
+    form = box.form
 
-    group1.add_parameter(IntParameter('int'))
-    group1.add_parameter(FloatParameter('float'))
+    parm = IntParameter('int')
+    parm.set_default(5)
+    parm.set_slider_min(2)
+    parm.set_slider_max(8)
+    parm.set_line_min(1)
+    parm.set_line_max(7)
+    parm.set_slider_visible(True)
+    parm.set_commit_on_edit(True)
+    form.add_parameter(parm)
 
-    action = QtWidgets.QAction('Save', group1)
-    group1.addAction(action)
-    group1.addAction(QtWidgets.QAction('Save1', group1))
-    group1.addAction(QtWidgets.QAction('Save2', group1))
+    parm = FloatParameter('float')
+    parm.set_default(5)
+    parm.set_slider_min(2)
+    parm.set_slider_max(12)
+    parm.set_line_min(1)
+    parm.set_line_max(20)
+    parm.set_slider_visible(True)
+    parm.set_commit_on_edit(True)
+    parm.set_decimals(3)
+    form.add_parameter(parm)
 
-    group2 = editor.add_group(
-        'group_2', collapsible=False, style=CollapsibleBox.Style.SIMPLE
-    )
+    parm = StringParameter('str')
+    parm.set_default('Hello World')
+    parm.set_menu({'parent': {'child 1': 'child_1', 'child 2': 'child_2'}})
+    form.add_parameter(parm)
 
-    group2.add_parameter(IntParameter('int'))
-    group2.add_parameter(FloatParameter('float'))
+    parm = PathParameter('path')
+    parm.set_default('c:/temp')
+    parm.set_method(PathParameter.SAVE_FILE)
+    parm.set_dir_fallback('c:/windows')
+    form.add_parameter(parm)
 
-    group1_nested = group2.add_group(
-        'group_1_nested', collapsible=True, style=CollapsibleBox.Style.BUTTON
-    )
-    group1_nested.add_parameter(IntParameter('int'))
-    group1_nested.add_parameter(FloatParameter('float'))
-    nested_prop_tooltip = StringParameter('nested_tooltip')
-    nested_prop_tooltip.tooltip = (
-        'asdfasdfasdf asdf asdf asdf asdfa fdadsfa sdfadfadfasdfadf'
-    )
-    group1_nested.add_parameter(nested_prop_tooltip)
+    parm = EnumParameter('enum')
+    parm.set_enum(enum)
+    parm.set_default(enum['two'])
+    parm.set_formatter(lambda s: s.upper())
+    form.add_parameter(parm)
 
-    group3 = editor.add_tab_group(('tab_1', 'tab_2'))
+    parm = PointParameter('point')
+    parm.set_default((5, 3))
+    parm.set_line_min(1)
+    parm.set_line_max(7)
+    form.add_parameter(parm)
 
-    parm = IntParameter('int4')
-    parm.setEnabled(False)
-    group3.tabs['tab_1'].add_parameter(parm)
-    parm = FloatParameter('float4')
-    parm.setEnabled(False)
-    group3.tabs['tab_1'].add_parameter(parm)
+    parm = PointFParameter('pointf')
+    parm.set_default((5, 3))
+    parm.set_line_min(1)
+    parm.set_line_max(7)
+    parm.set_decimals(3)
+    form.add_parameter(parm)
 
-    group4 = editor.add_group(
-        'group_4', collapsible=True, style=CollapsibleBox.Style.SIMPLE
-    )
+    parm = SizeParameter('size')
+    parm.set_default((5, 3))
+    parm.set_slider_min(2)
+    parm.set_slider_max(8)
+    parm.set_line_min(1)
+    parm.set_line_max(7)
+    parm.set_slider_visible(True)
+    parm.set_commit_on_edit(True)
+    parm.set_ratio_visible(True)
+    parm.set_keep_ratio(False)
+    form.add_parameter(parm)
 
-    group4.add_parameter(IntParameter('int'))
-    group4.add_parameter(FloatParameter('float'))
+    parm = SizeFParameter('sizef')
+    parm.set_default((5, 3))
+    parm.set_slider_min(2)
+    parm.set_slider_max(8)
+    parm.set_line_min(1)
+    parm.set_line_max(7)
+    parm.set_slider_visible(True)
+    parm.set_commit_on_edit(True)
+    parm.set_ratio_visible(True)
+    parm.set_keep_ratio(False)
+    parm.set_decimals(3)
+    form.add_parameter(parm)
 
-    group4.addAction(QtWidgets.QAction('Save', group4))
-    group4.addAction(QtWidgets.QAction('Save1', group4))
-    group4.addAction(QtWidgets.QAction('Save2', group4))
-
-    parm = StringParameter('text')
-    parm.area = True
-    editor.add_parameter(parm)
+    # tabdata
+    box = editor.add_group('tabdata')
+    box.set_box_style(ParameterBox.BUTTON)
+    form = box.form
 
     data = [
         ['Sun', 696000, 198],
@@ -108,16 +153,24 @@ def main():
         ['A really big Star', 406320, 339023452345.23450],
     ]
     parm = TabDataParameter('tabdata')
-    parm.default = data
-    parm.headers = ['Name', 'Radius', 'Weight']
-    parm.types = [str, int, float]
-    parm.start_index = 4
-    parm.tooltip = 'By default, labels display left-aligned, vertically-centered text and images, where any tabs in the text to be displayed are automatically expanded. However, the look of a QLabel can be adjusted and fine-tuned in several ways.'
-    editor.add_parameter(parm)
+    parm.set_default(data)
+    parm.set_headers(['Name', 'Radius', 'Weight'])
+    parm.set_types([str, int, float])
+    parm.set_start_index(4)
+    parm.set_tooltip(
+        'By default, labels display left-aligned, vertically-centered text and images, '
+        'where any tabs in the text to be displayed are automatically expanded. However, '
+        'the look of a QLabel can be adjusted and fine-tuned in several ways.'
+    )
+    form.add_parameter(parm)
 
-    # editor.values_changed.connect(logging.debug)
-    # logging.debug(json.dumps(editor.values(), indent=4, default=lambda x: str(x)))
-    editor.parameter_changed.connect(logging.debug)
+    # tab widget
+    tab = editor.add_tab_group(['tab_1', 'tab_2'])
+    tab.tabs['tab_1'].add_parameter(IntParameter('int'))
+    tab.tabs['tab_2'].add_parameter(IntParameter('int'))
+
+    logging.debug(json.dumps(editor.values(), indent=4, default=lambda x: str(x)))
+    editor.parameter_changed.connect(lambda p: logging.debug(p.value()))
 
     editor.show()
 

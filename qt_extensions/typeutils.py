@@ -139,7 +139,7 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
     raise TypeError(f'cannot cast to type ({typ})')
 
 
-def cast_basic(obj: Any) -> Any:
+def basic(obj: Any) -> Any:
     # returns a basic type that can be serialized by json
 
     if dataclasses.is_dataclass(obj):
@@ -151,13 +151,13 @@ def cast_basic(obj: Any) -> Any:
         # basic types as defined in json library
         return obj
     elif isinstance(obj, (list, GeneratorType)):
-        return type(obj)(cast_basic(v) for v in obj)
+        return type(obj)(basic(v) for v in obj)
     elif isinstance(obj, dict):
-        return type(obj)((k, cast_basic(v)) for k, v in obj.items())
+        return type(obj)((k, basic(v)) for k, v in obj.items())
     elif isinstance(obj, tuple):
-        return type(obj)(cast_basic(v) for v in obj)
+        return type(obj)(basic(v) for v in obj)
     elif isinstance(obj, set):
-        return [cast_basic(v) for v in obj]
+        return [basic(v) for v in obj]
     elif isinstance(obj, Enum):
         return obj.name
     elif isinstance(obj, (QtCore.QPoint, QtCore.QPointF)):
@@ -186,7 +186,7 @@ def deep_field(obj) -> dataclasses.Field:
 def hashable_dataclass(cls):
     def __hash__(self) -> int:
         if self._hash is None:
-            data = cast_basic(self)
+            data = basic(self)
             _hash = hash(json.dumps(data, sort_keys=True))
             super(cls, self).__setattr__('_hash', _hash)
         return self._hash

@@ -32,7 +32,6 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._background_color = QtGui.QColor(0, 0, 0)
         self._item: GraphicsItem | None = None
 
         # bounding box frame
@@ -47,21 +46,15 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
         self._frame = self.addRect(rect, pen, brush)
         self._frame.setZValue(1)
 
-    @property
-    def background_color(self) -> QtGui.QColor:
-        return self._background_color
+        self.set_background_color(QtGui.QColor(0, 0, 0))
 
-    @background_color.setter
-    def background_color(self, value: QtGui.QColor) -> None:
-        self._background_color = value
-        self.setBackgroundBrush(QtGui.QBrush(value))
-
-    @property
     def item(self) -> GraphicsItem:
         return self._item
 
-    @item.setter
-    def item(self, value: GraphicsItem) -> None:
+    def set_background_color(self, value: QtGui.QColor) -> None:
+        self.setBackgroundBrush(QtGui.QBrush(value))
+
+    def set_item(self, value: GraphicsItem) -> None:
         if self._item and self._item.parent() == self:
             self.removeItem(self._item)
         self._item = value
@@ -95,22 +88,6 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
         self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
         self.viewport().setCursor(QtCore.Qt.CrossCursor)
-
-    @property
-    def absolute_scale(self) -> float:
-        # NOTE: since there will never be rotation, and scale in x and y are the same,
-        # m11 can be used as scale
-        return self.transform().m11()
-
-    @absolute_scale.setter
-    def absolute_scale(self, value):
-        self.setTransform(QtGui.QTransform.fromScale(value, value))
-
-    def fit(self) -> None:
-        item = self.scene().item
-        if item:
-            self.fitInView(item, QtCore.Qt.KeepAspectRatio)
-            self.zoom_changed.emit(self.absolute_scale)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() == QtCore.Qt.Key_F:
@@ -161,12 +138,12 @@ class GraphicsView(QtWidgets.QGraphicsView):
     def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
         super().mouseMoveEvent(event)
 
-        item = self.scene().item
-        if item:
+        if self.scene() and self.scene().item():
             cursor_position = self.mapToScene(event.pos())
+            bounding_rect = self.scene().item().boundingRect()
             position = QtCore.QPoint(
                 np.floor(cursor_position.x()),
-                np.ceil(item.boundingRect().height() - cursor_position.y()),
+                np.floor(bounding_rect.height() - cursor_position.y()),
             )
             if self._dragging:
                 self.position_changed.emit(position)
@@ -183,28 +160,36 @@ class GraphicsView(QtWidgets.QGraphicsView):
             zoom_factor = zoom_out_factor
         self.scale(zoom_factor, zoom_factor)
 
-        self.zoom_changed.emit(self.absolute_scale)
+        self.zoom_changed.emit(self.absolute_scale())
         event.accept()
 
-    # def setScene(self, scene: GraphicsScene) -> None:
-    #     super().setScene(scene)
+    def absolute_scale(self) -> float:
+        # NOTE: since there will never be rotation, and scale in x and y are the same,
+        # m11 can be used as scale
+        return self.transform().m11()
+
+    def fit(self) -> None:
+        if self.scene() and self.scene().item():
+            self.fitInView(self.scene().item(), QtCore.Qt.KeepAspectRatio)
+            self.zoom_changed.emit(self.absolute_scale())
+
+    def set_absolute_scale(self, value: float) -> None:
+        self.setTransform(QtGui.QTransform.fromScale(value, value))
 
     def zoom(self, factor: float) -> None:
         if factor == 0:
             self.fit()
         else:
-            self.absolute_scale = factor
+            self.set_absolute_scale(factor)
 
 
 class Footer(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._background_color = None
-
         self._init_ui()
 
-        self.background_color = QtGui.QColor(0, 0, 0)
+        self.set_background_color(QtGui.QColor(0, 0, 0))
 
     def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QHBoxLayout())
@@ -225,13 +210,7 @@ class Footer(QtWidgets.QWidget):
         self.hsv_lbl = QtWidgets.QLabel('hsv')
         self.layout().addWidget(self.hsv_lbl)
 
-    @property
-    def background_color(self) -> QtGui.QColor:
-        return self._background_color
-
-    @background_color.setter
-    def background_color(self, value: QtGui.QColor) -> None:
-        self._background_color = value
+    def set_background_color(self, value: QtGui.QColor) -> None:
         palette = self.palette()
         palette.setColor(QtGui.QPalette.Window, value)
         palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(255, 255, 255))
@@ -303,8 +282,8 @@ class ToolBar(QtWidgets.QToolBar):
 
         # exposure slider
         self.exposure_slider = FloatParameter(parent=self)
-        self.exposure_slider.slider_min = -10
-        self.exposure_slider.slider_max = 10
+        self.exposure_slider.set_slider_min(-10)
+        self.exposure_slider.set_slider_max(10)
         self.exposure_slider.value_changed.connect(self._exposure_changed)
         palette = self.exposure_slider.slider.palette()
         palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
@@ -351,29 +330,25 @@ class ToolBar(QtWidgets.QToolBar):
         zoom_action.setDefaultWidget(self.zoom_cmb)
         self.addAction(zoom_action)
 
-    @property
     def exposure(self) -> float:
         return self._exposure
-
-    @exposure.setter
-    def exposure(self, value: float) -> None:
-        self._exposure = value
-        self.exposure_slider.value = value
-
-    @property
-    def zoom(self) -> float:
-        return self._zoom
-
-    @zoom.setter
-    def zoom(self, value: float) -> None:
-        self._zoom = value
-        self.zoom_cmb.setCurrentIndex(-1)
-        self.zoom_cmb.setPlaceholderText(f'{value:2.1%}')
 
     def find_action(self, text: str) -> QtWidgets.QAction | None:
         for action in self.actions():
             if action.text() == text:
                 return action
+
+    def set_exposure(self, exposure: float) -> None:
+        self._exposure = exposure
+        self.exposure_slider.set_value(exposure)
+
+    def set_zoom(self, zoom: float) -> None:
+        self._zoom = zoom
+        self.zoom_cmb.setCurrentIndex(-1)
+        self.zoom_cmb.setPlaceholderText(f'{zoom:2.1%}')
+
+    def zoom(self) -> float:
+        return self._zoom
 
     def _exposure_changed(self, value: float) -> None:
         self.exposure_toggle_action.blockSignals(True)
@@ -385,11 +360,9 @@ class ToolBar(QtWidgets.QToolBar):
             self._exposure_cache = value
         self.exposure_changed.emit(value)
 
-    def _exposure_toggled(self, value: bool) -> None:
-        if self.exposure != 0:
-            self.exposure = 0
-        else:
-            self.exposure = self._exposure_cache
+    def _exposure_toggled(self) -> None:
+        exposure = self._exposure_cache if self.exposure() == 0 else 0
+        self.set_exposure(exposure)
 
     def _zoom_index_changed(self, index: int) -> None:
         if self.zoom_cmb.currentText() == 'fit':
@@ -417,7 +390,7 @@ class Viewer(QtWidgets.QWidget):
         self._exposure: float = 0
         self._array = np.ndarray((0, 0, 3), np.float32)
 
-        self.post_processes: list[typing.Callable] = [self._expose]
+        self.post_processes: list[typing.Callable] = [self._expose_image]
 
         self._init_ui()
 
@@ -432,59 +405,41 @@ class Viewer(QtWidgets.QWidget):
         self.toolbar.refreshed.connect(self.refresh)
         self.toolbar.paused.connect(self.pause)
         self.toolbar.exposure_changed.connect(self._exposure_changed)
-        self.toolbar.zoom_changed.connect(self._toolbar_zoom_changed)
         self.layout().addWidget(self.toolbar)
 
         # view
-        self.scene = GraphicsScene()
-        self.scene.background_color = self.background_color
-
         self.item = GraphicsItem()
-        self.scene.item = self.item
+
+        self.scene = GraphicsScene()
+        self.scene.set_background_color(self.background_color)
+        self.scene.set_item(self.item)
 
         self.view = GraphicsView()
         self.view.setScene(self.scene)
-        self.view.zoom_changed.connect(self._view_zoom_changed)
         self.view.fit()
+        self.view.zoom_changed.connect(self.toolbar.set_zoom)
+        self.toolbar.zoom_changed.connect(self.view.zoom)
         self.layout().addWidget(self.view)
 
         # footer
         self.footer = Footer()
-        self.footer.background_color = self.background_color
+        self.footer.set_background_color(self.background_color)
         self.layout().addWidget(self.footer)
 
         # signals
-        # self.view.pixel_position_changed.connect(self.footer.update_pixel_position)
         self.view.pixel_position_changed.connect(self._pixel_position_changed)
-        # self.view.pixel_color_changed.connect(self.footer.update_pixel_color)
         self.view.position_changed.connect(self.position_changed.emit)
 
-    @property
     def resolution(self) -> QtCore.QSize:
         return self._resolution
 
-    @resolution.setter
-    def resolution(self, value: QtCore.QSize) -> None:
-        if self._resolution != value:
-            self._resolution = value
-            self.footer.update_resolution(value)
-            self.scene.update_frame(value)
-            self.view.fit()
-
-    @property
     def exposure(self) -> float:
         return self._exposure
-
-    @exposure.setter
-    def exposure(self, value: float) -> None:
-        self._exposure = value
-        self.toolbar.exposure = value
-        self._exposure_changed(value)
 
     def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
         height, width = self._array.shape[:2]
         x = position.x()
-        y = height - position.y()
+        y = height - 1 - position.y()
         if x < 0 or x >= width or y < 0 or y >= height:
             color = QtGui.QColor()
             color.convertTo(QtGui.QColor.Invalid)
@@ -513,9 +468,10 @@ class Viewer(QtWidgets.QWidget):
         self.refreshed.emit()
 
     def relative_position(self, position: QtCore.QPoint) -> QtCore.QPointF:
+        resolution = self.resolution()
         return QtCore.QPointF(
-            (position.x() / self.resolution.width() - 0.5) * 2,
-            (position.y() / self.resolution.height() - 0.5) * 2,
+            (position.x() / resolution.width() - 0.5) * 2,
+            (position.y() / resolution.height() - 0.5) * 2,
         )
 
     def set_array(self, array: np.ndarray) -> None:
@@ -530,15 +486,27 @@ class Viewer(QtWidgets.QWidget):
         self._update_image()
 
         # trigger fit to view
-        self.resolution = QtCore.QSize(width, height)
+        self.set_resolution(QtCore.QSize(width, height))
+
+    def set_exposure(self, exposure: float) -> None:
+        self._exposure = exposure
+        self.toolbar.set_exposure(exposure)
+        self._exposure_changed(exposure)
+
+    def set_resolution(self, resolution: QtCore.QSize) -> None:
+        if self._resolution != resolution:
+            self._resolution = resolution
+            self.footer.update_resolution(resolution)
+            self.scene.update_frame(resolution)
+            self.view.fit()
 
     def set_state(self, state: dict) -> None:
         values = {'exposure': 0}
         values.update(state)
-        self.exposure = values['exposure']
+        self.set_exposure(values['exposure'])
 
     def state(self) -> dict:
-        state = {'exposure': self.exposure}
+        state = {'exposure': self.exposure()}
         return state
 
     # noinspection PyMethodMayBeStatic
@@ -560,8 +528,8 @@ class Viewer(QtWidgets.QWidget):
                 return array
         raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
 
-    def _expose(self, array: np.ndarray) -> None:
-        gain = pow(2, self.exposure)
+    def _expose_image(self, array: np.ndarray) -> None:
+        gain = pow(2, self.exposure())
         np.multiply(array, gain, out=array)
 
     def _exposure_changed(self, value: float) -> None:
@@ -573,9 +541,6 @@ class Viewer(QtWidgets.QWidget):
         self.footer.update_pixel_position(position)
         color = self.color_at(position)
         self.footer.update_pixel_color(color)
-
-    def _toolbar_zoom_changed(self, zoom: float) -> None:
-        self.view.zoom(zoom)
 
     def _update_image(self):
         height, width, channels = self._array.shape
@@ -598,6 +563,3 @@ class Viewer(QtWidgets.QWidget):
         # QImage is only valid as long as array stays in memory, so it is copied
         self.item.image = image.copy()
         self.item.update()
-
-    def _view_zoom_changed(self, zoom: float) -> None:
-        self.toolbar.zoom = zoom

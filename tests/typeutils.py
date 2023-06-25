@@ -11,7 +11,7 @@ from qt_extensions.typeutils import (
     hashable_dataclass,
     HashableDict,
     cast,
-    cast_basic,
+    basic,
     deep_field,
 )
 
@@ -66,7 +66,7 @@ def test_cast():
 
 def test_cast_basic():
     item = InventoryItem('Apple', 2, ProductNumber(2), QtGui.QColor(1, 2, 3))
-    assert cast_basic(item) == {
+    assert basic(item) == {
         'name': 'Apple',
         'unit_price': 2,
         'color': (1, 2, 3, 255),

@@ -122,7 +122,7 @@ def apply_theme(
         scroll_area_palette.setColor(
             QPalette.Window, palette.color(QPalette.AlternateBase)
         )
-        app.setPalette(scroll_area_palette, QtWidgets.QScrollArea.__name__)
+        # app.setPalette(scroll_area_palette, QtWidgets.QScrollArea.__name__)
 
         # QTabWidget background tab fix
         tab_widget_palette = QPalette(palette)

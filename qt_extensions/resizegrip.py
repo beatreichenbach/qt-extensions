@@ -29,10 +29,6 @@ class ResizeGrip(QtWidgets.QWidget):
             self._min_size = QtCore.QSize(min_width, min_height)
         return self._min_size
 
-    @min_size.setter
-    def min_size(self, value: QtCore.QSize) -> None:
-        self._min_size = value
-
     def changeEvent(self, event: QtCore.QEvent) -> None:
         if event.type() == QtCore.QEvent.ParentChange and self.parent():
             self.reset()
@@ -103,7 +99,7 @@ class ResizeGrip(QtWidgets.QWidget):
 
         # reset minimumSize
         self.parent().setMinimumSize(self.parent().minimumSizeHint())
-        self.min_size = None
+        self._min_size = None
 
     def reposition(self) -> None:
         geometry = self.geometry()

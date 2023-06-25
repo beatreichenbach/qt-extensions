@@ -10,7 +10,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 from qt_extensions import helper
 from qt_extensions.icons import MaterialIcon
-from qt_extensions.typeutils import cast, cast_basic
+from qt_extensions.typeutils import cast, basic
 
 
 @dataclasses.dataclass()
@@ -488,7 +488,7 @@ class DockWindow(QtWidgets.QWidget):
 
     def state(self) -> dict:
         state = {'geometry': self.geometry(), 'widgets': self.widget_states()}
-        state = cast_basic(state)
+        state = basic(state)
         return state
 
     def widget_title(self, widget: QtWidgets.QWidget) -> str | None:

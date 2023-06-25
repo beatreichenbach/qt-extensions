@@ -22,13 +22,11 @@ class ParameterToggle(QtWidgets.QCheckBox):
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name)})'
 
-    @property
+    def set_value(self, value: bool) -> None:
+        self.setChecked(value)
+
     def value(self) -> bool:
         return self.isChecked()
-
-    @value.setter
-    def value(self, value: bool) -> None:
-        self.setChecked(value)
 
 
 class ParameterToolTip(QtWidgets.QFrame):
@@ -47,7 +45,7 @@ class ParameterToolTip(QtWidgets.QFrame):
         self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setSizeConstraint(QtWidgets.QLayout.SetFixedSize)
 
-        title = QtWidgets.QLabel(widget.label, self)
+        title = QtWidgets.QLabel(widget.label(), self)
         font = title.font()
         font.setBold(True)
         title.setFont(font)
@@ -58,10 +56,10 @@ class ParameterToolTip(QtWidgets.QFrame):
         self.layout().addWidget(separator)
 
         typ = type(widget).__name__.replace('Parameter', '')
-        detail = QtWidgets.QLabel(f'Parameter: {widget.name} ({typ})', self)
+        detail = QtWidgets.QLabel(f'Parameter: {widget.name()} ({typ})', self)
         self.layout().addWidget(detail)
 
-        tooltip = QtWidgets.QLabel(widget.tooltip, self)
+        tooltip = QtWidgets.QLabel(widget.tooltip(), self)
         # tooltip.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         tooltip.setWordWrap(True)
         tooltip.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
@@ -75,7 +73,7 @@ class ParameterLabel(QtWidgets.QLabel):
     def __init__(
         self, widget: ParameterWidget, parent: QtWidgets.QWidget | None = None
     ) -> None:
-        super().__init__(widget.label, parent)
+        super().__init__(widget.label(), parent)
 
         self._tooltip: ParameterToolTip | None = None
         self._widget = widget
@@ -84,7 +82,7 @@ class ParameterLabel(QtWidgets.QLabel):
         return f'{self.__class__.__name__}({repr(self.text())})'
 
     def enterEvent(self, event: QtCore.QEvent) -> None:
-        if self._widget.tooltip:
+        if self._widget.tooltip():
             QtCore.QTimer.singleShot(600, self.show_tooltip)
         super().enterEvent(event)
 
@@ -103,6 +101,19 @@ class ParameterTabWidget(QtWidgets.QTabWidget):
         self.tabs: dict[str, ParameterForm] = {}
 
 
+class ParameterBox(CollapsibleBox):
+    def __init__(
+        self, title: str, form: ParameterForm, parent: QtWidgets.QWidget | None = None
+    ) -> None:
+        super().__init__(title, parent)
+        self.form = form
+
+        self.setLayout(QtWidgets.QVBoxLayout())
+        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().setSpacing(0)
+        self.layout().addWidget(form)
+
+
 class ParameterForm(QtWidgets.QWidget):
     actions_changed: QtCore.Signal = QtCore.Signal(list)
     parameter_changed: QtCore.Signal = QtCore.Signal(ParameterWidget)
@@ -110,7 +121,7 @@ class ParameterForm(QtWidgets.QWidget):
     # require unique names in the whole hierarchy
     unique_hierarchical_names: bool = False
 
-    # when querying widgets or values, should these values be in their own hierarchy
+    # return values as nested dict or flat hierarchy
     create_hierarchy: bool = True
 
     def __init__(
@@ -142,30 +153,19 @@ class ParameterForm(QtWidgets.QWidget):
         super().actionEvent(event)
         self.actions_changed.emit(self.actions())
 
-    def add_group(
-        self,
-        name: str,
-        label: str = None,
-        collapsible: bool = False,
-        style: CollapsibleBox.Style = None,
-    ) -> Self:
+    def add_group(self, name: str, label: str = None) -> ParameterBox:
         form = self._create_form(name)
         form.parameter_changed.connect(self.parameter_changed.emit)
         label = label or helper.title(name)
-        group = CollapsibleBox(label, collapsible, style)
-        if collapsible:
-            group.collapsed = True
-
-        group.setLayout(QtWidgets.QVBoxLayout())
-        group.layout().setContentsMargins(0, 0, 0, 0)
-        group.layout().setSpacing(0)
-        group.layout().addWidget(form)
+        box = ParameterBox(label, form, self)
+        box.set_collapsible(True)
+        box.set_collapsed(True)
 
         # update CollapsibleBox with actions for the menu
-        form.actions_changed.connect(group.set_actions)
+        form.actions_changed.connect(box.set_actions)
 
-        self.add_widget(group)
-        return form
+        self.add_widget(box)
+        return box
 
     def add_layout(
         self,
@@ -183,7 +183,7 @@ class ParameterForm(QtWidgets.QWidget):
     def add_parameter(
         self, widget: ParameterWidget, checkable: bool = False
     ) -> ParameterWidget:
-        name = widget.name
+        name = widget.name()
         self._validate_name(name)
 
         self._widgets[name] = widget
@@ -192,7 +192,7 @@ class ParameterForm(QtWidgets.QWidget):
         row = layout.rowCount() - 1
 
         # label
-        if widget.label:
+        if widget.label():
             label = ParameterLabel(widget, self)
             column = 1
             layout.addWidget(label, row, column)
@@ -212,7 +212,7 @@ class ParameterForm(QtWidgets.QWidget):
             layout.addWidget(checkbox, row, column)
             checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
             checkbox.toggled.connect(lambda: self.parameter_changed.emit(checkbox))
-            checkbox.value = False
+            checkbox.set_value(False)
             self._set_widget_row_enabled(checkbox, False)
 
             self._widgets[checkbox_name] = checkbox
@@ -255,29 +255,23 @@ class ParameterForm(QtWidgets.QWidget):
         self._update_stretch()
         return widget
 
-    def boxes(
-        self, layout: QtWidgets.QLayout | None = None
-    ) -> dict[CollapsibleBox, ...]:
-        # create nested dict of all boxes
-        if layout is None:
-            layout = self.grid_layout
+    def groups(self) -> dict:
+        # create hierarchical dict of boxes, groups and tab widgets
+        layout = self.grid_layout
 
-        boxes = {}
+        group_dict = {}
         for index in range(layout.count()):
             widget = layout.itemAt(index).widget()
-            if isinstance(widget, CollapsibleBox):
-                if widget.layout():
-                    children = self.boxes(widget.layout())
-                    boxes[widget] = children
+            if isinstance(widget, ParameterBox):
+                if widget.form:
+                    group_dict[widget] = widget.form.groups()
             elif isinstance(widget, ParameterForm):
-                children = widget.boxes()
-                boxes.update(children)
+                group_dict.update(widget.groups())
             elif isinstance(widget, ParameterTabWidget):
                 for form in widget.tabs.values():
-                    children = self.boxes(form.layout())
-                    boxes[form] = children
+                    group_dict[form] = form.groups()
 
-        return boxes
+        return group_dict
 
     def reset(self, widgets: dict[str, ParameterWidget] | None = None) -> None:
         if widgets is None:
@@ -285,15 +279,15 @@ class ParameterForm(QtWidgets.QWidget):
 
         for widget in widgets.values():
             if isinstance(widget, ParameterWidget):
-                widget.value = widget.default
+                widget.set_value(widget.default())
             elif isinstance(widget, dict):
                 self.reset(widget)
 
     def set_state(self, state: dict) -> None:
-        values = {'collapsed_boxes': []}
+        values = {'expanded_boxes': []}
         values.update(state)
-        collapsed_boxes = values['collapsed_boxes']
-        self._set_collapsed_boxes(collapsed_boxes)
+        expanded_boxes = values['expanded_boxes']
+        self._set_expanded_boxes(expanded_boxes)
 
     def set_values(
         self,
@@ -310,11 +304,15 @@ class ParameterForm(QtWidgets.QWidget):
             if isinstance(widget, dict):
                 self.set_values(value, widget, attr)
             else:
-                setattr(widget, attr, value)
+                try:
+                    setter = getattr(widget, f'set_{attr}')
+                except AttributeError:
+                    continue
+                setter(value)
 
     def state(self) -> dict:
-        collapsed_boxes = self._collapsed_boxes()
-        state = {'collapsed_boxes': collapsed_boxes}
+        expanded_boxes = self._expanded_boxes()
+        state = {'expanded_boxes': expanded_boxes}
         return state
 
     def values(self) -> dict[str, typing.Any]:
@@ -327,7 +325,7 @@ class ParameterForm(QtWidgets.QWidget):
                 else:
                     values.update(widget.values())
             else:
-                values[name] = widget.value
+                values[name] = widget.value()
         return values
 
     def widgets(self) -> dict[str, ParameterWidget]:
@@ -343,29 +341,27 @@ class ParameterForm(QtWidgets.QWidget):
                 widgets[name] = widget
         return widgets
 
-    def _collapsed_boxes(
-        self, boxes: dict[CollapsibleBox, ...] | None = None
-    ) -> list[str]:
-        # returns a list of all collapsed boxes
-        # child boxes are separated by dot 'parent.child'
-        if boxes is None:
-            boxes = self.boxes()
+    def _expanded_boxes(self, groups: dict | None = None) -> list[str]:
+        # returns a list of all expanded boxes
+        # child boxes are separated by / 'parent/child/grand-child'
+        if groups is None:
+            groups = self.groups()
 
-        collapsed_boxes = []
-        for box, children in boxes.items():
-            if isinstance(box, CollapsibleBox):
-                title = box.title
-                if box.collapsed:
-                    collapsed_boxes.append(box.title)
-            elif isinstance(box, ParameterForm):
-                title = box.name
+        expanded_boxes = []
+        for group, children in groups.items():
+            if isinstance(group, ParameterBox):
+                title = group.title()
+                if not group.collapsed():
+                    expanded_boxes.append(group.title())
+            elif isinstance(group, ParameterForm):
+                title = group.name
             else:
                 continue
 
-            child_boxes = self._collapsed_boxes(children)
-            child_boxes = ['.'.join([title, child]) for child in child_boxes]
-            collapsed_boxes.extend(child_boxes)
-        return collapsed_boxes
+            child_boxes = self._expanded_boxes(children)
+            child_boxes = ['/'.join([title, child]) for child in child_boxes]
+            expanded_boxes.extend(child_boxes)
+        return expanded_boxes
 
     def _create_form(self, name) -> Self:
         self._validate_name(name)
@@ -385,29 +381,29 @@ class ParameterForm(QtWidgets.QWidget):
                 names.append(name)
         return names
 
-    def _set_collapsed_boxes(
-        self, collapsed_boxes: list[str], boxes: dict[CollapsibleBox, ...] | None = None
+    def _set_expanded_boxes(
+        self, expanded_boxes: list[str], groups: dict | None = None
     ) -> None:
         # collapses the boxes in the list, child boxes are separated by dot 'parent.child'
 
-        if boxes is None:
-            boxes = self.boxes()
+        if groups is None:
+            groups = self.groups()
 
-        for box, children in boxes.items():
-            if isinstance(box, CollapsibleBox):
-                box.collapsed = box.title in collapsed_boxes
-                title = box.title
-            elif isinstance(box, ParameterForm):
-                title = box.name
+        for group, children in groups.items():
+            if isinstance(group, ParameterBox):
+                group.set_collapsed(group.title() not in expanded_boxes)
+                title = group.title()
+            elif isinstance(group, ParameterForm):
+                title = group.name
             else:
                 continue
 
             child_boxes = [
                 b.split('.', 1)[-1]
-                for b in collapsed_boxes
-                if b.split('.', 1)[0] == title
+                for b in expanded_boxes
+                if b.split('/', 1)[0] == title
             ]
-            self._set_collapsed_boxes(child_boxes, children)
+            self._set_expanded_boxes(child_boxes, children)
 
     # noinspection PyMethodMayBeStatic
     def _set_widget_row_enabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
@@ -458,14 +454,13 @@ class ParameterEditor(ParameterForm):
         super().__init__(name, root, parent)
 
         self.setLayout(QtWidgets.QVBoxLayout())
-        scroll_area = VerticalScrollArea()
+        scroll_area = VerticalScrollArea(self)
         self.layout().addWidget(scroll_area)
         self.layout().setContentsMargins(QtCore.QMargins())
 
-        self._form_widget = QtWidgets.QWidget()
-        scroll_area.setWidget(self._form_widget)
-
+        self._form_widget = QtWidgets.QWidget(self)
         self._form_widget.setLayout(QtWidgets.QGridLayout())
+        scroll_area.setWidget(self._form_widget)
 
     @property
     def grid_layout(self) -> QtWidgets.QGridLayout:
@@ -475,4 +470,4 @@ class ParameterEditor(ParameterForm):
         return layout
 
 
-__all__ = ['ParameterEditor']
+__all__ = ['ParameterEditor', 'ParameterBox', 'ParameterForm', 'ParameterTabWidget']

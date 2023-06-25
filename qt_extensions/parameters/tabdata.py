@@ -12,19 +12,6 @@ from qt_extensions.resizegrip import ResizeGrip
 
 
 class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
-    def set_edit_data(
-        self,
-        value: typing.Any,
-        model: QtCore.QAbstractItemModel,
-        index: QtCore.QModelIndex,
-    ) -> None:
-        indexes = self.selected_indexes(index)
-        model.blockSignals(True)
-        for index in indexes:
-            if index == indexes[-1]:
-                model.blockSignals(False)
-            model.setData(index, value, QtCore.Qt.EditRole)
-
     def setModelData(
         self,
         editor: QtWidgets.QWidget,
@@ -46,6 +33,19 @@ class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
             indexes.append(current_index)
         return indexes
 
+    def set_edit_data(
+        self,
+        value: typing.Any,
+        model: QtCore.QAbstractItemModel,
+        index: QtCore.QModelIndex,
+    ) -> None:
+        indexes = self.selected_indexes(index)
+        model.blockSignals(True)
+        for index in indexes:
+            if index == indexes[-1]:
+                model.blockSignals(False)
+            model.setData(index, value, QtCore.Qt.EditRole)
+
 
 class IntegerDelegate(StyledItemDelegate):
     def displayText(self, value: typing.Any, locale: QtCore.QLocale) -> str:
@@ -58,9 +58,9 @@ class IntegerDelegate(StyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = IntParameter(parent=parent)
-        editor.slider_visible = False
+        editor.set_slider_visible(False)
+        editor.set_commit_on_edit(True)
         editor.line.setFrame(False)
-        editor.commit_on_edit = True
         return editor
 
     def setEditorData(
@@ -68,7 +68,7 @@ class IntegerDelegate(StyledItemDelegate):
     ) -> None:
         value = index.model().data(index, QtCore.Qt.EditRole)
         if value:
-            editor.value = value
+            editor.set_value(value)
 
     def setModelData(
         self,
@@ -76,7 +76,7 @@ class IntegerDelegate(StyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
-        value = editor.value
+        value = editor.value()
         self.set_edit_data(value, model, index)
 
     def updateEditorGeometry(
@@ -106,10 +106,10 @@ class FloatDelegate(StyledItemDelegate):
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = FloatParameter(parent=parent)
-        editor.slider_visible = False
-        editor.decimals = 6
+        editor.set_slider_visible(False)
+        editor.set_decimals(6)
+        editor.set_commit_on_edit(True)
         editor.line.setFrame(False)
-        editor.commit_on_edit = True
         return editor
 
     def setEditorData(
@@ -117,7 +117,7 @@ class FloatDelegate(StyledItemDelegate):
     ) -> None:
         value = index.model().data(index, QtCore.Qt.EditRole)
         if value:
-            editor.value = value
+            editor.set_value(value)
 
     def setModelData(
         self,
@@ -125,7 +125,7 @@ class FloatDelegate(StyledItemDelegate):
         model: QtCore.QAbstractItemModel,
         index: QtCore.QModelIndex,
     ) -> None:
-        value = editor.value
+        value = editor.value()
         self.set_edit_data(value, model, index)
 
     def updateEditorGeometry(
@@ -271,12 +271,12 @@ class TabDataParameter(ParameterWidget):
 
     value_changed: QtCore.Signal = QtCore.Signal(list)
 
-    value: list | None = None
-    default: list | None = None
-    headers: list | None = None
-    types: list | None = None
-    start_index: int = 0
-    decimals: int = 3
+    _value: list | None = None
+    _default: list | None = None
+    _headers: list | None = None
+    _types: list | None = None
+    _start_index: int = 0
+    _decimals: int = 3
 
     def __init__(
         self, name: str | None = None, parent: QtWidgets.QWidget | None = None
@@ -321,47 +321,36 @@ class TabDataParameter(ParameterWidget):
         self.resize_grip = ResizeGrip(self.view)
         self.resize_grip.can_resize_horizontal = True
 
-    def _init_signals(self) -> None:
-        super()._init_signals()
-        self.setter_signal('headers', lambda _: self.update_horizontal_headers())
-        self.setter_signal('start_index', lambda _: self.update_vertical_headers())
-        self.setter_signal('decimals', self.set_decimals)
-        self.setter_signal('types', self.set_types)
-
-    def _item_change(self) -> None:
-        self._value = self._tab_data_value()
-
-    def _tab_data_value(self):
-        value = []
-        for row in range(self.model.rowCount()):
-            row_values = []
-            for column in range(self.model.columnCount()):
-                index = self.model.index(row, column)
-                column_value = self.model.data(index, QtCore.Qt.EditRole)
-                row_values.append(column_value)
-            value.append(row_values)
-        return value
-
     def clear(self):
         self.model.clear()
         super().set_value([])
         self.update_horizontal_headers()
 
-    def update_horizontal_headers(self) -> None:
-        if self.headers:
-            labels = list(map(helper.title, self.headers))
-        else:
-            labels = list(map(str, range(self.model.columnCount())))
+    def decimals(self) -> int:
+        return self._decimals
 
-        self.model.setHorizontalHeaderLabels(labels)
-        self.resize_headers()
+    def headers(self) -> list | None:
+        return self._headers
 
-    def update_vertical_headers(self) -> None:
-        rows = range(self.start_index, self.model.rowCount() + self.start_index)
-        labels = list(map(str, rows))
-        self.model.setVerticalHeaderLabels(labels)
+    def types(self) -> list | None:
+        return self._types
 
-    def set_types(self, types: list | tuple | None) -> None:
+    def start_index(self) -> int:
+        return self._start_index
+
+    def set_decimals(self, decimals: int) -> None:
+        self._decimals = decimals
+        for delegate in self._delegates:
+            if isinstance(delegate, FloatDelegate):
+                delegate.decimals = decimals
+
+    def set_headers(self, headers: list | None) -> None:
+        self._headers = headers
+        self.update_horizontal_headers()
+
+    def set_types(self, types: list | None) -> None:
+        self._types = types
+
         self._delegates = []
         # fill up to column count
         if types is None:
@@ -372,6 +361,7 @@ class TabDataParameter(ParameterWidget):
         for i, type_ in enumerate(types):
             if issubclass(type_, float):
                 delegate = FloatDelegate(self.view)
+                delegate.decimals = self._decimals
             elif issubclass(type_, int):
                 delegate = IntegerDelegate(self.view)
             else:
@@ -379,10 +369,23 @@ class TabDataParameter(ParameterWidget):
             self.view.setItemDelegateForColumn(i, delegate)
             self._delegates.append(delegate)
 
-    def set_decimals(self, decimals: int) -> None:
-        for delegate in self._delegates:
-            if isinstance(delegate, FloatDelegate):
-                delegate.decimals = decimals
+    def set_start_index(self, start_index: int) -> None:
+        self._start_index = start_index
+        self.update_vertical_headers()
+
+    def update_horizontal_headers(self) -> None:
+        if self._headers:
+            labels = list(map(helper.title, self._headers))
+        else:
+            labels = list(map(str, range(self.model.columnCount())))
+
+        self.model.setHorizontalHeaderLabels(labels)
+        self.resize_headers()
+
+    def update_vertical_headers(self) -> None:
+        rows = range(self._start_index, self.model.rowCount() + self._start_index)
+        labels = list(map(str, rows))
+        self.model.setVerticalHeaderLabels(labels)
 
     def set_value(self, value: list | None) -> None:
         self.model.clear()
@@ -395,8 +398,8 @@ class TabDataParameter(ParameterWidget):
                 row_data = row_data.values()
             for column, cell_data in enumerate(row_data):
                 item = QtGui.QStandardItem()
-                if isinstance(cell_data, float):
-                    cell_data = round(cell_data, self.decimals)
+                # if isinstance(cell_data, float):
+                #     cell_data = round(cell_data, self._decimals)
                 item.setData(cell_data, QtCore.Qt.EditRole)
                 items.append(item)
             if items:
@@ -410,8 +413,8 @@ class TabDataParameter(ParameterWidget):
         items = []
         for i in range(self.model.columnCount()):
             item = QtGui.QStandardItem()
-            if i < len(self.types):
-                type_ = self.types[i]
+            if i < len(self._types):
+                type_ = self._types[i]
                 if issubclass(type_, numbers.Number):
                     item.setData(0, QtCore.Qt.EditRole)
                 elif issubclass(type_, str):
@@ -430,6 +433,20 @@ class TabDataParameter(ParameterWidget):
         for i in range(header.count()):
             size = max(self.view.sizeHintForColumn(i), header.sectionSizeHint(i))
             self.view.setColumnWidth(i, size)
+
+    def _item_change(self) -> None:
+        super().set_value(self._tab_data_value())
+
+    def _tab_data_value(self):
+        value = []
+        for row in range(self.model.rowCount()):
+            row_values = []
+            for column in range(self.model.columnCount()):
+                index = self.model.index(row, column)
+                column_value = self.model.data(index, QtCore.Qt.EditRole)
+                row_values.append(column_value)
+            value.append(row_values)
+        return value
 
 
 __all__ = ['TabDataParameter']
