@@ -117,24 +117,12 @@ def apply_theme(
     app.setPalette(palette)
 
     if scheme.text.value() > scheme.base_mg.value():
-        # QScrollArea background tab fix
-        scroll_area_palette = QPalette(palette)
-        scroll_area_palette.setColor(
-            QPalette.Window, palette.color(QPalette.AlternateBase)
-        )
-        # app.setPalette(scroll_area_palette, QtWidgets.QScrollArea.__name__)
-
-        # QTabWidget background tab fix
-        tab_widget_palette = QPalette(palette)
-        tab_widget_palette.setColor(QPalette.Light, palette.color(QPalette.Midlight))
-        app.setPalette(tab_widget_palette, QtWidgets.QTabWidget.__name__)
-
         # QAbstractItemView alternating row color fix
         item_view_palette = QPalette(palette)
         item_view_palette.setColor(
             QPalette.AlternateBase, palette.color(QPalette.Window)
         )
-        app.setPalette(item_view_palette, QtWidgets.QAbstractItemView.__name__)
+        app.setPalette(item_view_palette, 'QAbstractItemView')
 
 
 def invert_value(color: QtGui.QColor) -> QtGui.QColor:

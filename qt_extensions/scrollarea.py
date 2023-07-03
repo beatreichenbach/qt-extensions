@@ -10,7 +10,10 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
         super().__init__(parent)
         self.setWidgetResizable(True)
         self.setFrameShape(QtWidgets.QFrame.NoFrame)
-        self.viewport().installEventFilter(self)
+
+        viewport = QtWidgets.QWidget(self)
+        viewport.installEventFilter(self)
+        self.setViewport(viewport)
 
     def eventFilter(self, watched: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if watched == self.viewport() and event.type() == QtCore.QEvent.LayoutRequest:
@@ -21,10 +24,15 @@ class VerticalScrollArea(QtWidgets.QScrollArea):
                 self.setMinimumWidth(min_width)
         return super().eventFilter(watched, event)
 
-    def update(self) -> None:
-        min_width = self.widget().minimumSizeHint().width()
-        self.setMinimumWidth(min_width)
+    def setWidget(self, widget: QtWidgets.QWidget) -> None:
+        super().setWidget(widget)
+        widget.setAutoFillBackground(False)
 
     def sizeHint(self) -> QtCore.QSize:
-        widget = self.widget() or self
+        widget = self.widget() or super()
         return widget.sizeHint()
+
+    def update(self) -> None:
+        if self.widget():
+            min_width = self.widget().minimumSizeHint().width()
+            self.setMinimumWidth(min_width)

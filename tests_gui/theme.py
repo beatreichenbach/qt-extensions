@@ -18,7 +18,7 @@ def main():
     widget.setMinimumWidth(400)
     widget.setLayout(QtWidgets.QVBoxLayout())
 
-    # palette = widget.palette()
+    palette = widget.palette()
 
     roles = [r for r in vars(QtGui.QPalette.ColorRole).keys() if r[0].isupper()]
     for name in roles:
@@ -37,10 +37,10 @@ def main():
 
         # label
         label = QtWidgets.QLabel(name)
-        # rgb = palette.color(role).getRgbF()
-        # color = QtGui.QColor.fromRgbF(1 - rgb[0], 1 - rgb[1], 1 - rgb[2])
-        # palette.setColor(QtGui.QPalette.WindowText, color)
-        # label.setPalette(palette)
+        rgb = palette.color(role).getRgbF()
+        color = QtGui.QColor.fromRgbF(1 - rgb[0], 1 - rgb[1], 1 - rgb[2])
+        palette.setColor(QtGui.QPalette.WindowText, color)
+        label.setPalette(palette)
         frame.layout().addWidget(label)
 
     widget.show()
