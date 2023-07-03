@@ -2,6 +2,7 @@ import json
 import logging
 import sys
 from enum import Enum
+from functools import partial
 
 from PySide2 import QtWidgets
 
@@ -40,7 +41,7 @@ def main():
 
     # action
     action = QtWidgets.QAction('Reset', form)
-    action.triggered.connect(lambda: form.reset())
+    action.triggered.connect(partial(form.reset, None))
     form.addAction(action)
 
     form.add_parameter(IntParameter('int'))
@@ -172,10 +173,10 @@ def main():
     logging.debug(json.dumps(editor.values(), indent=4, default=lambda x: str(x)))
     editor.parameter_changed.connect(lambda p: logging.debug(p.value()))
 
-    editor.show()
-
     state = editor.state()
     editor.set_state(state)
+
+    editor.show()
 
     sys.exit(app.exec_())
 
