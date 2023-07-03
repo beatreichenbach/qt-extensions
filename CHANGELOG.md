@@ -2,6 +2,16 @@
 
 <!--next-version-placeholder-->
 
+## v0.2.0 (2023-07-02)
+### Feature
+
+* Replace properties with setter functions ([`326f8c9`](https://github.com/beatreichenbach/qt-extensions/commit/326f8c9f39c1261f1a1bf007cc02f008ca388728))
+
+### Fix
+
+* **editor:** Connect reset action in tests ([`327967b`](https://github.com/beatreichenbach/qt-extensions/commit/327967b028d1d22b2640efb4115b1004f8323b51))
+* **scrollarea:** Make background transparent ([`ff0a3c6`](https://github.com/beatreichenbach/qt-extensions/commit/ff0a3c62a7d9b6f35f7421384a0937527b1eb3e3))
+
 ## v0.1.4 (2023-06-19)
 ### Fix
 
