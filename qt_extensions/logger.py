@@ -516,7 +516,9 @@ class LogBar(QtWidgets.QWidget):
         self.current_message = logging.makeLogRecord({'msg': message, 'levelno': level})
 
     def show_record(self, record: logging.LogRecord) -> None:
-        if self.names and not record.name.startswith(tuple(self.names)):
+        if record is None or (
+            self.names and not record.name.startswith(tuple(self.names))
+        ):
             return
         message = self.formatter.format(record)
         message = message.split('\n')[-1]
