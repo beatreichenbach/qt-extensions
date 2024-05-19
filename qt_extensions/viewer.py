@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import typing
 
 import numpy as np
@@ -8,6 +9,10 @@ from PySide2 import QtWidgets, QtGui, QtCore
 from qt_extensions.combobox import QComboBox
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.parameters import FloatParameter
+
+
+logger = logging.getLogger(__name__)
+CHANNELS = ['rgba', 'red', 'green', 'blue', 'alpha']
 
 
 class GraphicsItem(QtWidgets.QGraphicsItem):
@@ -267,6 +272,14 @@ class ToolBar(QtWidgets.QToolBar):
         size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
         self.setIconSize(QtCore.QSize(size, size))
 
+        self.channel_cmb = QComboBox()
+        self.channel_cmb.keyPressEvent = lambda event: event.ignore()
+        self.channel_cmb.addItems(CHANNELS)
+        channel_action = QtWidgets.QWidgetAction(self)
+        channel_action.setText('channel')
+        channel_action.setDefaultWidget(self.channel_cmb)
+        self.addAction(channel_action)
+
         # exposure toggle
         icon = MaterialIcon('toggle_on')
         icon_off = MaterialIcon('toggle_off')
@@ -338,6 +351,9 @@ class ToolBar(QtWidgets.QToolBar):
             if action.text() == text:
                 return action
 
+    def set_channel(self, channel: str) -> None:
+        self.channel_cmb.setCurrentText(channel)
+
     def set_exposure(self, exposure: float) -> None:
         self._exposure = exposure
         self.exposure_slider.set_value(exposure)
@@ -378,6 +394,7 @@ class Viewer(QtWidgets.QWidget):
     refreshed: QtCore.Signal = QtCore.Signal()
     pause_changed: QtCore.Signal = QtCore.Signal(bool)
     position_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+    channel_changed: QtCore.Signal = QtCore.Signal(str)
 
     background_color = QtGui.QColor(0, 0, 0)
     pause_color = QtGui.QColor(217, 33, 33)
@@ -387,10 +404,14 @@ class Viewer(QtWidgets.QWidget):
 
         self.paused = False
         self._resolution = QtCore.QSize()
+        self._channel: str = CHANNELS[0]
         self._exposure: float = 0
         self._array = np.ndarray((0, 0, 3), np.float32)
 
-        self.post_processes: list[typing.Callable] = [self._expose_image]
+        self.post_processes: list[typing.Callable] = [
+            self._expose_image,
+            self._select_channel,
+        ]
 
         self._init_ui()
 
@@ -430,11 +451,22 @@ class Viewer(QtWidgets.QWidget):
         self.view.pixel_position_changed.connect(self._pixel_position_changed)
         self.view.position_changed.connect(self.position_changed.emit)
 
-    def resolution(self) -> QtCore.QSize:
-        return self._resolution
-
-    def exposure(self) -> float:
-        return self._exposure
+    def keyPressEvent(self, event: QtCore.QEvent) -> None:
+        channels = {
+            QtCore.Qt.Key_R: CHANNELS[1],
+            QtCore.Qt.Key_G: CHANNELS[2],
+            QtCore.Qt.Key_B: CHANNELS[3],
+            QtCore.Qt.Key_A: CHANNELS[4],
+        }
+        channel = channels.get(event.key())
+        if channel:
+            if channel == self._channel:
+                channel = 'rgba'
+            self.set_channel(channel)
+        else:
+            super().keyPressEvent(event)
+            return
+        event.accept()
 
     def color_at(self, position: QtCore.QPoint) -> QtGui.QColor:
         height, width = self._array.shape[:2]
@@ -447,6 +479,12 @@ class Viewer(QtWidgets.QWidget):
             rgb = self._array[y, x]
             color = QtGui.QColor.fromRgbF(*rgb)
         return color
+
+    def channel(self) -> str:
+        return self._channel
+
+    def exposure(self) -> float:
+        return self._exposure
 
     def pause(self, state=True) -> None:
         self.paused = state
@@ -474,6 +512,9 @@ class Viewer(QtWidgets.QWidget):
             (position.y() / resolution.height() - 0.5) * 2,
         )
 
+    def resolution(self) -> QtCore.QSize:
+        return self._resolution
+
     def set_array(self, array: np.ndarray) -> None:
         array = self._array_as_image(array)
 
@@ -487,6 +528,11 @@ class Viewer(QtWidgets.QWidget):
 
         # trigger fit to view
         self.set_resolution(QtCore.QSize(width, height))
+
+    def set_channel(self, channel: str) -> None:
+        self._channel = channel
+        self.toolbar.set_channel(channel)
+        self._channel_changed(channel)
 
     def set_exposure(self, exposure: float) -> None:
         self._exposure = exposure
@@ -528,19 +574,33 @@ class Viewer(QtWidgets.QWidget):
                 return array
         raise ValueError('Expected numpy array with either 1, 3 or 4 channels.')
 
-    def _expose_image(self, array: np.ndarray) -> None:
-        gain = pow(2, self.exposure())
-        np.multiply(array, gain, out=array)
+    def _channel_changed(self, channel: str) -> None:
+        self._channel = channel
+        self._update_image()
 
     def _exposure_changed(self, value: float) -> None:
         if not self.paused:
             self._exposure = value
             self._update_image()
 
+    def _expose_image(self, array: np.ndarray) -> None:
+        gain = pow(2, self.exposure())
+        np.multiply(array, gain, out=array)
+
     def _pixel_position_changed(self, position: QtCore.QPoint) -> None:
         self.footer.update_pixel_position(position)
         color = self.color_at(position)
         self.footer.update_pixel_color(color)
+
+    def _select_channel(self, array: np.ndarray) -> None:
+        index = CHANNELS.index(self.channel()) - 1
+        if index == -1:
+            return
+        if index >= array.shape[2]:
+            logger.debug('Image does not have that channel.')
+            return
+        for c in range(array.shape[2]):
+            array[:, :, c] = array[:, :, index]
 
     def _update_image(self):
         height, width, channels = self._array.shape
