@@ -209,7 +209,7 @@ class FloatParameter(IntParameter):
     _value: float = 0
     _default: float = 0
     _slider_min: float = 0
-    _slider_max: float = 10
+    _slider_max: float = 1
     _line_min: Optional[float] = None
     _line_max: Optional[float] = None
     _decimals: int = 4
@@ -233,9 +233,33 @@ class FloatParameter(IntParameter):
     def decimals(self) -> int:
         return self._decimals
 
+    def line_min(self) -> float:
+        return super().line_min()
+
+    def line_max(self) -> float:
+        return super().line_max()
+
+    def slider_min(self) -> float:
+        return super().slider_min()
+
+    def slider_max(self) -> float:
+        return super().slider_max()
+
     def set_decimals(self, decimals: int) -> None:
         self._decimals = decimals
         self.line.set_decimals(decimals)
+
+    def set_line_min(self, line_min: Optional[float]) -> None:
+        super().set_line_min(line_min)
+
+    def set_line_max(self, line_max: Optional[float]) -> None:
+        super().set_line_max(line_max)
+
+    def set_slider_min(self, slider_min: float) -> None:
+        super().set_slider_min(slider_min)
+
+    def set_slider_max(self, slider_max: float) -> None:
+        super().set_slider_max(slider_max)
 
     def set_value(self, value: float) -> None:
         super().set_value(value)
@@ -531,7 +555,281 @@ class BoolParameter(ParameterWidget):
         return super().value()
 
 
-class ColorParameter(ParameterWidget):
+class MultiIntParameter(IntParameter):
+    multi_count = 2
+    value_changed: QtCore.Signal = QtCore.Signal(tuple)
+
+    _value: tuple[int, ...] = (0, 0)
+    _default: tuple[int, ...] = (0, 0)
+    _keep_ratio: bool = True
+    _ratio_visible: bool = True
+
+    def _init_ui(self) -> None:
+        # lines
+        self.lines = []
+        for i in range(self.multi_count):
+            line = IntLineEdit()
+            line.value_changed.connect(self._line_value_changed)
+            self.layout().addWidget(line)
+            self.lines.append(line)
+
+        # slider
+        self.slider = IntSlider()
+        self.slider.value_changed.connect(self._slider_value_changed)
+        # prevent any size changes when slider shows
+        line_height = self.lines[0].minimumSizeHint().height()
+        self.slider.setMaximumHeight(line_height)
+        self.layout().addWidget(self.slider)
+        self.layout().setStretch(self.multi_count, 1)
+
+        # keep ratio button
+        self.keep_ratio_button = RatioButton()
+        self.keep_ratio_button.setMaximumSize(line_height, line_height)
+        self.keep_ratio_button.toggled.connect(self.set_keep_ratio)
+        self.layout().addWidget(self.keep_ratio_button)
+
+        self.setFocusProxy(self.lines[0])
+
+    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
+        QtWidgets.QWidget.resizeEvent(self, event)
+        if self._keep_ratio:
+            self._toggle_slider(True)
+
+    def set_commit_on_edit(self, commit_on_edit: bool) -> None:
+        self._commit_on_edit = commit_on_edit
+        for line in self.lines:
+            line.commit_on_edit = commit_on_edit
+
+    def set_keep_ratio(self, keep_ratio: bool) -> None:
+        self._keep_ratio = keep_ratio
+        self.keep_ratio_button.setChecked(keep_ratio)
+        for line in self.lines[1:]:
+            line.setVisible(not keep_ratio)
+            if line.value() != self.lines[0].value():
+                line.set_value(self.lines[0].value())
+        self._toggle_slider(keep_ratio)
+
+    def set_line_min(self, line_min: int) -> None:
+        self._line_min = line_min
+        for line in self.lines:
+            line.set_minimum(line_min)
+
+    def set_line_max(self, line_max: int) -> None:
+        self._line_max = line_max
+        for line in self.lines:
+            line.set_maximum(line_max)
+
+    def set_ratio_visible(self, ratio_visible: bool) -> None:
+        self._ratio_visible = ratio_visible
+        self.keep_ratio_button.setVisible(ratio_visible)
+        for line in self.lines[1:]:
+            line.setVisible(not ratio_visible)
+        if not ratio_visible:
+            self.set_keep_ratio(False)
+
+    def set_value(self, value: list | tuple) -> None:
+        if isinstance(value, (list, tuple)):
+            values = value
+        else:
+            values = self._cast_to_tuple(value)
+        if isinstance(self, ColorParameter):
+            pass
+        if not all(values[0] == x for x in values):
+            self.set_keep_ratio(False)
+        if self._keep_ratio:
+            values = (values[0],) * self.multi_count
+        ParameterWidget.set_value(self, self._cast_to_type(values))
+        self._set_slider_value(values[0])
+        self._set_line_values(values)
+
+    def value(self) -> tuple[int, ...]:
+        return ParameterWidget.value(self)
+
+    def _line_value_changed(self, value: int) -> None:
+        if self._keep_ratio:
+            values = (self.lines[0].value(),) * self.multi_count
+            for line in self.lines[1:]:
+                line.set_value(values[0])
+        else:
+            values = tuple(line.value() for line in self.lines)
+
+        value = self._cast_to_type(values)
+        ParameterWidget.set_value(self, value)
+        self._set_slider_value(values[0])
+
+    def _cast_to_tuple(self, values: tuple[int, ...]) -> tuple[int, ...]:
+        return values
+
+    def _cast_to_type(self, values: tuple[int, ...]) -> tuple[int, ...]:
+        return values
+
+    def _slider_value_changed(self, value: int) -> None:
+        values = (value,) * self.multi_count
+        value = self._cast_to_type(values)
+        ParameterWidget.set_value(self, value)
+        self._set_line_values(values)
+
+    def _set_line_values(self, values: tuple[int, ...]) -> None:
+        for line, value in zip(self.lines, values):
+            line.blockSignals(True)
+            line.set_value(value)
+            line.blockSignals(False)
+
+
+class MultiFloatParameter(MultiIntParameter):
+    _value: tuple[float, ...] = (0, 0)
+    _default: tuple[float, ...] = (0, 0)
+    _line_min: Optional[float] = None
+    _line_max: Optional[float] = None
+    _slider_min: float = 0
+    _slider_max: float = 1
+    _decimals: int = 4
+
+    def _init_ui(self) -> None:
+        # lines
+        self.lines = []
+        for i in range(self.multi_count):
+            line = FloatLineEdit()
+            line.value_changed.connect(self._line_value_changed)
+            self.layout().addWidget(line)
+            self.lines.append(line)
+
+        # slider
+        self.slider = FloatSlider()
+        self.slider.value_changed.connect(self._slider_value_changed)
+        # prevent any size changes when slider shows
+        line_height = self.lines[0].minimumSizeHint().height()
+        self.slider.setMaximumHeight(line_height)
+        self.layout().addWidget(self.slider)
+        self.layout().setStretch(self.multi_count, 1)
+
+        # keep ratio button
+        self.keep_ratio_button = RatioButton()
+        self.keep_ratio_button.setMaximumSize(line_height, line_height)
+        self.keep_ratio_button.toggled.connect(self.set_keep_ratio)
+        self.layout().addWidget(self.keep_ratio_button)
+
+        self.setFocusProxy(self.lines[0])
+
+    def decimals(self) -> int:
+        return self._decimals
+
+    def set_decimals(self, decimals: int) -> None:
+        self._decimals = decimals
+        for line in self.lines:
+            line.set_decimals(decimals)
+
+    def line_min(self) -> float:
+        return super().line_min()
+
+    def line_max(self) -> float:
+        return super().line_max()
+
+    def slider_min(self) -> float:
+        return super().slider_min()
+
+    def slider_max(self) -> float:
+        return super().slider_max()
+
+    def set_line_min(self, line_min: float) -> None:
+        super().set_line_min(line_min)
+
+    def set_line_max(self, line_max: float) -> None:
+        super().set_line_max(line_max)
+
+    def set_slider_min(self, slider_min: float) -> None:
+        super().set_slider_min(slider_min)
+
+    def set_slider_max(self, slider_max: float) -> None:
+        super().set_slider_max(slider_max)
+
+    def set_value(self, value: tuple[float, ...]) -> None:
+        super().set_value(value)
+
+    def value(self) -> tuple[float, ...]:
+        return super().value()
+
+
+class PointParameter(MultiIntParameter):
+    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
+
+    _value: QtCore.QPoint = QtCore.QPoint(0, 0)
+    _default: QtCore.QPoint = QtCore.QPoint(0, 0)
+    _ratio_visible: bool = False
+
+    def set_value(self, value: QtCore.QPoint | list | tuple) -> None:
+        super().set_value(value)
+
+    def value(self) -> QtCore.QPoint:
+        return super().value()
+
+    def _cast_to_type(self, values: tuple[int, ...]) -> QtCore.QPoint:
+        return QtCore.QPoint(*values[:2])
+
+    def _cast_to_tuple(self, value: QtCore.QPoint) -> tuple[int, ...]:
+        return value.x(), value.y()
+
+
+class PointFParameter(MultiFloatParameter):
+    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPointF)
+
+    _value: QtCore.QPointF = QtCore.QPointF(0, 0)
+    _default: QtCore.QPointF = QtCore.QPointF(0, 0)
+    _ratio_visible: bool = False
+
+    def set_value(self, value: QtCore.QPointF | list | tuple) -> None:
+        super().set_value(value)
+
+    def value(self) -> QtCore.QPointF:
+        return super().value()
+
+    def _cast_to_type(self, values: tuple[float, ...]) -> QtCore.QPointF:
+        return QtCore.QPointF(*values[:2])
+
+    def _cast_to_tuple(self, value: QtCore.QPointF) -> tuple[float, ...]:
+        return value.x(), value.y()
+
+
+class SizeParameter(MultiIntParameter):
+    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSize)
+
+    _value: QtCore.QSize = QtCore.QSize(0, 0)
+    _default: QtCore.QSize = QtCore.QSize(0, 0)
+
+    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
+        super().set_value(value)
+
+    def value(self) -> QtCore.QSize:
+        return super().value()
+
+    def _cast_to_type(self, values: tuple[int, ...]) -> QtCore.QSize:
+        return QtCore.QSize(*values[:2])
+
+    def _cast_to_tuple(self, value: QtCore.QSize) -> tuple[int, ...]:
+        return value.width(), value.height()
+
+
+class SizeFParameter(MultiFloatParameter):
+    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSizeF)
+
+    _value: QtCore.QSizeF = QtCore.QSizeF(0, 0)
+    _default: QtCore.QSizeF = QtCore.QSizeF(0, 0)
+
+    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
+        super().set_value(value)
+
+    def value(self) -> QtCore.QSizeF:
+        return super().value()
+
+    def _cast_to_type(self, values: tuple[float, ...]) -> QtCore.QSizeF:
+        return QtCore.QSizeF(*values[:2])
+
+    def _cast_to_tuple(self, value: QtCore.QSizeF) -> tuple[float, ...]:
+        return value.width(), value.height()
+
+
+class ColorParameter(MultiFloatParameter):
+    multi_count = 3
     value_changed: QtCore.Signal = QtCore.Signal(QtGui.QColor)
 
     _value: QtGui.QColor = QtGui.QColor(0, 0, 0)
@@ -541,19 +839,13 @@ class ColorParameter(ParameterWidget):
     _decimals: int = 2
 
     def _init_ui(self) -> None:
-        self.lines = []
-        for i in range(3):
-            line = FloatLineEdit()
-            line.value_changed.connect(lambda: self._line_value_changed())
-            self.lines.append(line)
-            self.layout().addWidget(line)
-
+        super()._init_ui()
         self.button = QtWidgets.QPushButton()
         self.button.clicked.connect(self.select_color)
         self.button.setFocusPolicy(QtCore.Qt.NoFocus)
         size = self.button.sizeHint()
         self.button.setMaximumWidth(size.height())
-        self.layout().addWidget(self.button)
+        self.layout().insertWidget(self.layout().count() - 1, self.button)
 
     def color_min(self) -> float:
         return self._color_min
@@ -561,16 +853,13 @@ class ColorParameter(ParameterWidget):
     def color_max(self) -> float:
         return self._color_max
 
-    def decimals(self) -> int:
-        return self._decimals
-
     def select_color(self) -> None:
         color = QtWidgets.QColorDialog.getColor(
             initial=self._value, options=QtWidgets.QColorDialog.DontUseNativeDialog
         )
         if color.isValid():
             super().set_value(color)
-            self._set_line_value(color)
+            self._set_line_values(self._cast_to_tuple(color))
             self._set_button_value(color)
 
     def set_color_min(self, color_min: float) -> None:
@@ -583,319 +872,25 @@ class ColorParameter(ParameterWidget):
         for line in self.lines:
             line.set_maximum(self._color_max)
 
-    def set_decimals(self, decimals: int) -> None:
-        self._decimals = decimals
-        for line in self.lines:
-            line.set_decimals(self._decimals)
-
     def set_value(self, value: QtGui.QColor | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtGui.QColor(*value[:4])
         super().set_value(value)
-        self._set_button_value(value)
-        self._set_line_value(value)
+        self._set_button_value(self._value)
 
     def value(self) -> QtGui.QColor:
         return super().value()
 
-    def _line_value_changed(self) -> None:
-        value = QtGui.QColor.fromRgbF(
-            self.lines[0].value(), self.lines[1].value(), self.lines[2].value()
-        )
-        super().set_value(value)
-        self._set_button_value(value)
+    def _cast_to_type(self, values: tuple[float, ...]) -> QtGui.QColor:
+        return QtGui.QColor.fromRgbF(*values[:3])
+
+    def _cast_to_tuple(self, value: QtGui.QColor) -> tuple[float, ...]:
+        return value.getRgbF()[:3]
+
+    def _line_value_changed(self, value: float) -> None:
+        super()._line_value_changed(value)
+        self._set_button_value(self._value)
 
     def _set_button_value(self, value: QtGui.QColor) -> None:
         self.button.setPalette(QtGui.QPalette(value))
-
-    def _set_line_value(self, value: QtGui.QColor) -> None:
-        rgb = value.getRgbF()
-        for i, line in enumerate(self.lines):
-            line.blockSignals(True)
-            line.set_value(rgb[i])
-            line.blockSignals(False)
-
-
-class PointParameter(ParameterWidget):
-    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPoint)
-
-    _value: QtCore.QPoint = QtCore.QPoint(0, 0)
-    _default: QtCore.QPoint = QtCore.QPoint(0, 0)
-    _line_min: Optional[int] = None
-    _line_max: Optional[int] = None
-
-    def _init_ui(self) -> None:
-        self.line1 = IntLineEdit()
-        self.line1.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line1)
-
-        self.line2 = IntLineEdit()
-        self.line2.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line2)
-
-        self.setFocusProxy(self.line1)
-
-    def default(self) -> QtCore.QPoint:
-        return super().default()
-
-    def line_max(self) -> Optional[int]:
-        return self._line_max
-
-    def line_min(self) -> Optional[int]:
-        return self._line_min
-
-    def set_line_max(self, line_max: Optional[int]) -> None:
-        self._line_max = line_max
-        self.line1.set_maximum(line_max)
-        self.line2.set_maximum(line_max)
-
-    def set_line_min(self, line_min: Optional[int]) -> None:
-        self._line_min = line_min
-        self.line1.set_minimum(line_min)
-        self.line2.set_minimum(line_min)
-
-    def set_value(self, value: QtCore.QPoint | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QPoint(value[0], value[1])
-        super().set_value(value)
-        self.line1.blockSignals(True)
-        self.line1.set_value(value.x())
-        self.line1.blockSignals(False)
-        self.line2.blockSignals(True)
-        self.line2.set_value(value.y())
-        self.line2.blockSignals(False)
-
-    def value(self) -> QtCore.QPoint:
-        return super().value()
-
-    def _line_value_changed(self, value: int) -> None:
-        value = QtCore.QPoint(self.line1.value(), self.line2.value())
-        super().set_value(value)
-
-
-class PointFParameter(PointParameter):
-    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QPointF)
-
-    _value: QtCore.QPointF = QtCore.QPointF(0, 0)
-    _default: QtCore.QPointF = QtCore.QPointF(0, 0)
-    _line_min: Optional[float] = None
-    _line_max: Optional[float] = None
-    _decimals: int = 4
-
-    def _init_ui(self) -> None:
-        self.line1 = FloatLineEdit()
-        self.line1.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line1)
-
-        self.line2 = FloatLineEdit()
-        self.line2.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line2)
-
-        self.setFocusProxy(self.line1)
-
-    def decimals(self) -> int:
-        return self._decimals
-
-    def set_decimals(self, decimals: int) -> None:
-        self._decimals = decimals
-        self.line1.set_decimals(decimals)
-        self.line2.set_decimals(decimals)
-
-    def set_value(self, value: QtCore.QPointF | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QPointF(value[0], value[1])
-        super().set_value(value)
-
-    def value(self) -> QtCore.QPointF:
-        return super().value()
-
-    def _line_value_changed(self, value: float) -> None:
-        value = QtCore.QPointF(self.line1.value(), self.line2.value())
-        super().set_value(value)
-
-
-class SizeParameter(IntParameter):
-    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSize)
-
-    _value: QtCore.QSize = QtCore.QSize(0, 0)
-    _default: QtCore.QSize = QtCore.QSize(0, 0)
-    _line_min: Optional[int] = None
-    _line_max: Optional[int] = None
-    _slider_min: int = 0
-    _slider_max: int = 10
-    _keep_ratio: bool = True
-    _ratio_visible: bool = True
-
-    def _init_ui(self) -> None:
-        # lines
-        self.line1 = IntLineEdit()
-        self.line1.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line1)
-
-        self.line2 = IntLineEdit()
-        self.line2.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line2)
-
-        # slider
-        self.slider = IntSlider()
-        self.slider.valueChanged.connect(self._slider_value_changed)
-        # prevent any size changes when slider shows
-        line_height = self.line1.minimumSizeHint().height()
-        self.slider.setMaximumHeight(line_height)
-        self.layout().addWidget(self.slider)
-        self.layout().setStretch(2, 1)
-
-        # keep ratio button
-        self.keep_ratio_button = RatioButton()
-        self.keep_ratio_button.setMaximumSize(line_height, line_height)
-        self.keep_ratio_button.toggled.connect(self.set_keep_ratio)
-        self.layout().addWidget(self.keep_ratio_button)
-
-        self.setFocusProxy(self.line1)
-
-    def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
-        QtWidgets.QWidget.resizeEvent(self, event)
-        if self._keep_ratio:
-            self._toggle_slider(True)
-
-    def set_commit_on_edit(self, commit_on_edit: bool) -> None:
-        self._commit_on_edit = commit_on_edit
-        self.line1.commit_on_edit = commit_on_edit
-        self.line2.commit_on_edit = commit_on_edit
-
-    def set_keep_ratio(self, keep_ratio: bool) -> None:
-        self._keep_ratio = keep_ratio
-        self.keep_ratio_button.setChecked(keep_ratio)
-        self.line2.setVisible(not keep_ratio)
-        self._toggle_slider(keep_ratio)
-        if self.line1.value() != self.line2.value():
-            self.line2.set_value(self.line1.value())
-
-    def set_line_min(self, line_min: int) -> None:
-        self._line_min = line_min
-        self.line1.set_minimum(line_min)
-        self.line2.set_minimum(line_min)
-
-    def set_line_max(self, line_max: int) -> None:
-        self._line_max = line_max
-        self.line1.set_maximum(line_max)
-        self.line2.set_maximum(line_max)
-
-    def set_ratio_visible(self, ratio_visible: bool) -> None:
-        self._ratio_visible = ratio_visible
-        self.keep_ratio_button.setVisible(ratio_visible)
-        self.line2.setVisible(not ratio_visible)
-        if not ratio_visible:
-            self.set_keep_ratio(False)
-
-    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QSize(value[0], value[1])
-        if value.width() != value.height():
-            self.set_keep_ratio(False)
-        if self._keep_ratio:
-            value.setHeight(value.width())
-        ParameterWidget.set_value(self, value)
-        self._set_slider_value(value.width())
-        self._set_line_value(value)
-
-    def value(self) -> QtCore.QSize:
-        return ParameterWidget.value(self)
-
-    def _line_value_changed(self, value: int) -> None:
-        if self._keep_ratio:
-            value = QtCore.QSize(self.line1.value(), self.line1.value())
-            self.line2.set_value(self.line1.value())
-        else:
-            value = QtCore.QSize(self.line1.value(), self.line2.value())
-        ParameterWidget.set_value(self, value)
-        self._set_slider_value(value.width())
-
-    def _slider_value_changed(self, value: int) -> None:
-        value = QtCore.QSize(value, value)
-        ParameterWidget.set_value(self, value)
-        self._set_line_value(value)
-
-    def _set_line_value(self, value: QtCore.QSize) -> None:
-        self.line1.blockSignals(True)
-        self.line1.set_value(value.width())
-        self.line1.blockSignals(False)
-        self.line2.blockSignals(True)
-        self.line2.set_value(value.height())
-        self.line2.blockSignals(False)
-
-
-class SizeFParameter(SizeParameter):
-    value_changed: QtCore.Signal = QtCore.Signal(QtCore.QSizeF)
-
-    _value: QtCore.QSizeF = QtCore.QSizeF(0, 0)
-    _default: QtCore.QSizeF = QtCore.QSizeF(0, 0)
-    _line_min: Optional[float] = None
-    _line_max: Optional[float] = None
-    _slider_min: float = 0
-    _slider_max: float = 10
-    _decimals: int = 4
-
-    def _init_ui(self) -> None:
-        # lines
-        self.line1 = FloatLineEdit()
-        self.line1.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line1)
-
-        self.line2 = FloatLineEdit()
-        self.line2.value_changed.connect(self._line_value_changed)
-        self.layout().addWidget(self.line2)
-
-        # slider
-        self.slider = FloatSlider()
-        self.slider.value_changed.connect(self._slider_value_changed)
-        # prevent any size changes when slider shows
-        line_height = self.line1.minimumSizeHint().height()
-        self.slider.setMaximumHeight(line_height)
-        self.layout().addWidget(self.slider)
-        self.layout().setStretch(2, 1)
-
-        # keep ratio button
-        self.keep_ratio_button = RatioButton()
-        self.keep_ratio_button.setMaximumSize(line_height, line_height)
-        self.keep_ratio_button.toggled.connect(self.set_keep_ratio)
-        self.layout().addWidget(self.keep_ratio_button)
-
-        self.setFocusProxy(self.line1)
-
-    def decimals(self) -> int:
-        return self._decimals
-
-    def set_decimals(self, decimals: int) -> None:
-        self._decimals = decimals
-        self.line1.set_decimals(decimals)
-        self.line2.set_decimals(decimals)
-
-    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
-            value = QtCore.QSizeF(value[0], value[1])
-        ParameterWidget.set_value(self, value)
-        self._set_slider_value(value.width())
-        self._set_line_value(value)
-
-    def value(self) -> QtCore.QSizeF:
-        return super().value()
-
-    def _line_value_changed(self, value: float) -> None:
-        value = QtCore.QSizeF(self.line1.value(), self.line2.value())
-        if self._keep_ratio:
-            value.setHeight(value.width())
-            self.line2.set_value(self.line1.value())
-        ParameterWidget.set_value(self, value)
-        self._set_slider_value(value.width())
-
-    def _slider_value_changed(self, value: float) -> None:
-        value = QtCore.QSizeF(value, value)
-        ParameterWidget.set_value(self, value)
-        self._set_line_value(value)
-
-    def _set_slider_value(self, value: float) -> None:
-        super()._set_slider_value(value)
 
 
 class IntLineEdit(QtWidgets.QLineEdit):

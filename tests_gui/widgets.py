@@ -75,7 +75,8 @@ def widgets():
     size_parameter.set_value(QtCore.QSize(17, 56))
     widget.layout().addWidget(size_parameter)
 
-    widget.layout().addWidget(SizeFParameter('sizef'))
+    sizef_parameter = SizeFParameter('sizef')
+    widget.layout().addWidget(sizef_parameter)
 
     widget.layout().addWidget(BoolParameter('bool'))
 

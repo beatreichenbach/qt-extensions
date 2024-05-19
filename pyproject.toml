@@ -30,3 +30,6 @@ upload_to_pypi = false
 upload_to_repository = false
 upload_to_release = false
 version_toml = "pyproject.toml:project.version"
+
+[tool.black]
+skip-string-normalization = true

@@ -134,8 +134,8 @@ class CollapsibleBox(QtWidgets.QFrame):
         if self._collapsed and self.underMouse():
             option.state |= QtWidgets.QStyle.State_MouseOver
 
-        style = self.style()
         painter = QtGui.QPainter(self)
+        style = self.style()
         style.drawPrimitive(
             QtWidgets.QStyle.PE_PanelButtonCommand, option, painter, self
         )
