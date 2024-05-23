@@ -3,6 +3,13 @@
 This is a collection of widgets and utility functions to extend Qt.
 Some example usages can be found in gui_tests.
 
+# Contributing
+
+Version up:
+```shell
+semantic-release publish
+```
+
 ## parameters
 A collection of modules for a unified parameter editor. It has widgets for most common variable types similar to the Nuke knobs.
 

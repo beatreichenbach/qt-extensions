@@ -25,11 +25,15 @@ include = ["qt_extensions*"]
 
 [tool.semantic_release]
 version_variable = "qt_extensions/__init__.py:__version__"
-branch = "main"
-upload_to_pypi = false
-upload_to_repository = false
-upload_to_release = false
-version_toml = "pyproject.toml:project.version"
+version_toml  = ["pyproject.toml:project.version"]
+
+[tool.semantic_release.publish]
+upload_to_vcs_release = true
+
+[tool.semantic_release.remote]
+ignore_token_for_push = false
+type = "github"
+
 
 [tool.black]
 skip-string-normalization = true
