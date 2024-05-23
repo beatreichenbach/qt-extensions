@@ -31,9 +31,8 @@ version_toml  = ["pyproject.toml:project.version"]
 upload_to_vcs_release = true
 
 [tool.semantic_release.remote]
-ignore_token_for_push = false
+ignore_token_for_push = true
 type = "github"
-
 
 [tool.black]
 skip-string-normalization = true
