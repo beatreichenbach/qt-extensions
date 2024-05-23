@@ -755,6 +755,7 @@ class PointParameter(MultiIntParameter):
 
     _value: QtCore.QPoint = QtCore.QPoint(0, 0)
     _default: QtCore.QPoint = QtCore.QPoint(0, 0)
+    _slider_visible: bool = False
     _ratio_visible: bool = False
 
     def set_value(self, value: QtCore.QPoint | list | tuple) -> None:
@@ -775,6 +776,7 @@ class PointFParameter(MultiFloatParameter):
 
     _value: QtCore.QPointF = QtCore.QPointF(0, 0)
     _default: QtCore.QPointF = QtCore.QPointF(0, 0)
+    _slider_visible: bool = False
     _ratio_visible: bool = False
 
     def set_value(self, value: QtCore.QPointF | list | tuple) -> None:
