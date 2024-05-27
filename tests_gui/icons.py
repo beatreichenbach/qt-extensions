@@ -12,10 +12,19 @@ def main():
     app = QtWidgets.QApplication(sys.argv)
     theme.apply_theme(theme.monokai)
 
-    icon = MaterialIcon('folder', MaterialIcon.Style.FILLED)
-    button = QtWidgets.QPushButton()
-    button.setIcon(icon)
-    button.show()
+    widget = QtWidgets.QWidget()
+    layout = QtWidgets.QGridLayout()
+    widget.setLayout(layout)
+
+    icon_names = ('folder', 'cancel', 'search', 'home', 'menu', 'settings')
+    for i, style in enumerate(MaterialIcon.Style):
+        layout.addWidget(QtWidgets.QLabel(f'{style}'), i, 0)
+        for j, name in enumerate(icon_names):
+            icon = MaterialIcon(name, style)
+            button = QtWidgets.QPushButton()
+            button.setIcon(icon)
+            layout.addWidget(button, i, j + 1)
+    widget.show()
 
     sys.exit(app.exec_())
 

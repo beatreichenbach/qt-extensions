@@ -66,10 +66,15 @@ A browser based on the ElementBrowser widget to display files.
 A StandardItemView that displays items in a flex view.
 
 ### icons
-A module that provides easy creation of QIcons based on Google Material Design Icons.
+A module that provides easy creation of QIcons based on [Google Material Design Icons].
+
+![Screenshot of the icons](/.github/assets/icons.png)
+
+[Google Material Design Icons]: https://fonts.google.com/icons
 
 ### logger
 A status bar and log viewer that provides a gui interface for the logging module.
+
 ![Screenshot of the logbar and logviewer widget](/.github/assets/logger.png)
 
 ### mainwindow
@@ -86,7 +91,6 @@ A QMessageBox with icons from the MaterialIcon module.
 A resize grip that can be added to any widget to make it resizable.
 
 ![Screenshot of a QPlainTextEdit field with the resize grip widget](/.github/assets/resizegrip.png)
-
 
 ### scrollarea
 A scrollArea widget that has a minimum width based on its content.
