@@ -11,6 +11,11 @@ from qt_extensions.button import CheckBoxButton
 from qt_extensions.icons import MaterialIcon
 
 
+SUCCESS = 25
+
+logging.addLevelName(SUCCESS, 'SUCCESS')
+
+
 class Sender(QtCore.QObject):
     signal = QtCore.Signal(object)
 
@@ -71,6 +76,7 @@ class LogViewer(QtWidgets.QWidget):
         self._cache_connected = False
         self._error_color = theme.Color('error').name()
         self._warning_color = theme.Color('warning').name()
+        self._success_color = theme.Color('success').name()
         self._error_count = 0
         self._warning_count = 0
         self._last_save_path = os.path.expanduser('~')
@@ -223,7 +229,7 @@ class LogViewer(QtWidgets.QWidget):
         if self._names and not record.name.startswith(tuple(self._names)):
             return
 
-        # python 3.9 does not allow defaults
+        # NOTE: python 3.9 does not allow defaults in the formatter
         record.color = ''
 
         if record.levelno >= logging.ERROR:
@@ -238,6 +244,10 @@ class LogViewer(QtWidgets.QWidget):
             if logging.WARNING not in self._levels:
                 return
             record.color = self._warning_color
+        elif record.levelno == SUCCESS:
+            if logging.INFO not in self._levels:
+                return
+            record.color = self._success_color
         elif record.levelno >= logging.INFO:
             if logging.INFO not in self._levels:
                 return
@@ -418,6 +428,7 @@ class LogBar(QtWidgets.QWidget):
         self._critical_color = theme.Color('critical')
         self._error_color = theme.Color('error')
         self._warning_color = theme.Color('warning')
+        self._success_color = theme.Color('success')
 
         # log icons
         self._critical_icon = MaterialIcon('report')
@@ -427,6 +438,8 @@ class LogBar(QtWidgets.QWidget):
         self._warning_icon = MaterialIcon('warning')
         self._warning_icon.set_color(self._warning_color)
         self._info_icon = MaterialIcon('article')
+        self._success_icon = MaterialIcon('check_circle')
+        self._success_icon.set_color(self._success_color)
 
         # layout
         size_policy = self.sizePolicy()
@@ -439,7 +452,7 @@ class LogBar(QtWidgets.QWidget):
 
         # message
         message_layout = QtWidgets.QHBoxLayout()
-        message_layout.setContentsMargins(QtCore.QMargins())
+        message_layout.setContentsMargins(2, 2, 2, 2)
         message_layout.setSpacing(0)
 
         # message button
@@ -477,7 +490,8 @@ class LogBar(QtWidgets.QWidget):
 
     def open_viewer(self) -> None:
         if self._viewer is None:
-            self._viewer = LogViewer(self._cache)
+            self._viewer = LogViewer(self._cache, parent=self)
+            self._viewer.setWindowFlag(QtCore.Qt.Dialog)
         self._viewer.show()
 
     def remove_widget(self, widget: QtWidgets.QWidget) -> None:
@@ -495,7 +509,10 @@ class LogBar(QtWidgets.QWidget):
             if level < self.current_message.levelno or level < self.level:
                 return
 
-        if level >= logging.CRITICAL:
+        if level == SUCCESS:
+            self.log_button.setIcon(self._success_icon)
+            color = self._success_color
+        elif level >= logging.CRITICAL:
             self.log_button.setIcon(self._critical_icon)
             color = self._critical_color
         elif level >= logging.ERROR:
@@ -509,6 +526,7 @@ class LogBar(QtWidgets.QWidget):
             color = self.palette().color(QtGui.QPalette.Window)
 
         self.message_line.setText(message)
+        self.message_line.setCursorPosition(0)
         palette = self.message_line.palette()
         palette.setColor(QtGui.QPalette.Window, color)
         self.message_line.setPalette(palette)
