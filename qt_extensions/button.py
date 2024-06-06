@@ -60,7 +60,11 @@ class BaseButton(QtWidgets.QPushButton):
             text_color = QtGui.QPalette().color(QtGui.QPalette.ButtonText)
         else:
             button_color = color.darker(125)
-            text_color = self.palette().color(QtGui.QPalette.HighlightedText)
+            text_color = self.palette().color(QtGui.QPalette.ButtonText)
+            if text_color.valueF() > button_color.valueF() * 0.5:
+                text_color = text_color.lighter(150)
+            else:
+                text_color = text_color.darker(150)
 
         palette.setColor(QtGui.QPalette.Button, button_color)
         palette.setColor(
