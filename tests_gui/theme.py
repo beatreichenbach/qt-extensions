@@ -25,11 +25,15 @@ def main():
         # role
         role = getattr(QtGui.QPalette.ColorRole, name)
 
+        if role in (
+            QtGui.QPalette.ColorRole.NoRole,
+            QtGui.QPalette.ColorRole.NColorRoles,
+        ):
+            continue
+
         # frame
         frame = QtWidgets.QFrame()
         frame.setBackgroundRole(role)
-        if frame.backgroundRole() != role:
-            continue
 
         frame.setAutoFillBackground(True)
         frame.setLayout(QtWidgets.QHBoxLayout())
