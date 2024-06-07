@@ -478,8 +478,10 @@ class LogBar(QtWidgets.QWidget):
         layout.setStretch(0, 1)
 
         # size grip
-        size_grip = QtWidgets.QSizeGrip(self)
-        layout.addWidget(size_grip, 0, QtCore.Qt.AlignBottom | QtCore.Qt.AlignRight)
+        self.size_grip = QtWidgets.QSizeGrip(self)
+        layout.addWidget(
+            self.size_grip, 0, QtCore.Qt.AlignBottom | QtCore.Qt.AlignRight
+        )
 
     def add_widget(self, widget: QtWidgets.QWidget) -> None:
         count = self.layout().count()
