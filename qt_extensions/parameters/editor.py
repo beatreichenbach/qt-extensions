@@ -6,7 +6,6 @@ from collections.abc import Iterable
 from functools import partial
 
 from PySide2 import QtWidgets, QtCore, QtGui
-from typing_extensions import Self
 
 from qt_extensions import helper
 from qt_extensions.scrollarea import VerticalScrollArea
@@ -127,7 +126,7 @@ class ParameterForm(QtWidgets.QWidget):
     def __init__(
         self,
         name: str | None = None,
-        root: Self | None = None,
+        root: ParameterForm | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -363,7 +362,7 @@ class ParameterForm(QtWidgets.QWidget):
             expanded_boxes.extend(child_boxes)
         return expanded_boxes
 
-    def _create_form(self, name) -> Self:
+    def _create_form(self, name) -> ParameterForm:
         self._validate_name(name)
 
         form = ParameterForm(name=name, root=self)
@@ -448,7 +447,7 @@ class ParameterEditor(ParameterForm):
     def __init__(
         self,
         name: str | None = None,
-        root: Self | None = None,
+        root: ParameterEditor | None = None,
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(name, root, parent)

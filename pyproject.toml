@@ -6,8 +6,7 @@ authors = [
     {name = "Beat Reichenbach"}
 ]
 dependencies = [
-    "PySide2",
-    "typing_extensions"
+    "PySide2"
 ]
 requires-python = ">=3.9, <3.11"
 license = {text = "MIT"}
