@@ -2,6 +2,35 @@
 
 
 
+## v0.4.0 (2024-06-10)
+
+### Chore
+
+* chore: cleanup ([`e27296d`](https://github.com/beatreichenbach/qt-extensions/commit/e27296de935a2d10cb1351d3e931ea509a3fa9fd))
+
+* chore: add icons screenshot and test ([`68dabad`](https://github.com/beatreichenbach/qt-extensions/commit/68dabad37dfea3e8b0239f617702fed38ef48945))
+
+### Documentation
+
+* docs: update instructions ([`ba04508`](https://github.com/beatreichenbach/qt-extensions/commit/ba0450858434186696a2567cf2e7ce38413c88e2))
+
+### Feature
+
+* feat(logger): add success level ([`181771c`](https://github.com/beatreichenbach/qt-extensions/commit/181771c2014aa4887eca84c5602d9ff2f930a4d6))
+
+### Fix
+
+* fix: remove typing_extensions dependency ([`41aa269`](https://github.com/beatreichenbach/qt-extensions/commit/41aa269b942ce667811f328eea0ff24bee838bbc))
+
+* fix(logger): expose size_grip ([`8c146ee`](https://github.com/beatreichenbach/qt-extensions/commit/8c146ee0f99759a3fafd3c306036e7251036c4af))
+
+* fix(button): change text based on color ([`3db1893`](https://github.com/beatreichenbach/qt-extensions/commit/3db1893678e7946e2ad656cb18d399e818a7e065))
+
+### Test
+
+* test(viewer): remove unused roles from test ([`5a7b21d`](https://github.com/beatreichenbach/qt-extensions/commit/5a7b21d894d5f6bfe54e6fb0c0feb2dac3d7cc71))
+
+
 ## v0.3.0 (2024-05-23)
 
 ### Chore
