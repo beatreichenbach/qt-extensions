@@ -7,8 +7,6 @@ from PySide2 import QtWidgets, QtGui
 from qt_extensions import theme
 from qt_extensions.viewer import Viewer
 
-image = QtGui.QImage()
-
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

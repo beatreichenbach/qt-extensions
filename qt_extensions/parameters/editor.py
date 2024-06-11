@@ -64,6 +64,9 @@ class ParameterToolTip(QtWidgets.QFrame):
         tooltip.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
         self.layout().addWidget(tooltip)
 
+    def focusOutEvent(self, event: QtCore.QEvent) -> None:
+        self.hide()
+
     def leaveEvent(self, event: QtCore.QEvent) -> None:
         self.hide()
 

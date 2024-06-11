@@ -160,8 +160,8 @@ def main():
     parm.set_start_index(4)
     parm.set_tooltip(
         'By default, labels display left-aligned, vertically-centered text and images, '
-        'where any tabs in the text to be displayed are automatically expanded. However, '
-        'the look of a QLabel can be adjusted and fine-tuned in several ways.'
+        'where any tabs in the text to be displayed are automatically expanded.'
+        'However, the look of a QLabel can be adjusted and fine-tuned in several ways.'
     )
     form.add_parameter(parm)
 

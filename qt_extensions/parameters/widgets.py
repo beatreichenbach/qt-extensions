@@ -1342,6 +1342,8 @@ __all__ = [
     'ParameterWidget',
     'IntParameter',
     'FloatParameter',
+    'MultiIntParameter',
+    'MultiFloatParameter',
     'PointParameter',
     'PointFParameter',
     'SizeParameter',
