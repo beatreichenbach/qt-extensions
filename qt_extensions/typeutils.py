@@ -24,13 +24,19 @@ from PySide2 import QtCore, QtGui
 
 
 def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
-    # casts a value to a type or a type hint
+    """Casts a value to a type or a type hint.
+
+    Raises TypeError when failed.
+    """
 
     if globalns is None:
         globalns = {}
 
     if typ in (None, NoneType):
         return None
+
+    elif isinstance(value, typ):
+        return value
 
     elif typ is Any:
         return value
@@ -39,6 +45,20 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
         # check if string is a ForwardRef, such as 'InventoryItem'
         typ = _eval_type(ForwardRef(typ), globalns, globalns)
         return cast(typ, value)
+
+    elif isinstance(typ, type) and issubclass(typ, (list, tuple, set)):
+        return typ(value)
+
+    elif isinstance(typ, type) and issubclass(typ, Enum):
+        # type hints such as enum.Enum
+        if isinstance(value, typ):
+            # value is Enum
+            return value
+        try:
+            enum = typ[value]
+            return enum
+        except KeyError:
+            return len(typ) and list(typ)[0] or None
 
     elif isinstance(typ, GenericAlias):
         # type hints such as list[int], dict[str, int] etc.
@@ -113,20 +133,6 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
             return typ(value)
         return typ(**kwargs)
 
-    elif isinstance(typ, type) and issubclass(typ, (tuple, set)):
-        return typ(value)
-
-    elif isinstance(typ, type) and issubclass(typ, Enum):
-        # type hints such as enum.Enum
-        if isinstance(value, typ):
-            # value is Enum
-            return value
-        try:
-            enum = typ[value]
-            return enum
-        except KeyError:
-            return len(typ) and list(typ)[0] or None
-
     else:
         # all other type hints
         if isinstance(value, (tuple, list)):
@@ -140,7 +146,7 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
 
 
 def basic(obj: Any) -> Any:
-    # returns a basic type that can be serialized by json
+    """Returns a basic type that can be serialized by json."""
 
     if dataclasses.is_dataclass(obj):
         obj = dataclasses.asdict(obj)
