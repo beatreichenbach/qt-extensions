@@ -35,10 +35,10 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
     if typ in (None, NoneType):
         return None
 
-    elif isinstance(value, typ):
+    elif typ is Any:
         return value
 
-    elif typ is Any:
+    elif isinstance(typ, type) and isinstance(value, typ):
         return value
 
     elif isinstance(typ, str):
