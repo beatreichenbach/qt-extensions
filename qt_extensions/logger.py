@@ -490,6 +490,9 @@ class LogBar(QtWidgets.QWidget):
         count = self.layout().count()
         self.layout().insertWidget(count - 1, widget)
 
+    def cache(self) -> LogCache | None:
+        return self._cache
+
     def clear_message(self) -> None:
         self.show_message('', level=logging.NOTSET, force=True)
 
