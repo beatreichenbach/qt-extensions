@@ -270,6 +270,9 @@ class LogViewer(QtWidgets.QWidget):
 
         self.text_edit.appendHtml(inner_html)
 
+    def cache(self) -> LogCache | None:
+        return self._cache
+
     def clear(self) -> None:
         self.text_edit.clear()
         self.error_count = 0
