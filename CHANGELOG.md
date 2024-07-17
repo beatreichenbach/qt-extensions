@@ -2,6 +2,15 @@
 
 
 
+## v0.4.1 (2024-07-16)
+
+### Fix
+
+* fix: expose cache ([`2360e5c`](https://github.com/beatreichenbach/qt-extensions/commit/2360e5c031ae43317134d18f9a0d68ff55c03cca))
+
+* fix: add cast for lists ([`46aae30`](https://github.com/beatreichenbach/qt-extensions/commit/46aae3086ef4666e9ac6587f98c59d6be471c3c2))
+
+
 ## v0.4.0 (2024-06-10)
 
 ### Chore

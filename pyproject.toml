@@ -1,6 +1,6 @@
 [project]
 name = "qt-extensions"
-version = "0.4.0"
+version = "0.4.1"
 description = "Various QtWidgets extending the functionality of PySide2"
 authors = [
     {name = "Beat Reichenbach"}
