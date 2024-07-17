@@ -2,6 +2,13 @@
 
 
 
+## v0.4.2 (2024-07-16)
+
+### Fix
+
+* fix: type checking ([`3ebf66f`](https://github.com/beatreichenbach/qt-extensions/commit/3ebf66fd257d82fa139612466367a85241a3cf1d))
+
+
 ## v0.4.1 (2024-07-16)
 
 ### Fix
