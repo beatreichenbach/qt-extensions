@@ -2,6 +2,13 @@
 
 
 
+## v0.4.3 (2024-07-16)
+
+### Fix
+
+* fix: add cache to logbar ([`b5db9f5`](https://github.com/beatreichenbach/qt-extensions/commit/b5db9f5510d091863251d71d300b131f00686ec0))
+
+
 ## v0.4.2 (2024-07-16)
 
 ### Fix
