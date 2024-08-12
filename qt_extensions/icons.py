@@ -1,48 +1,35 @@
-# initially https://github.com/marella/material-design-icons/ was added as a submodule
-# but zip files of the repo on GitHub does not include submodules.
-# to go around this issue icons are compiled to qt resource file using compile_icons.py
 from __future__ import annotations
 
 import enum
+import importlib
 
-from PySide2 import QtWidgets, QtGui, QtCore
-from PySide2.QtGui import QIcon, QPalette
-
-from qt_extensions import icons_resource
+from PySide2 import QtWidgets, QtGui
 
 
-def fill_pixmap(pixmap: QtGui.QPixmap, color: QtGui.QColor) -> QtGui.QPixmap:
-    pixmap = QtGui.QPixmap(pixmap)
-    painter = QtGui.QPainter(pixmap)
-    painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
-    painter.fillRect(pixmap.rect(), color)
-    painter.end()
-    return pixmap
-
-
-class MaterialIcon(QIcon):
+class MaterialIcon(QtGui.QIcon):
     class Style(enum.Enum):
-        FILLED = 'filled'
         OUTLINED = 'outlined'
-        ROUND = 'round'
+        ROUNDED = 'rounded'
         SHARP = 'sharp'
-        TWO_TONE = 'two-tone'
+
+    OUTLINED = Style.OUTLINED
+    ROUNDED = Style.ROUNDED
+    SHARP = Style.SHARP
 
     def __init__(
-        self, name: str, style: Style | None = None, size: int | None = None
+        self, name: str, style: Style = Style.OUTLINED, fill: bool = False
     ) -> None:
         super().__init__()
 
-        # set pixmap
-        if style is None:
-            style = MaterialIcon.Style.OUTLINED
+        import_resource(style)
 
         self.name = name
-        self._path = f':/material-design-icons/svg/{style.value}/{name}.svg'
+        file_name = f'{name}_fill1_24px.svg' if fill else f'{name}_24px.svg'
+        self._path = (
+            f':/material-design-icons/symbols/web/{name}/'
+            f'materialsymbols{style.value}/{file_name}'
+        )
         self._pixmap = QtGui.QPixmap(self._path)
-
-        if size:
-            self._pixmap = self._pixmap.scaled(QtCore.QSize(size, size))
 
         self._init_colors()
 
@@ -50,32 +37,16 @@ class MaterialIcon(QIcon):
         return f'{self.__class__.__name__}({self.name})'
 
     def _init_colors(self) -> None:
-        # get palette colors
-        app = QtWidgets.QApplication.instance()
-        palette = app.palette()
-        self._colors = {
-            QIcon.On: {
-                QIcon.Normal: None,
-                QIcon.Active: None,
-                QIcon.Disabled: None,
-                QIcon.Selected: None,
-            },
-            QIcon.Off: {
-                QIcon.Normal: palette.color(QPalette.Normal, QPalette.WindowText),
-                QIcon.Active: None,
-                QIcon.Disabled: palette.color(QPalette.Disabled, QPalette.WindowText),
-                QIcon.Selected: None,
-            },
-        }
-
-        for state, modes in self._colors.items():
-            for mode, color in modes.items():
-                if isinstance(color, QtGui.QColor):
-                    self.set_color(color, mode, state)
+        palette = QtWidgets.QApplication.instance().palette()
+        role = QtGui.QPalette.WindowText
+        self._color_normal = palette.color(QtGui.QPalette.Normal, role)
+        self.set_color(self._color_normal, QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self._color_disabled = palette.color(QtGui.QPalette.Disabled, role)
+        self.set_color(self._color_disabled, QtGui.QIcon.Disabled, QtGui.QIcon.Off)
 
     def add_icon(
         self,
-        icon: QIcon,
+        icon: QtGui.QIcon,
         mode: QtGui.QIcon.Mode = QtGui.QIcon.Normal,
         state: QtGui.QIcon.State = QtGui.QIcon.Off,
     ):
@@ -93,23 +64,43 @@ class MaterialIcon(QIcon):
         color: QtGui.QColor | None = None,
     ) -> QtGui.QPixmap:
         if extent:
+            # NOTE: QPixmap caused crashes.
             # pixmap = QtGui.QPixmap(self._path).scaledToWidth(extent)
             pixmap = QtGui.QIcon(self._path).pixmap(extent)
         else:
             pixmap = self._pixmap
 
         if color is None:
-            color = self._colors[state][mode]
-            if color is None:
-                color = self._colors[QIcon.Off][QIcon.Normal]
-
+            if state == QtGui.QIcon.Off and mode == QtGui.QIcon.Disabled:
+                color = self._color_disabled
+            else:
+                color = self._color_normal
         return fill_pixmap(pixmap, color)
 
     def set_color(
         self,
         color: QtGui.QColor,
-        mode: QtGui.QIcon.Mode = QIcon.Normal,
-        state: QtGui.QIcon.State = QIcon.Off,
+        mode: QtGui.QIcon.Mode = QtGui.QIcon.Normal,
+        state: QtGui.QIcon.State = QtGui.QIcon.Off,
     ):
         pixmap = fill_pixmap(self._pixmap, color)
         self.addPixmap(pixmap, mode, state)
+
+
+def import_resource(style: MaterialIcon.Style) -> None:
+    """
+    Imports the resource for Qt, separated by style to not load unneeded SVGs.
+    """
+    importlib.import_module(f'.icons_{style.value}', package='qt_extensions.resources')
+
+
+def fill_pixmap(pixmap: QtGui.QPixmap, color: QtGui.QColor) -> QtGui.QPixmap:
+    """
+    Return a copy of 'pixmap' filled with 'color'.
+    """
+    pixmap = QtGui.QPixmap(pixmap)
+    painter = QtGui.QPainter(pixmap)
+    painter.setCompositionMode(QtGui.QPainter.CompositionMode_SourceIn)
+    painter.fillRect(pixmap.rect(), color)
+    painter.end()
+    return pixmap

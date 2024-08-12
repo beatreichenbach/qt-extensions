@@ -117,11 +117,10 @@ class CheckBoxButton(BaseButton):
         self.set_margins(w=0.5)
         # self.setMinimumHeight(self._icon_size * 2)
 
-        style = MaterialIcon.Style.FILLED
         size = self._icon_size
 
-        self.setIcon(MaterialIcon('check_box_outline_blank', style=style, size=size))
-        self.setIcon(MaterialIcon('check_box', style=style, size=size), True)
+        self.setIcon(MaterialIcon('check_box_outline_blank', fill=True))
+        self.setIcon(MaterialIcon('check_box'), True)
 
     def _checked_change(self, checked: bool) -> None:
         super()._checked_change(checked)
