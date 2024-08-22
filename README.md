@@ -6,6 +6,7 @@ Some example usages can be found in gui_tests.
 <!-- TOC -->
 * [qt-extensions](#qt-extensions)
   * [Installation](#installation)
+  * [Contributing](#contributing)
   * [Usage](#usage)
   * [Modules](#modules)
     * [parameters](#parameters)
@@ -23,7 +24,6 @@ Some example usages can be found in gui_tests.
     * [theme](#theme)
     * [typeutils](#typeutils)
     * [viewer](#viewer)
-  * [Contributing](#contributing)
 <!-- TOC -->
 
 ## Installation
@@ -31,6 +31,29 @@ Some example usages can be found in gui_tests.
 Install using pip:
 ```shell
 pip install qt-extensions
+```
+
+## Contributing
+
+Create a venv:
+```shell
+python3 -m venv venv
+```
+Install `qt-extensions` in editable mode:
+```shell
+python3 -m pip install -e .[dev]
+```
+
+To version up using [python-semantic-release]:
+```shell
+semantic-release version
+```
+
+[python-semantic-release]: https://github.com/python-semantic-release/python-semantic-release
+
+To update Material Symbols resources:
+```shell
+python3 compile_icons.py
 ```
 
 ## Usage
@@ -107,22 +130,3 @@ A module for helping with types. For example cast a dictionary to a dataclass.
 A viewer for numpy array images. It has an exposure slider zoom, pan and shows pixel information.
 
 ![Screenshot of the viewer widget](/.github/assets/viewer.png)
-
-
-## Contributing
-
-Create a venv:
-```shell
-python3 -m venv venv
-```
-Install `qt-extensions` in editable mode:
-```shell
-python3 -m pip install -e .[dev]
-```
-
-To version up using [python-semantic-release]:
-```shell
-semantic-release version
-```
-
-[python-semantic-release]: https://github.com/python-semantic-release/python-semantic-release
