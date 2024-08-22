@@ -1,18 +1,11 @@
-import logging
-import sys
+from PySide2 import QtWidgets
 
-from PySide2 import QtWidgets, QtGui
-
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.scrollarea import VerticalScrollArea
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     scroll_area = VerticalScrollArea()
 
     widget = QtWidgets.QWidget()
@@ -23,8 +16,7 @@ def main():
     tab_widget = QtWidgets.QTabWidget()
     tab_widget.addTab(scroll_area, 'Editor')
     tab_widget.show()
-
-    sys.exit(app.exec_())
+    return tab_widget
 
 
 if __name__ == '__main__':

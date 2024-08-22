@@ -1,17 +1,11 @@
-import logging
-import sys
 from PySide2 import QtWidgets, QtCore
 
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.icons import MaterialIcon
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
     layout = QtWidgets.QGridLayout()
     widget.setLayout(layout)
@@ -34,8 +28,7 @@ def main():
             button.setIconSize(size)
             layout.addWidget(button, i, len(icon_names) + j + 1)
     widget.show()
-
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':

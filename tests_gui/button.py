@@ -1,17 +1,11 @@
-import logging
-import sys
 from PySide2 import QtWidgets, QtGui
 
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.button import Button, CheckBoxButton
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.modern_dark)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
 
     widget.setLayout(QtWidgets.QHBoxLayout())
@@ -47,7 +41,7 @@ def main():
     widget.layout().addWidget(button)
 
     widget.show()
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':

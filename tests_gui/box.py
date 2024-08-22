@@ -1,17 +1,11 @@
-import logging
-import sys
 from PySide2 import QtWidgets
 
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.box import CollapsibleBox
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
 
     widget.setLayout(QtWidgets.QVBoxLayout())
@@ -47,7 +41,7 @@ def main():
     widget.layout().addStretch()
 
     widget.show()
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':

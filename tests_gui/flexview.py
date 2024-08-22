@@ -1,18 +1,11 @@
 from PySide2 import QtWidgets, QtCore, QtGui
 
+from qt_extensions import testing
 from qt_extensions.flexview import FlexView
 
 
-def main():
-    import sys
-    import logging
-    from qt_extensions import theme
-
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication()
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
     widget.setLayout(QtWidgets.QVBoxLayout())
 
@@ -32,7 +25,7 @@ def main():
 
     widget.layout().addWidget(QtWidgets.QLineEdit())
     widget.show()
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':

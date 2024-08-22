@@ -1,19 +1,14 @@
-import logging
-import sys
+from PySide2 import QtWidgets, QtGui
 
 from PySide2 import QtWidgets, QtGui
 
-from qt_extensions import theme
+from qt_extensions import testing
 
 image = QtGui.QImage()
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
     widget.setMinimumWidth(400)
     widget.setLayout(QtWidgets.QVBoxLayout())
@@ -48,8 +43,7 @@ def main():
         frame.layout().addWidget(label)
 
     widget.show()
-
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':

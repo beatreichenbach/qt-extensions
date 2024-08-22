@@ -1,12 +1,11 @@
 import json
 import logging
-import sys
 from enum import Enum
 from functools import partial
 
 from PySide2 import QtWidgets
 
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.parameters import (
     ParameterEditor,
     TabDataParameter,
@@ -25,12 +24,8 @@ from qt_extensions.parameters import (
 from qt_extensions.parameters.editor import ParameterBox
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     editor = ParameterEditor()
 
     # default parameters
@@ -177,8 +172,7 @@ def main():
     editor.set_state(state)
 
     editor.show()
-
-    sys.exit(app.exec_())
+    return editor
 
 
 if __name__ == '__main__':

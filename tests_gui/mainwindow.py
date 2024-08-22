@@ -1,17 +1,11 @@
-import logging
-import sys
 from PySide2 import QtWidgets, QtCore
 
-from qt_extensions import theme
+from qt_extensions import testing
 from qt_extensions.mainwindow import DockWindow, DockWidget
 
 
-def main():
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication(sys.argv)
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     window = DockWindow()
     window.title = 'window'
     window.resize(800, 600)
@@ -35,8 +29,7 @@ def main():
     window.center_widget.add_dock_widget(
         floating_windows[4], QtCore.Qt.NoDockWidgetArea
     )
-
-    sys.exit(app.exec_())
+    return window
 
 
 if __name__ == '__main__':

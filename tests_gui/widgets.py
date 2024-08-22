@@ -2,6 +2,7 @@ from enum import Enum
 
 from PySide2 import QtWidgets, QtCore
 
+from qt_extensions import testing
 from qt_extensions.parameters import (
     IntParameter,
     FloatParameter,
@@ -18,16 +19,8 @@ from qt_extensions.parameters import (
 )
 
 
-def widgets():
-    import sys
-    import logging
-    from qt_extensions import theme
-
-    logging.getLogger().setLevel(logging.DEBUG)
-
-    app = QtWidgets.QApplication()
-    theme.apply_theme(theme.monokai)
-
+@testing.gui
+def main() -> QtWidgets.QWidget:
     widget = QtWidgets.QWidget()
     widget.setLayout(QtWidgets.QVBoxLayout())
 
@@ -99,9 +92,8 @@ def widgets():
     widget.layout().addWidget(tab_data_parameter)
 
     widget.show()
-
-    sys.exit(app.exec_())
+    return widget
 
 
 if __name__ == '__main__':
-    widgets()
+    main()
