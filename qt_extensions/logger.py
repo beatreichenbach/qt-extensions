@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from functools import partial
 
 from PySide2 import QtWidgets, QtCore, QtGui
@@ -308,14 +309,14 @@ class LogViewer(QtWidgets.QWidget):
         if self.isVisible():
             self._connect_cache()
 
-    def set_levels(self, levels: set[int] | list[int] | tuple[int, ...]) -> None:
+    def set_levels(self, levels: Sequence[int]) -> None:
         self._levels = set(levels)
         self._error_button.setChecked(logging.ERROR in self._levels)
         self._warning_button.setChecked(logging.WARNING in self._levels)
         self._info_button.setChecked(logging.INFO in self._levels)
         self._debug_button.setChecked(logging.DEBUG in self._levels)
 
-    def set_names(self, names: set[str] | list[str] | tuple[str]) -> None:
+    def set_names(self, names: Sequence[str]) -> None:
         self._names = set(names)
         self.refresh()
 
@@ -327,8 +328,8 @@ class LogViewer(QtWidgets.QWidget):
         }
         values.update(state)
 
-        self.set_levels(values['levels'])
-        self.set_names(values['names'])
+        self.set_levels(list(values['levels']))
+        self.set_names(list(values['names']))
         self._wrap_action.setChecked(values['wrap'])
 
     def state(self) -> dict:
