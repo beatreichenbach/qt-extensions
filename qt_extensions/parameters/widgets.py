@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence, Mapping
 from enum import Enum, IntEnum, auto, EnumMeta
 from functools import partial
 from typing import Any, Callable, Optional
@@ -27,13 +28,13 @@ class ParameterWidget(QtWidgets.QWidget):
     def __init__(self, name: str = '', parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        if name:
-            self.set_name(name)
-            self.set_label(helper.title(name))
-
         self._init_layout()
         self._init_ui()
         self._init_defaults()
+
+        if name:
+            self.set_name(name)
+            self.set_label(helper.title(name))
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name())})'
@@ -274,9 +275,17 @@ class StringParameter(ParameterWidget):
     _value: str = ''
     _default: str = ''
     _area: bool = False
-    _menu: dict | list | tuple | None = None
+    _menu: Mapping | Sequence[str] | None = None
 
     def _init_ui(self) -> None:
+        self._init_text()
+
+        self.menu_button = QtWidgets.QToolButton()
+        self.menu_button.setAutoRaise(True)
+        self.layout().addWidget(self.menu_button)
+        self.menu_button.hide()
+
+    def _init_text(self) -> None:
         if self._area:
             self.text = TextEdit()
             self.text.editing_finished.connect(self._editing_finished)
@@ -284,27 +293,22 @@ class StringParameter(ParameterWidget):
         else:
             self.text = QtWidgets.QLineEdit()
             self.text.editingFinished.connect(self._editing_finished)
-        self.layout().addWidget(self.text)
+        self.layout().insertWidget(0, self.text)
         self.setFocusProxy(self.text)
-
-        self.menu_button = QtWidgets.QToolButton()
-        self.menu_button.setAutoRaise(True)
-        self.layout().addWidget(self.menu_button)
-        self.menu_button.hide()
 
     def area(self) -> bool:
         return self._area
 
-    def menu(self) -> dict | list | tuple | None:
+    def menu(self) -> Mapping | Sequence[str] | None:
         return self._menu
 
     def set_area(self, area: bool) -> None:
-        self._area = area
-        for i in reversed(range(self.layout().count())):
-            self.layout().itemAt(i).widget().deleteLater()
-        self._init_ui()
+        if area != self._area:
+            self._area = area
+            self.text.deleteLater()
+            self._init_text()
 
-    def set_menu(self, menu: dict | list | tuple | None) -> None:
+    def set_menu(self, menu: Mapping | Sequence[str] | None) -> None:
         self._menu = menu
 
         # update menu
@@ -332,19 +336,19 @@ class StringParameter(ParameterWidget):
         return super().value()
 
     def _build_menu(
-        self, content: dict | list | tuple, menu: QtWidgets.QMenu | None = None
+        self, content: Mapping | Sequence[str], menu: QtWidgets.QMenu | None = None
     ) -> QtWidgets.QMenu:
         if menu is None:
             menu = QtWidgets.QMenu(self)
         if isinstance(content, (list, tuple)):
             content = {i: i for i in content}
-        for label, text in content.items():
-            if isinstance(text, dict):
+        for label, data in content.items():
+            if isinstance(data, Mapping):
                 sub_menu = menu.addMenu(label)
-                self._build_menu(text, sub_menu)
+                self._build_menu(data, sub_menu)
             else:
                 action = QtWidgets.QAction(label, self)
-                action.triggered.connect(partial(self.set_value, str(text)))
+                action.triggered.connect(partial(self.set_value, str(data)))
                 menu.addAction(action)
         return menu
 
@@ -470,7 +474,10 @@ class EnumParameter(ParameterWidget):
     def set_enum(self, enum: EnumMeta) -> None:
         self._enum = enum
         self._update_items()
-        self.combo.setCurrentIndex(0)
+        if self._enum:
+            default = list(self._enum)[0]
+            self.set_default(default)
+            self.set_value(default)
 
     def set_formatter(self, formatter: Callable) -> None:
         self._formatter = formatter
@@ -1319,8 +1326,8 @@ class FloatSlider(IntSlider):
 class RatioButton(BaseButton):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setIcon(MaterialIcon('link_off', size=self._icon_size))
-        self.setIcon(MaterialIcon('link', size=self._icon_size), True)
+        self.setIcon(MaterialIcon('link_off'))
+        self.setIcon(MaterialIcon('link'), True)
         self.setMaximumSize(QtCore.QSize(self._icon_size, self._icon_size))
         self.setCheckable(True)
 
