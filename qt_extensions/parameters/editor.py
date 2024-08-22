@@ -258,7 +258,10 @@ class ParameterForm(QtWidgets.QWidget):
         return widget
 
     def groups(self) -> dict:
-        # create hierarchical dict of boxes, groups and tab widgets
+        """
+        Create hierarchical dict of boxes, groups and tab widgets.
+        """
+
         layout = self.grid_layout
 
         group_dict = {}
@@ -318,7 +321,10 @@ class ParameterForm(QtWidgets.QWidget):
         return state
 
     def values(self) -> dict[str, typing.Any]:
-        # create nested dictionary of all Parameter values
+        """
+        Create nested dictionary of all Parameter values.
+        """
+
         values = {}
         for name, widget in self._widgets.items():
             if isinstance(widget, ParameterForm):
@@ -331,7 +337,10 @@ class ParameterForm(QtWidgets.QWidget):
         return values
 
     def widgets(self) -> dict[str, ParameterWidget]:
-        # create nested dictionary of all Parameter widgets
+        """
+        Create nested dictionary of all Parameter widgets.
+        """
+
         widgets = {}
         for name, widget in self._widgets.items():
             if isinstance(widget, ParameterForm):
@@ -344,8 +353,10 @@ class ParameterForm(QtWidgets.QWidget):
         return widgets
 
     def _expanded_boxes(self, groups: dict | None = None) -> list[str]:
-        # returns a list of all expanded boxes
-        # child boxes are separated by / 'parent/child/grand-child'
+        """
+        Returns a list of all expanded boxes.
+        Child boxes are separated by / 'parent/child/grand-child'.
+        """
         if groups is None:
             groups = self.groups()
 
@@ -374,7 +385,10 @@ class ParameterForm(QtWidgets.QWidget):
         return form
 
     def _hierarchical_names(self) -> list[str]:
-        # generate a flat list of all child widget names
+        """
+        Returns a flat list of all child widget names.
+        """
+
         names = []
         for name, widget in self._widgets.items():
             if isinstance(widget, ParameterForm):
@@ -386,7 +400,10 @@ class ParameterForm(QtWidgets.QWidget):
     def _set_expanded_boxes(
         self, expanded_boxes: list[str], groups: dict | None = None
     ) -> None:
-        # collapses the boxes in the list, child boxes are separated by dot 'parent.child'
+        """
+        Collapses the boxes in the list, child boxes are separated by dot
+        'parent.child'.
+        """
 
         if groups is None:
             groups = self.groups()
