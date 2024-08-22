@@ -43,25 +43,6 @@ class Color(QtGui.QColor):
 
 
 def apply_scheme(scheme: ColorScheme, palette: QtGui.QPalette):
-    # base
-    palette.setColor(QtGui.QPalette.Window, scheme.base_mg)
-    palette.setColor(QtGui.QPalette.WindowText, scheme.text)
-    palette.setColor(QtGui.QPalette.Base, scheme.base_bg)
-    palette.setColor(QtGui.QPalette.AlternateBase, scheme.base_fg)
-    palette.setColor(QtGui.QPalette.ToolTipBase, scheme.base_bg)
-    palette.setColor(QtGui.QPalette.ToolTipText, scheme.text)
-    palette.setColor(QtGui.QPalette.PlaceholderText, scheme.text)
-    palette.setColor(QtGui.QPalette.Text, scheme.text)
-    palette.setColor(QtGui.QPalette.Button, scheme.base_mg)
-    palette.setColor(QtGui.QPalette.ButtonText, scheme.text)
-    palette.setColor(QtGui.QPalette.BrightText, invert_value(scheme.text))
-
-    palette.setColor(QtGui.QPalette.Highlight, scheme.primary)
-    palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor(255, 255, 255))
-
-    palette.setColor(QtGui.QPalette.Link, scheme.primary.darker(125))
-    palette.setColor(QtGui.QPalette.LinkVisited, scheme.primary.darker(125))
-
     # auto generate Light, MidLight, Mid, Dark, Shadow colors
     h, s, button_v, a = scheme.base_mg.getHsvF()
     light_v = scheme.base_bg.valueF()
@@ -75,6 +56,25 @@ def apply_scheme(scheme: ColorScheme, palette: QtGui.QPalette):
     dark = QtGui.QColor.fromHsvF(h, s, lerp(black_v, button_v, 0.35), a)
     mid = QtGui.QColor.fromHsvF(h, s, lerp(black_v, button_v, 0.65), a)
     mid_light = QtGui.QColor.fromHsvF(h, s, lerp(button_v, light_v, 0.5), a)
+
+    # base
+    palette.setColor(QtGui.QPalette.Window, scheme.base_mg)
+    palette.setColor(QtGui.QPalette.WindowText, scheme.text)
+    palette.setColor(QtGui.QPalette.Base, scheme.base_bg)
+    palette.setColor(QtGui.QPalette.AlternateBase, scheme.base_fg)
+    palette.setColor(QtGui.QPalette.ToolTipBase, scheme.base_bg)
+    palette.setColor(QtGui.QPalette.ToolTipText, scheme.text)
+    palette.setColor(QtGui.QPalette.PlaceholderText, dark)
+    palette.setColor(QtGui.QPalette.Text, scheme.text)
+    palette.setColor(QtGui.QPalette.Button, scheme.base_mg)
+    palette.setColor(QtGui.QPalette.ButtonText, scheme.text)
+    palette.setColor(QtGui.QPalette.BrightText, invert_value(scheme.text))
+
+    palette.setColor(QtGui.QPalette.Highlight, scheme.primary)
+    palette.setColor(QtGui.QPalette.HighlightedText, QtGui.QColor(255, 255, 255))
+
+    palette.setColor(QtGui.QPalette.Link, scheme.primary.darker(125))
+    palette.setColor(QtGui.QPalette.LinkVisited, scheme.primary.darker(125))
 
     palette.setColor(QtGui.QPalette.Light, scheme.base_bg)
     palette.setColor(QtGui.QPalette.Midlight, mid_light)
@@ -155,6 +155,14 @@ monokai = ColorScheme(
     base_bg=QtGui.QColor(41, 42, 46),
     base_mg=QtGui.QColor(50, 51, 56),
     base_fg=QtGui.QColor(60, 61, 66),
-    text=QColor(206, 209, 217),
+    text=QtGui.QColor(206, 209, 217),
     primary=QtGui.QColor(73, 174, 238),
+)
+
+one_dark_two = ColorScheme(
+    base_bg=QtGui.QColor(33, 37, 43),
+    base_mg=QtGui.QColor(40, 44, 52),
+    base_fg=QtGui.QColor(57, 62, 71),
+    text=QtGui.QColor(230, 230, 230),
+    primary=QtGui.QColor(113, 185, 244),
 )
