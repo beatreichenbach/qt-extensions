@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum
+from collections.abc import Sequence
 
 from PySide2 import QtWidgets, QtCore, QtGui
 from qt_extensions.icons import MaterialIcon
@@ -16,7 +17,9 @@ class CollapsibleBox(QtWidgets.QFrame):
     SIMPLE = Style.SIMPLE
     BUTTON = Style.BUTTON
 
-    def __init__(self, title: str, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self, title: str = '', parent: QtWidgets.QWidget | None = None
+    ) -> None:
         super().__init__(parent)
 
         self._maximum_height = self.maximumHeight()
@@ -25,7 +28,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._collapsible = False
         self._style = CollapsibleBox.NONE
 
-        self._title_label = None
+        self.title_label = None
         self._expand_label = None
         self._expand_more_icon = MaterialIcon('chevron_right')
         self._expand_less_icon = MaterialIcon('expand_more')
@@ -35,7 +38,8 @@ class CollapsibleBox(QtWidgets.QFrame):
         self.header = None
         self._init_ui()
 
-        self.set_title(title)
+        if title:
+            self.set_title(title)
 
     def _init_ui(self) -> None:
         self.setSizePolicy(
@@ -64,8 +68,8 @@ class CollapsibleBox(QtWidgets.QFrame):
         self.checkbox.setVisible(False)
         header_layout.addWidget(self.checkbox)
 
-        self._title_label = QtWidgets.QLabel(self.header)
-        header_layout.addWidget(self._title_label)
+        self.title_label = QtWidgets.QLabel(self.header)
+        header_layout.addWidget(self.title_label)
         header_layout.addStretch()
 
         self._menu_button = QtWidgets.QToolButton(self.header)
@@ -164,9 +168,9 @@ class CollapsibleBox(QtWidgets.QFrame):
         return self._collapsible and self._collapsed
 
     def title(self) -> str:
-        return self._title_label.text()
+        return self.title_label.text()
 
-    def set_actions(self, actions: list[QtWidgets.QAction]) -> None:
+    def set_actions(self, actions: Sequence[QtWidgets.QAction]) -> None:
         for action in self.actions():
             self.removeAction(action)
         self.addActions(actions)
@@ -213,7 +217,7 @@ class CollapsibleBox(QtWidgets.QFrame):
             self._layout.setContentsMargins(0, 0, 0, 0)
 
     def set_title(self, title: str) -> None:
-        self._title_label.setText(title)
+        self.title_label.setText(title)
 
     def _show_menu(self) -> None:
         relative_pos = self._menu_button.rect().topRight()
