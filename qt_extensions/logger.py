@@ -17,21 +17,6 @@ SUCCESS = 25
 logging.addLevelName(SUCCESS, 'SUCCESS')
 
 
-class Sender(QtCore.QObject):
-    signal = QtCore.Signal(object)
-
-
-class Handler(logging.Handler):
-    def __init__(self, level: int = logging.NOTSET) -> None:
-        super().__init__(level)
-
-        self._sender = Sender()
-        self.record_logged = self._sender.signal
-
-    def emit(self, record: logging.LogRecord) -> None:
-        self.record_logged.emit(record)
-
-
 class LogCache(QtCore.QObject):
     added: QtCore.Signal = QtCore.Signal(logging.LogRecord)
     cleared: QtCore.Signal = QtCore.Signal()
@@ -40,8 +25,8 @@ class LogCache(QtCore.QObject):
         super().__init__(parent)
 
         self.records = []
-        self.handler = Handler()
-        self.handler.record_logged.connect(self.add)
+        self.handler = logging.Handler()
+        self.handler.emit = self.add
 
     def add(self, record: logging.LogRecord) -> None:
         self.records.append(record)
@@ -52,7 +37,6 @@ class LogCache(QtCore.QObject):
         self.cleared.emit()
 
     def connect_logger(self, logger: logging.Logger) -> None:
-        logger.setLevel(logging.NOTSET)
         logger.addHandler(self.handler)
 
     def save(self, filename: str) -> None:
@@ -236,24 +220,24 @@ class LogViewer(QtWidgets.QWidget):
         if record.levelno >= logging.ERROR:
             if count:
                 self.error_count += 1
-            if logging.ERROR not in self._levels:
+            if self._levels and logging.ERROR not in self._levels:
                 return
             record.color = self._error_color
         elif record.levelno >= logging.WARNING:
             if count:
                 self.warning_count += 1
-            if logging.WARNING not in self._levels:
+            if self._levels and logging.WARNING not in self._levels:
                 return
             record.color = self._warning_color
         elif record.levelno == SUCCESS:
-            if logging.INFO not in self._levels:
+            if self._levels and logging.INFO not in self._levels:
                 return
             record.color = self._success_color
         elif record.levelno >= logging.INFO:
-            if logging.INFO not in self._levels:
+            if self._levels and logging.INFO not in self._levels:
                 return
         elif record.levelno >= logging.DEBUG:
-            if logging.DEBUG not in self._levels:
+            if self._levels and logging.DEBUG not in self._levels:
                 return
         else:
             return
