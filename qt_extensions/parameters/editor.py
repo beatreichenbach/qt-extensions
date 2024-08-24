@@ -8,9 +8,9 @@ from functools import partial
 from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions import helper
-from qt_extensions.scrollarea import VerticalScrollArea
-from qt_extensions.parameters import ParameterWidget
 from qt_extensions.box import CollapsibleBox
+from qt_extensions.parameters import ParameterWidget
+from qt_extensions.scrollarea import VerticalScrollArea
 
 
 class ParameterToggle(QtWidgets.QCheckBox):
@@ -88,7 +88,7 @@ class ParameterLabel(QtWidgets.QLabel):
             QtCore.QTimer.singleShot(600, self.show_tooltip)
         super().enterEvent(event)
 
-    def show_tooltip(self):
+    def show_tooltip(self) -> None:
         global_position = QtGui.QCursor.pos()
         if self.geometry().contains(self.parent().mapFromGlobal(global_position)):
             if self._tooltip is None:
@@ -111,7 +111,7 @@ class ParameterBox(CollapsibleBox):
         self.form = form
 
         self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
+        self.layout().setContentsMargins(QtCore.QMargins())
         self.layout().setSpacing(0)
         self.layout().addWidget(form)
 
@@ -120,10 +120,10 @@ class ParameterForm(QtWidgets.QWidget):
     actions_changed: QtCore.Signal = QtCore.Signal(list)
     parameter_changed: QtCore.Signal = QtCore.Signal(ParameterWidget)
 
-    # require unique names in the whole hierarchy
+    # Require unique names in the whole hierarchy
     unique_hierarchical_names: bool = False
 
-    # return values as nested dict or flat hierarchy
+    # Return values as nested dict or flat hierarchy
     create_hierarchy: bool = True
 
     def __init__(
@@ -138,18 +138,14 @@ class ParameterForm(QtWidgets.QWidget):
 
         self.name = name
         self.root = root or self
-
-        self.setLayout(QtWidgets.QGridLayout())
+        self._init_layout()
 
     def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.name)})'
 
-    @property
-    def grid_layout(self) -> QtWidgets.QGridLayout:
-        layout = self.layout()
-        if not isinstance(layout, QtWidgets.QGridLayout):
-            raise RuntimeError('Layout needs to be QGridLayout')
-        return layout
+    def _init_layout(self) -> None:
+        self.grid_layout = QtWidgets.QGridLayout()
+        self.setLayout(self.grid_layout)
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         super().actionEvent(event)
@@ -163,7 +159,7 @@ class ParameterForm(QtWidgets.QWidget):
         box.set_collapsible(True)
         box.set_collapsed(True)
 
-        # update CollapsibleBox with actions for the menu
+        # Update CollapsibleBox with actions for the menu
         form.actions_changed.connect(box.set_actions)
 
         self.add_widget(box)
@@ -176,9 +172,8 @@ class ParameterForm(QtWidgets.QWidget):
         row_span: int = 1,
         column_span: int = -1,
     ) -> QtWidgets.QLayout:
-        grid_layout = self.grid_layout
-        row = grid_layout.rowCount() - 1
-        grid_layout.addLayout(layout, row, column, row_span, column_span)
+        row = self.grid_layout.rowCount() - 1
+        self.grid_layout.addLayout(layout, row, column, row_span, column_span)
         self._update_stretch()
         return layout
 
@@ -190,20 +185,19 @@ class ParameterForm(QtWidgets.QWidget):
 
         self._widgets[name] = widget
 
-        layout = self.grid_layout
-        row = layout.rowCount() - 1
+        row = self.grid_layout.rowCount() - 1
 
         # label
         if widget.label():
             label = ParameterLabel(widget, self)
             column = 1
-            layout.addWidget(label, row, column)
+            self.grid_layout.addWidget(label, row, column)
             widget.enabled_changed.connect(label.setEnabled)
             widget.enabled_changed.emit(widget.isEnabled())
 
         # widget
         column = 2
-        layout.addWidget(widget, row, column)
+        self.grid_layout.addWidget(widget, row, column)
         widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
 
         # checkbox
@@ -211,7 +205,7 @@ class ParameterForm(QtWidgets.QWidget):
             checkbox_name = f'{name}_enabled'
             checkbox = ParameterToggle(checkbox_name)
             column = 0
-            layout.addWidget(checkbox, row, column)
+            self.grid_layout.addWidget(checkbox, row, column)
             checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
             checkbox.toggled.connect(lambda: self.parameter_changed.emit(checkbox))
             checkbox.set_value(False)
@@ -250,10 +244,9 @@ class ParameterForm(QtWidgets.QWidget):
     def add_widget(
         self, widget: QtWidgets.QWidget, column: int = 1, column_span: int = -1
     ) -> QtWidgets.QWidget:
-        layout = self.grid_layout
-        row = layout.rowCount() - 1
+        row = self.grid_layout.rowCount() - 1
         row_span = 1
-        layout.addWidget(widget, row, column, row_span, column_span)
+        self.grid_layout.addWidget(widget, row, column, row_span, column_span)
         self._update_stretch()
         return widget
 
@@ -262,11 +255,9 @@ class ParameterForm(QtWidgets.QWidget):
         Create hierarchical dict of boxes, groups and tab widgets.
         """
 
-        layout = self.grid_layout
-
         group_dict = {}
-        for index in range(layout.count()):
-            widget = layout.itemAt(index).widget()
+        for index in range(self.grid_layout.count()):
+            widget = self.grid_layout.itemAt(index).widget()
             if isinstance(widget, ParameterBox):
                 if widget.form:
                     group_dict[widget] = widget.form.groups()
@@ -446,9 +437,11 @@ class ParameterForm(QtWidgets.QWidget):
         item_widget.setEnabled(enabled)
 
     def _update_stretch(self) -> None:
-        layout = self.grid_layout
-        layout.setRowStretch(layout.rowCount() - 1, 0)
-        layout.setRowStretch(layout.rowCount(), 1)
+        # NOTE: Setting 0 Margins breaks when the layout doesn't have any children, so
+        #       set it here.
+        self.grid_layout.setContentsMargins(QtCore.QMargins())
+        self.grid_layout.setRowStretch(self.grid_layout.rowCount() - 1, 0)
+        self.grid_layout.setRowStretch(self.grid_layout.rowCount(), 1)
 
     def _validate_name(self, name: str) -> None:
         if name is None:
@@ -472,21 +465,20 @@ class ParameterEditor(ParameterForm):
     ) -> None:
         super().__init__(name, root, parent)
 
-        self.setLayout(QtWidgets.QVBoxLayout())
+    def _init_layout(self) -> None:
+        # NOTE: Calling setLayout() when a layout is already set causes the application
+        #       to hang, so only call setLayout() once.
+        self._form = QtWidgets.QWidget()
+
         scroll_area = VerticalScrollArea(self)
-        self.layout().addWidget(scroll_area)
+        scroll_area.setWidget(self._form)
+
+        self.grid_layout = QtWidgets.QGridLayout()
+        self._form.setLayout(self.grid_layout)
+
+        self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setContentsMargins(QtCore.QMargins())
-
-        self._form_widget = QtWidgets.QWidget(self)
-        self._form_widget.setLayout(QtWidgets.QGridLayout())
-        scroll_area.setWidget(self._form_widget)
-
-    @property
-    def grid_layout(self) -> QtWidgets.QGridLayout:
-        layout = self._form_widget.layout()
-        if not isinstance(layout, QtWidgets.QGridLayout):
-            raise RuntimeError('Layout needs to be QGridLayout')
-        return layout
+        self.layout().addWidget(scroll_area)
 
 
 __all__ = ['ParameterEditor', 'ParameterBox', 'ParameterForm', 'ParameterTabWidget']

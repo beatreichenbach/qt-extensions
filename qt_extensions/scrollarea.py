@@ -4,7 +4,9 @@ from PySide2 import QtCore, QtWidgets
 
 
 class VerticalScrollArea(QtWidgets.QScrollArea):
-    # ScrollArea widget that has a minimum width based on its content
+    """
+    ScrollArea widget that has a minimum width based on its content.
+    """
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)

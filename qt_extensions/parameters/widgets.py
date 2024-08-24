@@ -60,7 +60,7 @@ class ParameterWidget(QtWidgets.QWidget):
             setter(value)
         self.blockSignals(False)
 
-    def changeEvent(self, event):
+    def changeEvent(self, event: QtCore.QEvent) -> None:
         if event.type() == QtCore.QEvent.EnabledChange:
             self.enabled_changed.emit(self.isEnabled())
         super().changeEvent(event)
@@ -461,6 +461,11 @@ class EnumParameter(ParameterWidget):
     def _init_ui(self) -> None:
         self.combo = QtWidgets.QComboBox()
         self.combo.currentIndexChanged.connect(self._current_index_changed)
+        self.combo.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+            )
+        )
 
         self.layout().addWidget(self.combo)
         self.setFocusProxy(self.combo)
@@ -1054,7 +1059,7 @@ class IntLineEdit(QtWidgets.QLineEdit):
         position = len(text) - step_index
         return position
 
-    def _text_edit(self):
+    def _text_edit(self) -> None:
         if self.commit_on_edit:
             self.commit(update_text=False)
 
