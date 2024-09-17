@@ -68,35 +68,38 @@ class ParameterWidget(QtWidgets.QWidget):
     def default(self) -> Any:
         return self._default
 
-    def label(self) -> str:
-        return self._label
-
-    def name(self) -> str:
-        return self._name
-
     def set_default(self, default: Any) -> None:
         self.set_value(default)
         self._default = self.value()
 
+    def label(self) -> str:
+        return self._label
+
     def set_label(self, label: str) -> None:
         self._label = label
+
+    def name(self) -> str:
+        return self._name
 
     def set_name(self, name: str) -> None:
         self._name = name
 
+    def tooltip(self) -> str:
+        return self._tooltip
+
     def set_tooltip(self, tooltip: str) -> None:
         self._tooltip = tooltip
+
+    def value(self) -> Any:
+        return self._value
 
     def set_value(self, value: Any) -> None:
         if value != self._value:
             self._value = value
             self.value_changed.emit(value)
 
-    def tooltip(self) -> str:
-        return self._tooltip
-
-    def value(self) -> Any:
-        return self._value
+    def reset(self) -> None:
+        self.set_value(self.default())
 
 
 class IntParameter(ParameterWidget):
@@ -453,8 +456,8 @@ class PathParameter(ParameterWidget):
 
 
 class EnumParameter(ParameterWidget):
-    _value: Enum = None
-    _default: Enum = None
+    _value: Enum | None = None
+    _default: Enum | None = None
     _formatter: Callable = staticmethod(helper.title)
     _enum: EnumMeta | None = None
 
@@ -480,9 +483,11 @@ class EnumParameter(ParameterWidget):
         self._enum = enum
         self._update_items()
         if self._enum:
-            default = list(self._enum)[0]
-            self.set_default(default)
-            self.set_value(default)
+            default = tuple(self._enum)[0]
+        else:
+            default = None
+        self.set_default(default)
+        self.set_value(default)
 
     def set_formatter(self, formatter: Callable) -> None:
         self._formatter = formatter

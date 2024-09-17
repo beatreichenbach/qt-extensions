@@ -408,7 +408,9 @@ class LogBar(QtWidgets.QWidget):
 
         self._init_ui()
 
-        if cache:
+        if not cache:
+            cache = LogCache(self)
+            cache.connect_logger(logging.getLogger())
             self.set_cache(cache)
 
     def _init_ui(self) -> None:
@@ -485,6 +487,7 @@ class LogBar(QtWidgets.QWidget):
         if self._viewer is None:
             self._viewer = LogViewer(self._cache, parent=self)
             self._viewer.setWindowFlag(QtCore.Qt.Dialog)
+            self._viewer.resize(QtCore.QSize(720, 480))
         self._viewer.show()
 
     def remove_widget(self, widget: QtWidgets.QWidget) -> None:

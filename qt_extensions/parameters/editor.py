@@ -273,11 +273,11 @@ class ParameterForm(QtWidgets.QWidget):
         if widgets is None:
             widgets = self.widgets()
 
-        for widget in widgets.values():
-            if isinstance(widget, ParameterWidget):
-                widget.set_value(widget.default())
-            elif isinstance(widget, dict):
-                self.reset(widget)
+        for value in widgets.values():
+            if isinstance(value, ParameterWidget):
+                value.reset()
+            elif isinstance(value, dict):
+                self.reset(value)
 
     def set_state(self, state: dict) -> None:
         values = {'expanded_boxes': []}
@@ -371,6 +371,7 @@ class ParameterForm(QtWidgets.QWidget):
         self._validate_name(name)
 
         form = ParameterForm(name=name, root=self)
+        # form.grid_layout.setContentsMargins(QtCore.QMargins(9, 9, 9, 9))
         self._widgets[name] = form
 
         return form
@@ -439,7 +440,9 @@ class ParameterForm(QtWidgets.QWidget):
     def _update_stretch(self) -> None:
         # NOTE: Setting 0 Margins breaks when the layout doesn't have any children, so
         #       set it here.
-        self.grid_layout.setContentsMargins(QtCore.QMargins())
+        # if self.grid_layout.contentsMargins():
+        # self.grid_layout.setContentsMargins(QtCore.QMargins())
+        # print(self.grid_layout.contentsMargins())
         self.grid_layout.setRowStretch(self.grid_layout.rowCount() - 1, 0)
         self.grid_layout.setRowStretch(self.grid_layout.rowCount(), 1)
 
