@@ -6,8 +6,9 @@ import sys
 from collections.abc import Sequence, Iterator
 from dataclasses import is_dataclass, fields
 from enum import Enum
-from types import GenericAlias, GeneratorType
-from typing import Any, Callable, ForwardRef, TypeVar, _eval_type, _UnionGenericAlias
+from types import GenericAlias
+from typing import Any, Callable, ForwardRef, TypeVar
+from typing import _eval_type, _UnionGenericAlias  # noqa
 
 from PySide2 import QtCore, QtGui
 
