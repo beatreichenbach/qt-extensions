@@ -21,13 +21,17 @@ def main() -> QtWidgets.QWidget:
         logger.warning('warning')
 
     logger2 = logging.getLogger('qt_extensions')
-    cache.connect_logger(logger2)
     for i in range(20):
         logger2.debug('debug')
         logger2.error('error')
         logger2.info('info')
         logger2.critical('critical')
         logger2.warning('warning')
+
+    logger2.debug('<b>debug</b>')
+    logger2.info('<span style="color: #ff00ff">info</span>')
+    logger2.warning('<i>warning</i>')
+    logger2.error('<span style="color: #00ffff">error</span>')
 
     dialog = QtWidgets.QDialog()
     dialog.resize(QtCore.QSize(800, 100))

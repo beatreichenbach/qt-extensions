@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import html
 import logging
 import os
+from PySide2 import QtWidgets, QtCore, QtGui
 from collections.abc import Sequence
 from functools import partial
-
-from PySide2 import QtWidgets, QtCore, QtGui
 
 from qt_extensions import theme
 from qt_extensions.button import CheckBoxButton
 from qt_extensions.icons import MaterialIcon
-
 
 SUCCESS = 25
 
@@ -27,6 +26,7 @@ class LogCache(QtCore.QObject):
         self.records = []
         self.handler = logging.Handler()
         self.handler.emit = self.add
+        self.destroyed.connect(self.cleanup)
 
     def add(self, record: logging.LogRecord) -> None:
         self.records.append(record)
@@ -50,6 +50,11 @@ class LogCache(QtCore.QObject):
             text = (f'{formatter.format(record)}\n' for record in self.records)
             f.writelines(text)
 
+    def cleanup(self) -> None:
+        print('cleanup')
+        self.handler.emit = logging.Handler.emit
+        self.handler.close()
+
 
 class LogViewer(QtWidgets.QWidget):
     def __init__(
@@ -68,15 +73,13 @@ class LogViewer(QtWidgets.QWidget):
         self._names = set()
         self._levels = set()
 
-        fmt = (
-            '[{asctime}]<font color="{color}"><b>[{levelname: <8}]</b></font> {message}'
-        )
+        # To escape html later, use placeholders.
+        fmt = '[{asctime}][html][{levelname: <8}][/html] {message}'
         self.formatter = logging.Formatter(
             fmt=fmt,
             datefmt='%I:%M:%S%p',
             style='{',
         )
-
         self._init_ui()
 
         self.set_levels((logging.ERROR, logging.WARNING))
@@ -93,7 +96,7 @@ class LogViewer(QtWidgets.QWidget):
         self.text_edit.setReadOnly(True)
         self.text_edit.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
 
-        font = QtGui.QFont('Roboto Mono')
+        font = QtGui.QFont()
         font.setStyleHint(QtGui.QFont.Monospace)
         self.text_edit.setFont(font)
 
@@ -243,6 +246,13 @@ class LogViewer(QtWidgets.QWidget):
             return
 
         message = self.formatter.format(record)
+        message = html.escape(message, quote=False)
+        message = message.replace(
+            '[html]',
+            f'<font color="{record.color}"><b>',
+        )
+        message = message.replace('[/html]', '</b></font>')
+
         if record.exc_info:
             lines = message.split('\n')
             try:
@@ -312,8 +322,8 @@ class LogViewer(QtWidgets.QWidget):
         }
         values.update(state)
 
-        self.set_levels(list(values['levels']))
-        self.set_names(list(values['names']))
+        self.set_levels(tuple(values['levels']))
+        self.set_names(tuple(values['names']))
         self._wrap_action.setChecked(values['wrap'])
 
     def state(self) -> dict:
@@ -403,13 +413,15 @@ class LogBar(QtWidgets.QWidget):
 
         self.current_message = logging.makeLogRecord({'levelno': logging.NOTSET})
         self.formatter = logging.Formatter(fmt='[{levelname}] {message}', style='{')
-        self.level = logging.WARNING
+        self.level = SUCCESS
         self.names = set()
 
         self._init_ui()
 
-        if cache:
-            self.set_cache(cache)
+        if not cache:
+            cache = LogCache(self)
+            cache.connect_logger(logging.getLogger())
+        self.set_cache(cache)
 
     def _init_ui(self) -> None:
         # colors
@@ -448,7 +460,7 @@ class LogBar(QtWidgets.QWidget):
         self.log_button.setIcon(self._info_icon)
         self.log_button.setAutoRaise(True)
         self.log_button.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.log_button.pressed.connect(self.open_viewer)
+        self.log_button.clicked.connect(self.open_viewer)
 
         message_layout.addWidget(self.log_button)
 
@@ -457,7 +469,7 @@ class LogBar(QtWidgets.QWidget):
         self.message_line.setReadOnly(True)
         self.message_line.setFocusPolicy(QtCore.Qt.NoFocus)
 
-        font = QtGui.QFont('Roboto Mono')
+        font = QtGui.QFont()
         font.setStyleHint(QtGui.QFont.Monospace)
         self.message_line.setFont(font)
         message_layout.addWidget(self.message_line)
@@ -485,6 +497,7 @@ class LogBar(QtWidgets.QWidget):
         if self._viewer is None:
             self._viewer = LogViewer(self._cache, parent=self)
             self._viewer.setWindowFlag(QtCore.Qt.Dialog)
+            self._viewer.resize(QtCore.QSize(720, 480))
         self._viewer.show()
 
     def remove_widget(self, widget: QtWidgets.QWidget) -> None:
