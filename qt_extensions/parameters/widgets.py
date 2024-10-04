@@ -455,6 +455,67 @@ class PathParameter(ParameterWidget):
         super().set_value(value)
 
 
+class ComboParameter(ParameterWidget):
+    _value: Any = None
+    _default: Any = None
+    _items: tuple = ()
+
+    def _init_ui(self) -> None:
+        self.combo = QtWidgets.QComboBox()
+        self.combo.currentIndexChanged.connect(self._current_index_changed)
+        self.combo.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+            )
+        )
+
+        self.layout().addWidget(self.combo)
+        self.setFocusProxy(self.combo)
+
+    def items(self) -> tuple:
+        return self._items
+
+    def set_items(self, items: Collection) -> None:
+        if isinstance(items, Mapping):
+            items = tuple(items.items())
+        else:
+            items = tuple(i if isinstance(i, tuple) else (i, i) for i in items)
+
+        self._items = items
+        self._update_items()
+        try:
+            default = items[0][1]
+        except (IndexError, TypeError):
+            default = None
+        self.set_default(default)
+        self.set_value(default)
+
+    def set_value(self, value: Any) -> None:
+        super().set_value(value)
+        self.combo.blockSignals(True)
+        if value is None:
+            index = -1
+        else:
+            index = self.combo.findData(value)
+        self.combo.setCurrentIndex(index)
+        self.combo.blockSignals(False)
+
+    def value(self) -> Any:
+        return super().value()
+
+    def _current_index_changed(self, index: int) -> None:
+        value = self.combo.itemData(index)
+        super().set_value(value)
+
+    def _update_items(self) -> None:
+        self.combo.blockSignals(True)
+        for index in reversed(range(self.combo.count())):
+            self.combo.removeItem(index)
+        for label, data in self._items:
+            self.combo.addItem(label, data)
+        self.combo.blockSignals(False)
+
+
 class EnumParameter(ParameterWidget):
     _value: Enum | None = None
     _default: Enum | None = None

@@ -6,6 +6,7 @@ from qt_extensions.parameters.widgets import (
     FloatParameter,
     StringParameter,
     PathParameter,
+    ComboParameter,
     EnumParameter,
     BoolParameter,
     MultiIntParameter,
