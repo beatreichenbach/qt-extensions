@@ -2,6 +2,8 @@ from PySide2 import QtWidgets, QtGui
 
 
 class QComboBox(QtWidgets.QComboBox):
+    """QComboBox with PlaceholderText support for PySide2."""
+
     # https://bugreports.qt.io/browse/QTBUG-90595
     def paintEvent(self, event: QtGui.QPaintEvent) -> None:
         # https://code.qt.io/cgit/qt/qtbase.git/tree/src/widgets/widgets/qcombobox.cpp#n2975

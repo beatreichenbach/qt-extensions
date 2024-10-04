@@ -55,7 +55,7 @@ def build_resource() -> None:
         os.remove(qrc_path)
 
 
-def main():
+def main() -> None:
     clone_repo()
     collect_files()
     build_resource()

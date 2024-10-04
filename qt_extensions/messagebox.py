@@ -4,6 +4,8 @@ from PySide2 import QtWidgets, QtGui
 
 from qt_extensions.icons import MaterialIcon
 
+StandardButton = QtWidgets.QMessageBox.StandardButton
+
 
 class MessageBox(QtWidgets.QMessageBox):
     @staticmethod
@@ -11,9 +13,9 @@ class MessageBox(QtWidgets.QMessageBox):
         parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
-        default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.NoButton,
-    ) -> QtWidgets.QMessageBox.StandardButton:
+        buttons: StandardButton = QtWidgets.QMessageBox.Ok,
+        default_button: StandardButton = QtWidgets.QMessageBox.NoButton,
+    ) -> int:
         icon = MaterialIcon('error')
         color = QtGui.QColor('#ff1744')
         return MessageBox.message(
@@ -25,9 +27,9 @@ class MessageBox(QtWidgets.QMessageBox):
         parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
-        default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.NoButton,
-    ) -> QtWidgets.QMessageBox.StandardButton:
+        buttons: StandardButton = QtWidgets.QMessageBox.Ok,
+        default_button: StandardButton = QtWidgets.QMessageBox.NoButton,
+    ) -> int:
         icon = MaterialIcon('info')
         return MessageBox.message(parent, title, text, buttons, default_button, icon)
 
@@ -36,10 +38,9 @@ class MessageBox(QtWidgets.QMessageBox):
         parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Yes
-        | QtWidgets.QMessageBox.No,
-        default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.NoButton,
-    ) -> QtWidgets.QMessageBox.StandardButton:
+        buttons: StandardButton = QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        default_button: StandardButton = QtWidgets.QMessageBox.NoButton,
+    ) -> int:
         icon = MaterialIcon('help')
         return MessageBox.message(parent, title, text, buttons, default_button, icon)
 
@@ -48,9 +49,9 @@ class MessageBox(QtWidgets.QMessageBox):
         parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
-        default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.NoButton,
-    ) -> QtWidgets.QMessageBox.StandardButton:
+        buttons: StandardButton = QtWidgets.QMessageBox.Ok,
+        default_button: StandardButton = QtWidgets.QMessageBox.NoButton,
+    ) -> int:
         icon = MaterialIcon('warning')
         return MessageBox.message(parent, title, text, buttons, default_button, icon)
 
@@ -59,11 +60,11 @@ class MessageBox(QtWidgets.QMessageBox):
         parent: QtWidgets.QWidget | None,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
-        default_button: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.NoButton,
+        buttons: StandardButton = QtWidgets.QMessageBox.Ok,
+        default_button: StandardButton = QtWidgets.QMessageBox.NoButton,
         icon: MaterialIcon | None = None,
         color: QtGui.QColor | None = None,
-    ) -> QtWidgets.QMessageBox.StandardButton:
+    ) -> int:
         message_box = QtWidgets.QMessageBox(parent)
         message_box.setWindowTitle(title)
         message_box.setText(text)

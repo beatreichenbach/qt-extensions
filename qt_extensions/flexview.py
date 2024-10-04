@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from enum import auto, Enum
 
 from PySide2 import QtWidgets, QtCore, QtGui
+
+ScrollHint = QtWidgets.QAbstractItemView.ScrollHint
 
 
 class FlexItemDelegate(QtWidgets.QItemDelegate):
@@ -31,7 +35,7 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         # draw focus
         super().drawFocus(painter, option, option.rect)
 
-    def drawFocus(self, painter, option, rect):
+    def drawFocus(self, painter, option, rect) -> None:
         return
 
     def drawDecoration(
@@ -42,7 +46,8 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         pixmap: QtGui.QPixmap,
     ) -> None:
         option.rect.adjust(2, 2, -2, -2)
-        # option.rect.adjust(self.text_margins.left(), self.text_margins.top(), -self.text_margins.right(), 0)
+        # margins = self.text_margins
+        # option.rect.adjust(margins.left(), margins.top(), -margins.right(), 0)
 
         font_metrics = painter.fontMetrics()
         height = font_metrics.height()
@@ -213,7 +218,7 @@ class FlexView(QtWidgets.QAbstractItemView):
         self,
         top_left: QtCore.QModelIndex,
         bottom_right: QtCore.QModelIndex,
-        roles: list[QtCore.Qt.ItemDataRole] | None = None,
+        roles: Sequence[QtCore.Qt.ItemDataRole] | None = None,
     ) -> None:
         if roles is None:
             roles = []
@@ -353,7 +358,7 @@ class FlexView(QtWidgets.QAbstractItemView):
     def scrollTo(
         self,
         index: QtCore.QModelIndex,
-        hint: QtWidgets.QAbstractItemView.ScrollHint = QtWidgets.QAbstractItemView.EnsureVisible,
+        hint: ScrollHint = QtWidgets.QAbstractItemView.EnsureVisible,
     ) -> None:
         if index.parent() != self.rootIndex():
             return
@@ -430,7 +435,7 @@ class FlexView(QtWidgets.QAbstractItemView):
 
     def _indexes(
         self, parent: QtCore.QModelIndex | None = None
-    ) -> list[QtCore.QModelIndex]:
+    ) -> tuple[QtCore.QModelIndex, ...]:
         if parent is None:
             parent = self.rootIndex()
         indexes = []
@@ -442,10 +447,10 @@ class FlexView(QtWidgets.QAbstractItemView):
                 first_index = index.siblingAtColumn(0)
                 if first_index.isValid():
                     indexes.extend(self._indexes(first_index))
-        return indexes
+        return tuple(indexes)
 
     def _horizontal_scroll_to_value(
-        self, rect: QtCore.QRect, hint: QtWidgets.QAbstractItemView.ScrollHint
+        self, rect: QtCore.QRect, hint: ScrollHint
     ) -> float:
         if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
             value = rect.right() - self.viewport().width() + self.spacing
@@ -455,9 +460,7 @@ class FlexView(QtWidgets.QAbstractItemView):
             value = rect.left() - self.spacing
         return value
 
-    def _vertical_scroll_to_value(
-        self, rect: QtCore.QRect, hint: QtWidgets.QAbstractItemView.ScrollHint
-    ) -> float:
+    def _vertical_scroll_to_value(self, rect: QtCore.QRect, hint: ScrollHint) -> float:
         if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
             value = rect.bottom() - self.viewport().height() + self.spacing
         elif hint == QtWidgets.QAbstractItemView.PositionAtCenter:

@@ -122,7 +122,7 @@ def apply_theme(
         item_view_palette.setColor(
             QPalette.AlternateBase, palette.color(QPalette.Window)
         )
-        app.setPalette(item_view_palette, 'QAbstractItemView')
+        app.setPalette(item_view_palette, 'QAbstractItemView')  # noqa
 
 
 def invert_value(color: QtGui.QColor) -> QtGui.QColor:

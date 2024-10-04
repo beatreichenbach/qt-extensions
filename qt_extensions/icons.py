@@ -33,7 +33,7 @@ class MaterialIcon(QtGui.QIcon):
 
         self._init_colors()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.name})'
 
     def _init_colors(self) -> None:
