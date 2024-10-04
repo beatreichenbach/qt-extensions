@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numbers
 import typing
 
 from PySide2 import QtWidgets, QtGui, QtCore
 
-from qt_extensions.parameters import ParameterWidget, IntParameter, FloatParameter
 from qt_extensions import helper
 from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
+
+from .widgets import ParameterWidget, IntParameter, FloatParameter
 
 
 class StyledItemDelegate(QtWidgets.QStyledItemDelegate):
@@ -166,7 +169,7 @@ class DataTableView(QtWidgets.QTableView):
 
         self._init_ui()
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         self.setSelectionMode(QtWidgets.QAbstractItemView.ContiguousSelection)
         self.setAlternatingRowColors(True)
         self.setShowGrid(False)
@@ -269,12 +272,12 @@ class DataTableView(QtWidgets.QTableView):
 class TabDataParameter(ParameterWidget):
     # Parameter to display tabular data in a QTreeWidget
 
-    value_changed: QtCore.Signal = QtCore.Signal(list)
+    value_changed: QtCore.Signal = QtCore.Signal(tuple)
 
-    _value: list | None = None
-    _default: list | None = None
-    _headers: list | None = None
-    _types: list | None = None
+    _value: tuple | None = None
+    _default: tuple | None = None
+    _headers: tuple | None = None
+    _types: tuple | None = None
     _start_index: int = 0
     _decimals: int = 3
 
@@ -321,18 +324,18 @@ class TabDataParameter(ParameterWidget):
         self.resize_grip = ResizeGrip(self.view)
         self.resize_grip.can_resize_horizontal = True
 
-    def clear(self):
+    def clear(self) -> None:
         self.model.clear()
-        super().set_value([])
+        super().set_value(())
         self.update_horizontal_headers()
 
     def decimals(self) -> int:
         return self._decimals
 
-    def headers(self) -> list | None:
+    def headers(self) -> tuple | None:
         return self._headers
 
-    def types(self) -> list | None:
+    def types(self) -> tuple | None:
         return self._types
 
     def start_index(self) -> int:
@@ -344,11 +347,11 @@ class TabDataParameter(ParameterWidget):
             if isinstance(delegate, FloatDelegate):
                 delegate.decimals = decimals
 
-    def set_headers(self, headers: list | None) -> None:
+    def set_headers(self, headers: Sequence | None) -> None:
         self._headers = headers
         self.update_horizontal_headers()
 
-    def set_types(self, types: list | None) -> None:
+    def set_types(self, types: Sequence | None) -> None:
         self._types = types
 
         self._delegates = []
@@ -375,19 +378,19 @@ class TabDataParameter(ParameterWidget):
 
     def update_horizontal_headers(self) -> None:
         if self._headers:
-            labels = list(map(helper.title, self._headers))
+            labels = tuple(map(helper.title, self._headers))
         else:
-            labels = list(map(str, range(self.model.columnCount())))
+            labels = tuple(map(str, range(self.model.columnCount())))
 
         self.model.setHorizontalHeaderLabels(labels)
         self.resize_headers()
 
     def update_vertical_headers(self) -> None:
         rows = range(self._start_index, self.model.rowCount() + self._start_index)
-        labels = list(map(str, rows))
+        labels = tuple(map(str, rows))
         self.model.setVerticalHeaderLabels(labels)
 
-    def set_value(self, value: list | None) -> None:
+    def set_value(self, value: Sequence | None) -> None:
         self.model.clear()
         if value is None:
             return
@@ -437,16 +440,13 @@ class TabDataParameter(ParameterWidget):
     def _item_change(self) -> None:
         super().set_value(self._tab_data_value())
 
-    def _tab_data_value(self):
-        value = []
+    def _tab_data_value(self) -> tuple:
+        values = []
         for row in range(self.model.rowCount()):
             row_values = []
             for column in range(self.model.columnCount()):
                 index = self.model.index(row, column)
                 column_value = self.model.data(index, QtCore.Qt.EditRole)
                 row_values.append(column_value)
-            value.append(row_values)
-        return value
-
-
-__all__ = ['TabDataParameter']
+            values.append(row_values)
+        return tuple(values)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import copy
 import dataclasses
 from typing import Any, Callable
@@ -41,7 +43,7 @@ class ElementModel(QtGui.QStandardItemModel):
     element_removed: QtCore.Signal = QtCore.Signal(object)
 
     def __init__(
-        self, fields: list[Field] | None = None, parent: QtWidgets.QWidget | None = None
+        self, fields: Sequence[Field] = (), parent: QtWidgets.QWidget | None = None
     ) -> None:
         super().__init__(parent)
 
@@ -49,11 +51,11 @@ class ElementModel(QtGui.QStandardItemModel):
         self.selected_indexes = []
 
         if not fields:
-            fields = [Field('name')]
+            fields = (Field('name'),)
         self.fields = fields
         self.refresh_header()
 
-    def clear(self):
+    def clear(self) -> None:
         super().clear()
         self.refresh_header()
 
@@ -154,7 +156,7 @@ class ElementModel(QtGui.QStandardItemModel):
         data = self.data(index.siblingAtColumn(0), QtCore.Qt.UserRole)
         return data
 
-    def elements(self, parent: QtCore.QModelIndex | None = None) -> list:
+    def elements(self, parent: QtCore.QModelIndex | None = None) -> tuple:
         if parent is None:
             parent = QtCore.QModelIndex()
         elements = []
@@ -166,14 +168,14 @@ class ElementModel(QtGui.QStandardItemModel):
             if data is not None:
                 elements.append(data)
             elements.extend(self.elements(index))
-        return elements
+        return tuple(elements)
 
     def find_indexes(
         self,
         value: Any,
         field: Field | None = None,
         parent: QtCore.QModelIndex | None = None,
-    ) -> list[QtCore.QModelIndex]:
+    ) -> tuple[QtCore.QModelIndex, ...]:
         indexes = []
 
         if parent is None or value is None:
@@ -191,7 +193,7 @@ class ElementModel(QtGui.QStandardItemModel):
                 indexes.append(index)
 
             indexes.extend(self.find_indexes(value, field, index))
-        return indexes
+        return tuple(indexes)
 
     def refresh_index(self, index: QtCore.QModelIndex) -> None:
         element = self.element(index)
@@ -217,7 +219,7 @@ class ElementModel(QtGui.QStandardItemModel):
             value = element
         elif isinstance(element, dict):
             value = element.get(field.name)
-        elif isinstance(element, (list, tuple)):
+        elif isinstance(element, Sequence):
             try:
                 i = self.fields.index(field)
                 value = element[i]
@@ -236,7 +238,9 @@ class ElementModel(QtGui.QStandardItemModel):
             element = value
         elif isinstance(element, dict):
             element[field.name] = value
-        elif isinstance(element, (list, tuple)):
+        elif isinstance(element, Sequence):
+            if isinstance(element, tuple):
+                element = list(element)
             try:
                 i = self.fields.index(field)
                 element[i] = value
@@ -254,10 +258,10 @@ class ElementProxyModel(QtCore.QSortFilterProxyModel):
     # autoAcceptChildRows is a Qt6 feature
     _autoAcceptChildRows = False
 
-    def autoAcceptChildRows(self) -> bool:
+    def autoAcceptChildRows(self) -> bool:  # noqa
         return self._autoAcceptChildRows
 
-    def setAutoAcceptChildRows(self, value: bool):
+    def setAutoAcceptChildRows(self, value: bool):  # noqa
         self._autoAcceptChildRows = value
 
     def filterAcceptsRow(
@@ -355,9 +359,9 @@ class ElementTree(QtWidgets.QTreeView):
         self.selection_changed.emit()
         super().selectionChanged(selected, deselected)
 
-    def selected_elements(self) -> list:
-        elements = [index.data(QtCore.Qt.UserRole) for index in self.selected_indexes]
-        return elements
+    def selected_elements(self) -> tuple:
+        elements = (index.data(QtCore.Qt.UserRole) for index in self.selected_indexes)
+        return tuple(elements)
 
     def resize_columns(self) -> None:
         if self.model():
@@ -371,7 +375,9 @@ class ElementBrowser(QtWidgets.QWidget):
     selection_changed: QtCore.Signal = QtCore.Signal()
 
     def __init__(
-        self, fields: list[Field] | None = None, parent: QtWidgets.QWidget | None = None
+        self,
+        fields: Sequence[Field] = (),
+        parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(parent)
 
@@ -381,7 +387,7 @@ class ElementBrowser(QtWidgets.QWidget):
         self._init_model()
         self._init_ui()
 
-    def _init_model(self):
+    def _init_model(self) -> None:
         self.model = ElementModel(self._fields, self)
         self.proxy = ElementProxyModel(self)
         self.proxy.setAutoAcceptChildRows(True)
@@ -392,7 +398,7 @@ class ElementBrowser(QtWidgets.QWidget):
         self.proxy.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.proxy.setSourceModel(self.model)
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         self.setLayout(QtWidgets.QVBoxLayout())
 
         self.toolbar = QtWidgets.QToolBar()
@@ -480,14 +486,14 @@ class ElementBrowser(QtWidgets.QWidget):
         self._actions[name] = action
         return action
 
-    def duplicate_selected(self) -> list[QtCore.QModelIndex]:
+    def duplicate_selected(self) -> tuple[QtCore.QModelIndex, ...]:
         indexes = []
         for index in self.tree.selected_indexes:
             copied_index = self.model.duplicate_index(index)
             indexes.append(copied_index)
-        return indexes
+        return tuple(indexes)
 
-    def elements(self) -> list:
+    def elements(self) -> tuple:
         return self.model.elements()
 
     def remove_toolbar_action(self, name: str) -> None:
@@ -505,7 +511,7 @@ class ElementBrowser(QtWidgets.QWidget):
             if index.isValid() and check_flag(index, QtCore.Qt.ItemIsDragEnabled):
                 self.model.removeRow(index.row(), index.parent())
 
-    def select_elements(self, elements: list) -> None:
+    def select_elements(self, elements: Sequence) -> None:
         selection_model = self.tree.selectionModel()
         selection_model.clear()
         for element in elements:
@@ -514,7 +520,7 @@ class ElementBrowser(QtWidgets.QWidget):
                 index = self.proxy.mapFromSource(index)
                 selection_model.select(index, QtCore.QItemSelectionModel.Select)
 
-    def selected_elements(self) -> list:
+    def selected_elements(self) -> tuple:
         return self.tree.selected_elements()
 
     def _current_parent(self) -> QtCore.QModelIndex:

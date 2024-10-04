@@ -58,7 +58,6 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._layout.addWidget(self.header)
 
         header_layout = QtWidgets.QHBoxLayout()
-        header_layout.setSpacing(0)
         self.header.setLayout(header_layout)
 
         self._expand_label = QtWidgets.QLabel(self.header)

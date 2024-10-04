@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence, Mapping
+from collections.abc import Sequence, Mapping, Collection
 from enum import Enum, IntEnum, auto, EnumMeta
 from functools import partial
 from typing import Any, Callable, Optional
@@ -343,7 +343,7 @@ class StringParameter(ParameterWidget):
     ) -> QtWidgets.QMenu:
         if menu is None:
             menu = QtWidgets.QMenu(self)
-        if isinstance(content, (list, tuple)):
+        if isinstance(content, Sequence):
             content = {i: i for i in content}
         for label, data in content.items():
             if isinstance(data, Mapping):
@@ -453,6 +453,67 @@ class PathParameter(ParameterWidget):
     def _editing_finished(self) -> None:
         value = self.line.text()
         super().set_value(value)
+
+
+class ComboParameter(ParameterWidget):
+    _value: Any = None
+    _default: Any = None
+    _items: tuple = ()
+
+    def _init_ui(self) -> None:
+        self.combo = QtWidgets.QComboBox()
+        self.combo.currentIndexChanged.connect(self._current_index_changed)
+        self.combo.setSizePolicy(
+            QtWidgets.QSizePolicy(
+                QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Fixed
+            )
+        )
+
+        self.layout().addWidget(self.combo)
+        self.setFocusProxy(self.combo)
+
+    def items(self) -> tuple:
+        return self._items
+
+    def set_items(self, items: Collection) -> None:
+        if isinstance(items, Mapping):
+            items = tuple(items.items())
+        else:
+            items = tuple(i if isinstance(i, tuple) else (i, i) for i in items)
+
+        self._items = items
+        self._update_items()
+        try:
+            default = items[0][1]
+        except (IndexError, TypeError):
+            default = None
+        self.set_default(default)
+        self.set_value(default)
+
+    def set_value(self, value: Any) -> None:
+        super().set_value(value)
+        self.combo.blockSignals(True)
+        if value is None:
+            index = -1
+        else:
+            index = self.combo.findData(value)
+        self.combo.setCurrentIndex(index)
+        self.combo.blockSignals(False)
+
+    def value(self) -> Any:
+        return super().value()
+
+    def _current_index_changed(self, index: int) -> None:
+        value = self.combo.itemData(index)
+        super().set_value(value)
+
+    def _update_items(self) -> None:
+        self.combo.blockSignals(True)
+        for index in reversed(range(self.combo.count())):
+            self.combo.removeItem(index)
+        for label, data in self._items:
+            self.combo.addItem(label, data)
+        self.combo.blockSignals(False)
 
 
 class EnumParameter(ParameterWidget):
@@ -644,8 +705,8 @@ class MultiIntParameter(IntParameter):
         if not ratio_visible:
             self.set_keep_ratio(False)
 
-    def set_value(self, value: list | tuple) -> None:
-        if isinstance(value, (list, tuple)):
+    def set_value(self, value: Sequence) -> None:
+        if isinstance(value, Sequence):
             values = value
         else:
             values = self._cast_to_tuple(value)
@@ -674,10 +735,10 @@ class MultiIntParameter(IntParameter):
         ParameterWidget.set_value(self, value)
         self._set_slider_value(values[0])
 
-    def _cast_to_tuple(self, values: tuple[int, ...]) -> tuple[int, ...]:
+    def _cast_to_tuple(self, values: Any) -> tuple[int, ...]:
         return values
 
-    def _cast_to_type(self, values: tuple[int, ...]) -> tuple[int, ...]:
+    def _cast_to_type(self, values: tuple[int, ...]) -> Any:
         return values
 
     def _slider_value_changed(self, value: int) -> None:
@@ -775,7 +836,7 @@ class PointParameter(MultiIntParameter):
     _slider_visible: bool = False
     _ratio_visible: bool = False
 
-    def set_value(self, value: QtCore.QPoint | list | tuple) -> None:
+    def set_value(self, value: QtCore.QPoint | Sequence) -> None:
         super().set_value(value)
 
     def value(self) -> QtCore.QPoint:
@@ -796,7 +857,7 @@ class PointFParameter(MultiFloatParameter):
     _slider_visible: bool = False
     _ratio_visible: bool = False
 
-    def set_value(self, value: QtCore.QPointF | list | tuple) -> None:
+    def set_value(self, value: QtCore.QPointF | Sequence) -> None:
         super().set_value(value)
 
     def value(self) -> QtCore.QPointF:
@@ -815,7 +876,7 @@ class SizeParameter(MultiIntParameter):
     _value: QtCore.QSize = QtCore.QSize(0, 0)
     _default: QtCore.QSize = QtCore.QSize(0, 0)
 
-    def set_value(self, value: QtCore.QSize | list | tuple) -> None:
+    def set_value(self, value: QtCore.QSize | Sequence) -> None:
         super().set_value(value)
 
     def value(self) -> QtCore.QSize:
@@ -834,7 +895,7 @@ class SizeFParameter(MultiFloatParameter):
     _value: QtCore.QSizeF = QtCore.QSizeF(0, 0)
     _default: QtCore.QSizeF = QtCore.QSizeF(0, 0)
 
-    def set_value(self, value: QtCore.QSizeF | list | tuple) -> None:
+    def set_value(self, value: QtCore.QSizeF | Sequence) -> None:
         super().set_value(value)
 
     def value(self) -> QtCore.QSizeF:
@@ -878,7 +939,8 @@ class ColorParameter(MultiFloatParameter):
         )
         if color.isValid():
             super().set_value(color)
-            self._set_line_values(self._cast_to_tuple(color))
+            values = self._cast_to_tuple(color)
+            self._set_line_values(values)
             self._set_button_value(color)
 
     def set_color_min(self, color_min: float) -> None:
@@ -891,7 +953,7 @@ class ColorParameter(MultiFloatParameter):
         for line in self.lines:
             line.set_maximum(self._color_max)
 
-    def set_value(self, value: QtGui.QColor | list | tuple) -> None:
+    def set_value(self, value: QtGui.QColor | Sequence) -> None:
         super().set_value(value)
         self._set_button_value(self._value)
 
@@ -1353,21 +1415,3 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         size_hint = super().sizeHint()
         size_hint.setHeight(self.minimumSizeHint().height())
         return size_hint
-
-
-__all__ = [
-    'ParameterWidget',
-    'IntParameter',
-    'FloatParameter',
-    'MultiIntParameter',
-    'MultiFloatParameter',
-    'PointParameter',
-    'PointFParameter',
-    'SizeParameter',
-    'SizeFParameter',
-    'StringParameter',
-    'PathParameter',
-    'BoolParameter',
-    'EnumParameter',
-    'ColorParameter',
-]

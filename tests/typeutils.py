@@ -30,7 +30,7 @@ class InventoryItem:
     quantity_on_hand: int = 0
 
 
-def test_cast():
+def test_cast() -> None:
     assert cast(None, 'test') is None
     assert cast(bool, 'False') is True
     assert cast(str, 3.141) == '3.141'
@@ -64,7 +64,7 @@ def test_cast():
     assert cast(QtCore.QPointF, (1, 2)) == QtCore.QPointF(1, 2)
 
 
-def test_cast_basic():
+def test_cast_basic() -> None:
     item = InventoryItem('Apple', 2, ProductNumber(2), QtGui.QColor(1, 2, 3))
     assert basic(item) == {
         'name': 'Apple',
@@ -75,7 +75,7 @@ def test_cast_basic():
     }
 
 
-def test_hashable_dataclass():
+def test_hashable_dataclass() -> None:
     @hashable_dataclass
     class TestClass:
         name: str
@@ -85,12 +85,12 @@ def test_hashable_dataclass():
     hash(test)
 
 
-def test_hashable_dict():
+def test_hashable_dict() -> None:
     test = HashableDict([(0, 'a'), (1, 'b')])
     hash(test)
 
 
-def test_deep_field():
+def test_deep_field() -> None:
     @dataclasses.dataclass
     class Test:
         color: QtGui.QColor = deep_field(QtGui.QColor(255, 255, 255))

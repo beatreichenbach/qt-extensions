@@ -272,7 +272,7 @@ class ToolBar(QtWidgets.QToolBar):
         size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
         self.setIconSize(QtCore.QSize(size, size))
 
-        self.channel_cmb = QComboBox()
+        self.channel_cmb = QtWidgets.QComboBox()
         self.channel_cmb.keyPressEvent = lambda event: event.ignore()
         self.channel_cmb.addItems(CHANNELS)
         channel_action = QtWidgets.QWidgetAction(self)
@@ -524,7 +524,7 @@ class Viewer(QtWidgets.QWidget):
         self._array = array
         height, width = array.shape[:2]
 
-        self._update_image()
+        self._refresh_image()
 
         # trigger fit to view
         self.set_resolution(QtCore.QSize(width, height))
@@ -576,12 +576,12 @@ class Viewer(QtWidgets.QWidget):
 
     def _channel_changed(self, channel: str) -> None:
         self._channel = channel
-        self._update_image()
+        self._refresh_image()
 
     def _exposure_changed(self, value: float) -> None:
         if not self.paused:
             self._exposure = value
-            self._update_image()
+            self._refresh_image()
 
     def _expose_image(self, array: np.ndarray) -> None:
         gain = pow(2, self.exposure())
@@ -602,7 +602,7 @@ class Viewer(QtWidgets.QWidget):
         for c in range(array.shape[2]):
             array[:, :, c] = array[:, :, index]
 
-    def _update_image(self):
+    def _refresh_image(self) -> None:
         height, width, channels = self._array.shape
         if not height or not width:
             return

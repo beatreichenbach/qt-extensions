@@ -2,7 +2,7 @@ from PySide2 import QtCore, QtGui, QtWidgets
 
 
 class ElideLabel(QtWidgets.QLabel):
-    def __init__(self, text='', parent=None):
+    def __init__(self, text='', parent=None) -> None:
         super().__init__(text, parent)
 
         self._text = text
@@ -12,11 +12,11 @@ class ElideLabel(QtWidgets.QLabel):
         size.setWidth(size.height())
         return size
 
-    def setText(self, text):
+    def setText(self, text: str) -> None:
         super().setText(text)
         self._text = self.text()
 
-    def _update_text(self):
+    def _update_text(self) -> None:
         font_metrics = self.fontMetrics()
         width = self.contentsRect().width()
         text = font_metrics.elidedText(self._text, QtCore.Qt.ElideRight, width)

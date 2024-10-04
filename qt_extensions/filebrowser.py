@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Sequence
+
 import dataclasses
 import logging
 import os
@@ -43,7 +45,7 @@ class FileNameDelegate(ElementDelegate):
         super().setEditorData(editor, index)
 
         # selectAll gets called after opening the editor
-        def set_selection():
+        def set_selection() -> None:
             editor.selectionChanged.disconnect(set_selection)
             text = editor.text()
             root, ext = os.path.splitext(text)
@@ -61,7 +63,7 @@ class FileBrowser(ElementBrowser):
     def __init__(
         self,
         path: str,
-        fields: list[Field] | None = None,
+        fields: Sequence[Field] = (),
         parent: QtWidgets.QWidget | None = None,
     ) -> None:
         super().__init__(fields, parent)
@@ -73,7 +75,7 @@ class FileBrowser(ElementBrowser):
         self.model.element_moved.connect(self._move_element)
         self.model.element_changed.connect(self._change_element)
 
-    def _init_ui(self):
+    def _init_ui(self) -> None:
         super()._init_ui()
 
         delegate = FileNameDelegate(parent=self)
@@ -106,7 +108,7 @@ class FileBrowser(ElementBrowser):
         self.proxy.sort(0)
         self.tree.resize_columns()
 
-    def add_element(self):
+    def add_element(self) -> QtCore.QModelIndex:
         parent = self._current_parent()
 
         parent_element = self.model.element(parent)
@@ -149,7 +151,7 @@ class FileBrowser(ElementBrowser):
         index = self._append_dir(path, parent)
         return index
 
-    def duplicate_selected(self) -> list[QtCore.QModelIndex]:
+    def duplicate_selected(self) -> tuple[QtCore.QModelIndex, ...]:
         indexes = []
         for index in self.tree.selected_indexes:
             element = self.model.element(index)
@@ -164,7 +166,7 @@ class FileBrowser(ElementBrowser):
             copied_element.path = path
             self.model.refresh_index(copied_index)
             indexes.append(copied_index)
-        return indexes
+        return tuple(indexes)
 
     def refresh(self) -> None:
         self.blockSignals(True)
