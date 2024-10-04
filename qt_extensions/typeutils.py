@@ -3,10 +3,14 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
+from collections.abc import Sequence, Iterator
 from dataclasses import is_dataclass, fields
 from enum import Enum
+from types import GenericAlias
+from typing import Any, Callable, ForwardRef, TypeVar
+from typing import _eval_type, _UnionGenericAlias  # noqa
 
-from types import GenericAlias, GeneratorType
+from PySide2 import QtCore, QtGui
 
 try:
     from types import UnionType, NoneType
@@ -17,13 +21,11 @@ except ImportError:
     UnionType = type(Union)
     NoneType = None
 
-from typing import Any, ForwardRef
-from typing import _UnionGenericAlias, _eval_type
 
-from PySide2 import QtCore, QtGui
+T = TypeVar('T')
 
 
-def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
+def cast(typ: type[T], value: Any, globalns: dict | None = None) -> T:
     """Casts a value to a type or a type hint.
 
     Raises TypeError when failed.
@@ -124,7 +126,7 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
                     continue
                 kw_value = cast(field_.type, value[field_.name], globalns)
                 kwargs[field_.name] = kw_value
-        elif isinstance(value, (list, tuple)):
+        elif isinstance(value, Sequence):
             # treat value as *args for a dataclass
             for field_, v in zip(fields(typ), value):
                 kw_value = cast(field_.type, v, globalns)
@@ -145,51 +147,46 @@ def cast(typ: Any, value: Any, globalns: dict | None = None) -> Any:
     raise TypeError(f'cannot cast to type ({typ})')
 
 
-def basic(obj: Any) -> Any:
+def basic(obj: Any) -> tuple | list | dict | str | int | float | bool | None:
     """Returns a basic type that can be serialized by json."""
 
-    if dataclasses.is_dataclass(obj):
-        obj = dataclasses.asdict(obj)
-
     if obj is None:
-        return None
-    if isinstance(obj, (str, int, float, bool)):
+        return
+    elif isinstance(obj, (str, int, float, bool)):
         # basic types as defined in json library
         return obj
-    elif isinstance(obj, (list, GeneratorType)):
-        return type(obj)(basic(v) for v in obj)
+    elif dataclasses.is_dataclass(obj):
+        return basic(dataclasses.asdict(obj))
+    elif isinstance(obj, Iterator):
+        return tuple(basic(v) for v in obj)
     elif isinstance(obj, dict):
-        return type(obj)((k, basic(v)) for k, v in obj.items())
-    elif isinstance(obj, tuple):
-        return type(obj)(basic(v) for v in obj)
-    elif isinstance(obj, set):
-        return [basic(v) for v in obj]
+        return {k: basic(v) for k, v in obj.items()}
     elif isinstance(obj, Enum):
         return obj.name
     elif isinstance(obj, (QtCore.QPoint, QtCore.QPointF)):
-        return [obj.x(), obj.y()]
+        return obj.x(), obj.y()
     elif isinstance(obj, (QtCore.QSize, QtCore.QSizeF)):
-        return [obj.width(), obj.height()]
+        return obj.width(), obj.height()
     elif isinstance(obj, (QtCore.QRect, QtCore.QRectF)):
-        return [obj.x(), obj.y(), obj.width(), obj.height()]
+        return obj.x(), obj.y(), obj.width(), obj.height()
     elif isinstance(obj, QtGui.QColor):
         return obj.getRgb()
-
-    try:
+    else:
         # convert enum, flags to int
-        if int(obj) == obj:
-            return int(obj)
-    except TypeError:
-        pass
+        try:
+            if int(obj) == obj:
+                return int(obj)
+        except TypeError:
+            pass
 
-    raise TypeError(f'Cannot convert {obj.__class__} to basic type.')
+    raise TypeError(f'cannot convert {obj.__class__} to basic type')
 
 
 def deep_field(obj) -> dataclasses.Field:
     return dataclasses.field(default_factory=lambda: obj.__class__(obj))
 
 
-def hashable_dataclass(cls):
+def hashable_dataclass(cls) -> Callable:
     def __hash__(self) -> int:
         if self._hash is None:
             data = basic(self)
@@ -208,5 +205,5 @@ def hashable_dataclass(cls):
 
 
 class HashableDict(dict):
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(tuple(sorted(self.items())))
