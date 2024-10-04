@@ -40,9 +40,6 @@ class BaseButton(QtWidgets.QPushButton):
         if on:
             if self._palette_on and isinstance(icon, MaterialIcon):
                 icon.set_color(self._palette_on.color(QtGui.QPalette.ButtonText))
-
-                pixmap = icon.pixmap(0)
-
             self._icon_on = icon
         else:
             self._icon_off = icon
@@ -115,9 +112,6 @@ class CheckBoxButton(BaseButton):
 
         self.setCheckable(True)
         self.set_margins(w=0.5)
-        # self.setMinimumHeight(self._icon_size * 2)
-
-        size = self._icon_size
 
         self.setIcon(MaterialIcon('check_box_outline_blank', fill=True))
         self.setIcon(MaterialIcon('check_box'), True)
