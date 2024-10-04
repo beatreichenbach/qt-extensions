@@ -26,7 +26,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._collapsed = False
         self._checkable = False
         self._collapsible = False
-        self._style = CollapsibleBox.NONE
+        self._style = CollapsibleBox.SIMPLE
 
         self.title_label = None
         self._expand_label = None
@@ -83,14 +83,16 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._menu_button.setMaximumSize(QtCore.QSize(size, size))
         header_layout.addWidget(self._menu_button)
 
-        self._update_icon()
+        self._refresh_icon()
 
         # frame
         self.frame = QtWidgets.QFrame(self)
         self._layout.addWidget(self.frame)
         self._layout.setStretch(1, 1)
 
-    def __repr__(self):
+        self._refresh_box_style()
+
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}({repr(self.title())})'
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
@@ -203,21 +205,30 @@ class CollapsibleBox(QtWidgets.QFrame):
         if self.collapsible():
             self._collapsed = collapsed
             self.frame.setMaximumHeight(0 if collapsed else self._maximum_height)
-            self._update_icon()
+            self._refresh_icon()
 
     def set_box_style(self, style: Style) -> None:
         self._style = style
-        if style == CollapsibleBox.Style.SIMPLE:
+        self._refresh_box_style()
+
+    def set_title(self, title: str) -> None:
+        self.title_label.setText(title)
+
+    def _refresh_box_style(self) -> None:
+        if self._style == CollapsibleBox.Style.SIMPLE:
             self.setFrameShape(QtWidgets.QFrame.StyledPanel)
         else:
             self.setFrameShape(QtWidgets.QFrame.NoFrame)
-        if style == CollapsibleBox.Style.BUTTON:
+
+        if self._style == CollapsibleBox.Style.BUTTON:
             self._layout.setContentsMargins(2, 2, 2, 2)
         else:
             self._layout.setContentsMargins(0, 0, 0, 0)
 
-    def set_title(self, title: str) -> None:
-        self.title_label.setText(title)
+    def _refresh_icon(self) -> None:
+        icon = self._expand_more_icon if self._collapsed else self._expand_less_icon
+        size = self.style().pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
+        self._expand_label.setPixmap(icon.pixmap(size))
 
     def _show_menu(self) -> None:
         relative_pos = self._menu_button.rect().topRight()
@@ -229,8 +240,3 @@ class CollapsibleBox(QtWidgets.QFrame):
         menu.exec_(position)
 
         self._menu_button.setDown(False)
-
-    def _update_icon(self) -> None:
-        icon = self._expand_more_icon if self._collapsed else self._expand_less_icon
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
-        self._expand_label.setPixmap(icon.pixmap(size))
