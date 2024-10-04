@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import dataclasses
 import typing
 from collections import OrderedDict
 from functools import partial
-from typing import Union
 
 from PySide2 import QtCore, QtGui, QtWidgets
 
@@ -16,7 +17,7 @@ from qt_extensions.typeutils import cast, basic
 @dataclasses.dataclass()
 class DockWidgetState:
     current_index: int
-    widgets: list[tuple[str, str]]
+    widgets: tuple[tuple[str, str], ...]
     detachable: bool
     auto_delete: bool
     is_center_widget: bool
@@ -26,11 +27,16 @@ class DockWidgetState:
 
 @dataclasses.dataclass()
 class SplitterState:
-    sizes: list[int]
+    sizes: tuple[int, ...]
     orientation: QtCore.Qt.Orientation
-    states: list[typing.Union[DockWidgetState, 'SplitterState', None]]
+    states: tuple[StateType, ...]
     geometry: QtCore.QRect = QtCore.QRect()
     flags: int = 0
+
+
+StateType = typing.TypeVar(
+    'StateType', bound=typing.Union[DockWidgetState, SplitterState, None]
+)
 
 
 @dataclasses.dataclass()
@@ -64,8 +70,8 @@ class DockTabBar(QtWidgets.QTabBar):
         else:
             # no tab is detached
             # this must only be called when _detaching == False
-            # undocking tabs while mouse move events are being processed leads to crashes
-            # because of the tab QPainter events
+            # undocking tabs while mouse move events are being processed leads to
+            # crashes because of the tab's QPainter events
             super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
@@ -428,7 +434,7 @@ class DockWindow(QtWidgets.QWidget):
 
         return dock_widget
 
-    def dock_widgets(self) -> list[DockWidget]:
+    def dock_widgets(self) -> tuple[DockWidget, ...]:
         # return all DockWidgets under this window. They are sorted in a manner
         # that makes sense for checking dock areas.
         children = self.findChildren(DockWidget)
@@ -437,7 +443,7 @@ class DockWindow(QtWidgets.QWidget):
         # list deepest nested children first
         children = reversed(children)
 
-        return list(children)
+        return tuple(children)
 
     def register_widget(
         self, cls: type, title: str | None = None, unique: bool = True
@@ -468,10 +474,7 @@ class DockWindow(QtWidgets.QWidget):
         except TypeError:
             pass
 
-    def set_widget_states(
-        self,
-        states: list[dict],
-    ) -> None:
+    def set_widget_states(self, states: Sequence[dict]) -> None:
         # store all current widgets for layout
         widgets = dict(self._widgets)
         # unparent all widgets to clean up layout
@@ -479,7 +482,7 @@ class DockWindow(QtWidgets.QWidget):
             widget.setParent(None)
             widget.close()
 
-        states = cast(list[Union[DockWidgetState, SplitterState]], states)
+        states = cast(tuple[StateType, ...], states)
         self._set_widget_states(states, self, widgets)
 
         # remove unused widgets
@@ -498,28 +501,24 @@ class DockWindow(QtWidgets.QWidget):
 
     def widget_states(
         self, widget: QtWidgets.QWidget | None = None
-    ) -> list[Union[DockWidgetState, SplitterState]]:
+    ) -> tuple[StateType, ...]:
         states = []
 
         if widget is None:
             children = self.children()
         else:
-            children = [widget.widget(i) for i in range(widget.count())]
+            children = (widget.widget(i) for i in range(widget.count()))
 
         for child in children:
             if isinstance(child, Splitter):
                 state = SplitterState(
-                    sizes=child.sizes(),
+                    sizes=tuple(child.sizes()),
                     orientation=child.orientation(),
                     states=self.widget_states(child),
                 )
 
             elif isinstance(child, DockWidget):
-                # widgets is a tuple [title, cls.__name__]
-                widgets = [
-                    (child.tabText(i), type(child.widget(i)).__name__)
-                    for i in range(child.count())
-                ]
+                widgets = tab_widget_classes(child)
                 state = DockWidgetState(
                     current_index=child.currentIndex(),
                     widgets=widgets,
@@ -536,7 +535,7 @@ class DockWindow(QtWidgets.QWidget):
                 state.flags = int(child.windowFlags())
 
             states.append(state)
-        return states
+        return tuple(states)
 
     # noinspection PyMethodMayBeStatic
     def focus_widget(self, widget: QtWidgets.QWidget) -> None:
@@ -591,7 +590,7 @@ class DockWindow(QtWidgets.QWidget):
         if title is None:
             title = registered_widget.title
 
-        titles = list(self._widgets.keys())
+        titles = tuple(self._widgets.keys())
         unique_title = helper.unique_name(title, titles)
 
         widget.destroyed.connect(lambda: self._widget_destroy(widget))
@@ -611,7 +610,7 @@ class DockWindow(QtWidgets.QWidget):
 
     def _set_widget_states(
         self,
-        states: list[DockWidgetState | SplitterState],
+        states: Sequence[StateType],
         parent: QtWidgets.QWidget,
         widgets: dict[str, QtWidgets.QWidget],
     ) -> None:
@@ -690,3 +689,11 @@ def area_orientation(area: QtCore.Qt.DockWidgetArea) -> QtCore.Qt.Orientation:
         return QtCore.Qt.Horizontal
     elif area in (QtCore.Qt.TopDockWidgetArea, QtCore.Qt.BottomDockWidgetArea):
         return QtCore.Qt.Vertical
+
+
+def tab_widget_classes(widget: QtWidgets.QTabWidget) -> tuple[tuple[str, str], ...]:
+    # widgets is a tuple [title, cls.__name__]
+    widgets = []
+    for i in range(widget.count()):
+        widgets.append((widget.tabText(i), type(widget.widget(i)).__name__))
+    return tuple(widgets)
