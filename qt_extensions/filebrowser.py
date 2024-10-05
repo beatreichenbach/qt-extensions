@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-from typing import Sequence
-
 import dataclasses
 import logging
 import os
 import shutil
+from typing import Sequence
 
 from PySide2 import QtWidgets, QtCore, QtGui
+from qt_material_icons import MaterialIcon
 
-from qt_extensions.helper import unique_path
-from qt_extensions.icons import MaterialIcon
 from qt_extensions.elementbrowser import ElementBrowser, Field, ElementDelegate
+from qt_extensions.helper import unique_path
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import enum
 from collections.abc import Sequence
 
 from PySide2 import QtWidgets, QtCore, QtGui
-from qt_extensions.icons import MaterialIcon
+from qt_material_icons import MaterialIcon
 
 
 class CollapsibleBox(QtWidgets.QFrame):

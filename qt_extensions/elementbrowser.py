@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import copy
 import dataclasses
+from collections.abc import Sequence
 from typing import Any, Callable
 
 from PySide2 import QtGui, QtCore, QtWidgets
+from qt_material_icons import MaterialIcon
 
 from qt_extensions.helper import title
-from qt_extensions.icons import MaterialIcon
 
 
 def set_flag(item: QtGui.QStandardItem, flag: QtCore.Qt.ItemFlag, value: bool) -> None:

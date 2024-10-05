@@ -7,10 +7,10 @@ from functools import partial
 from typing import Any, Callable, Optional
 
 from PySide2 import QtWidgets, QtGui, QtCore
+from qt_material_icons import MaterialIcon
 
 from qt_extensions import helper
 from qt_extensions.button import BaseButton
-from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
 
 

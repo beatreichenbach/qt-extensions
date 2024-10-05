@@ -3,13 +3,14 @@ from __future__ import annotations
 import html
 import logging
 import os
-from PySide2 import QtWidgets, QtCore, QtGui
 from collections.abc import Sequence
 from functools import partial
 
+from PySide2 import QtWidgets, QtCore, QtGui
+from qt_material_icons import MaterialIcon
+
 from qt_extensions import theme
 from qt_extensions.button import CheckBoxButton
-from qt_extensions.icons import MaterialIcon
 
 SUCCESS = 25
 

@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import dataclasses
 import typing
 from collections import OrderedDict
+from collections.abc import Sequence
 from functools import partial
 
 from PySide2 import QtCore, QtGui, QtWidgets
+from qt_material_icons import MaterialIcon
 
 from qt_extensions import helper
-from qt_extensions.icons import MaterialIcon
 from qt_extensions.typeutils import cast, basic
 
 

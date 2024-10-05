@@ -43,15 +43,6 @@ A browser based on the ElementBrowser widget to display files.
 ### flexview
 A StandardItemView that displays items in a flex view.
 
-### icons
-A module that provides easy creation of QIcons based on
-[Google Material Symbols & Icons]. Initially using the icons they are now using the new
-symbols.
-
-![Screenshot of the icons](/.github/assets/icons.png)
-
-[Google Material Symbols & Icons]: https://fonts.google.com/icons
-
 ### logger
 A status bar and log viewer that provides a gui interface for the logging module.
 

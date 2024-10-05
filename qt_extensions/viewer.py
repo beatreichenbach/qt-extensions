@@ -5,9 +5,9 @@ import typing
 
 import numpy as np
 from PySide2 import QtWidgets, QtGui, QtCore
+from qt_material_icons import MaterialIcon
 
 from qt_extensions.combobox import QComboBox
-from qt_extensions.icons import MaterialIcon
 from qt_extensions.parameters import FloatParameter
 
 

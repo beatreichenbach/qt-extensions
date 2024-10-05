@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from PySide2 import QtWidgets, QtGui, QtCore
+from qt_material_icons import MaterialIcon
 
 from qt_extensions import theme
-from qt_extensions.icons import MaterialIcon
 
 
 class BaseButton(QtWidgets.QPushButton):

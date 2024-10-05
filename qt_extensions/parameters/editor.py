@@ -10,7 +10,6 @@ from PySide2 import QtWidgets, QtCore, QtGui
 from qt_extensions import helper
 from qt_extensions.box import CollapsibleBox
 from qt_extensions.scrollarea import VerticalScrollArea
-
 from .widgets import ParameterWidget
 
 

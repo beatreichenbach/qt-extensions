@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import numbers
 import typing
+from collections.abc import Sequence
 
 from PySide2 import QtWidgets, QtGui, QtCore
+from qt_material_icons import MaterialIcon
 
 from qt_extensions import helper
-from qt_extensions.icons import MaterialIcon
 from qt_extensions.resizegrip import ResizeGrip
-
 from .widgets import ParameterWidget, IntParameter, FloatParameter
 
 

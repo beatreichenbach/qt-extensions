@@ -6,7 +6,8 @@ authors = [
     {name = "Beat Reichenbach"}
 ]
 dependencies = [
-    "PySide2"
+    "PySide2",
+    "qt-material-icons"
 ]
 requires-python = ">=3.9, <3.11"
 license = {text = "MIT"}
