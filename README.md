@@ -1,30 +1,8 @@
 # qt-extensions
 
 This is a collection of widgets and utility functions to extend Qt.
-Some example usages can be found in gui_tests.
-
-<!-- TOC -->
-* [qt-extensions](#qt-extensions)
-  * [Installation](#installation)
-  * [Contributing](#contributing)
-  * [Usage](#usage)
-  * [Modules](#modules)
-    * [parameters](#parameters)
-    * [box](#box)
-    * [buttons](#buttons)
-    * [elementbrowser](#elementbrowser)
-    * [filebrowser](#filebrowser)
-    * [flexview](#flexview)
-    * [icons](#icons)
-    * [logger](#logger)
-    * [mainwindow](#mainwindow)
-    * [messagebox](#messagebox)
-    * [resizegrip](#resizegrip)
-    * [scrollarea](#scrollarea)
-    * [theme](#theme)
-    * [typeutils](#typeutils)
-    * [viewer](#viewer)
-<!-- TOC -->
+This package uses Material Icons from
+[qt-material-icons](https://github.com/beatreichenbach/qt-material-icons).
 
 ## Installation
 
@@ -33,32 +11,9 @@ Install using pip:
 pip install qt-extensions
 ```
 
-## Contributing
-
-Create a venv:
-```shell
-python3 -m venv venv
-```
-Install `qt-extensions` in editable mode:
-```shell
-python3 -m pip install -e .[dev]
-```
-
-To version up using [python-semantic-release]:
-```shell
-semantic-release version
-```
-
-[python-semantic-release]: https://github.com/python-semantic-release/python-semantic-release
-
-To update Material Symbols resources:
-```shell
-python3 compile_icons.py
-```
-
 ## Usage
 
-For usage see `tests_gui` directory.
+For examples see the [tests_gui](tests_gui) directory.
 
 ## Modules
 
@@ -130,3 +85,13 @@ A module for helping with types. For example cast a dictionary to a dataclass.
 A viewer for numpy array images. It has an exposure slider zoom, pan and shows pixel information.
 
 ![Screenshot of the viewer widget](/.github/assets/viewer.png)
+
+
+## Contributing
+
+To contribute please refer to the [Contributing Guide](CONTRIBUTING.md).
+
+## License
+
+MIT License. Copyright 2024 - Beat Reichenbach.
+See the [License file](LICENSE) for details.
