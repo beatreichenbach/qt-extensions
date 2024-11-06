@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v1.1.0 (2024-11-06)
+
+### Feature
+
+* feat(parameters): add label widget ([`aa6f144`](https://github.com/beatreichenbach/qt-extensions/commit/aa6f144b8e8aad97606fb655e6d68988bcd8c7ee))
+
 ## v1.0.0 (2024-10-04)
 
 ### Breaking
