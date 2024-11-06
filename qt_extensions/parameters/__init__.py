@@ -24,4 +24,5 @@ from qt_extensions.parameters.widgets import (
     FloatSlider,
     RatioButton,
     TextEdit,
+    Label,
 )

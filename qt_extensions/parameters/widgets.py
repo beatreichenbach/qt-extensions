@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Sequence, Mapping, Collection
 from enum import Enum, IntEnum, auto, EnumMeta
@@ -9,13 +10,13 @@ from typing import Any, Callable, Optional
 from PySide2 import QtWidgets, QtGui, QtCore
 from qt_material_icons import MaterialIcon
 
-from qt_extensions import helper
+from qt_extensions import helper, theme
 from qt_extensions.button import BaseButton
+from qt_extensions.logger import SUCCESS
 from qt_extensions.resizegrip import ResizeGrip
 
 
 class ParameterWidget(QtWidgets.QWidget):
-    # by not using @property it is easier to set typing hints
     enabled_changed: QtCore.Signal = QtCore.Signal(bool)
     value_changed: QtCore.Signal = QtCore.Signal(object)
 
@@ -1415,3 +1416,79 @@ class TextEdit(QtWidgets.QPlainTextEdit):
         size_hint = super().sizeHint()
         size_hint.setHeight(self.minimumSizeHint().height())
         return size_hint
+
+
+class Label(QtWidgets.QWidget):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._icon = None
+        style = self.style()
+        icon_size = style.pixelMetric(QtWidgets.QStyle.PM_ButtonIconSize)
+        self._icon_size = QtCore.QSize(icon_size, icon_size)
+
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        layout = QtWidgets.QHBoxLayout()
+        layout.setContentsMargins(QtCore.QMargins())
+        self.setLayout(layout)
+
+        self._icon_label = QtWidgets.QLabel()
+        layout.addWidget(self._icon_label)
+        self._text_label = QtWidgets.QLabel()
+        self._text_label.setWordWrap(True)
+        layout.addWidget(self._text_label)
+        layout.setStretch(1, 1)
+
+    def icon(self) -> QtGui.QIcon | None:
+        return self._icon
+
+    def set_icon(self, icon: QtGui.QIcon | None) -> None:
+        self._icon = icon
+        self._refresh_icon()
+
+    def icon_size(self) -> QtCore.QSize:
+        return self._icon_size
+
+    def set_icon_size(self, icon_size: QtCore.QSize) -> None:
+        self._icon_size = icon_size
+        self._refresh_icon()
+
+    def text(self) -> str:
+        return self._text_label.text()
+
+    def set_text(self, text: str) -> None:
+        self._text_label.setText(text)
+
+    def set_level(self, level: int) -> None:
+        color = None
+        icon = None
+        if level >= logging.CRITICAL:
+            color = theme.Color('critical')
+            icon = MaterialIcon('report')
+            icon.set_color(color)
+        elif level >= logging.ERROR:
+            color = theme.Color('error')
+            icon = MaterialIcon('error')
+            icon.set_color(color)
+        elif level >= logging.WARNING:
+            color = theme.Color('warning')
+            icon = MaterialIcon('warning')
+            icon.set_color(color)
+        elif level >= SUCCESS:
+            color = theme.Color('success')
+            icon = MaterialIcon('check_circle')
+            icon.set_color(color)
+        elif level >= logging.INFO:
+            icon = MaterialIcon('info')
+        self.set_icon(icon)
+        if icon:
+            # Create custom pixmap with color.
+            self._icon_label.setPixmap(icon.pixmap(size=self._icon_size, color=color))
+
+    def _refresh_icon(self) -> None:
+        if self._icon:
+            self._icon_label.setPixmap(self._icon.pixmap(self._icon_size))
+        else:
+            self._icon_label.clear()
