@@ -7,6 +7,15 @@ StandardButton = QtWidgets.QMessageBox.StandardButton
 
 
 class MessageBox(QtWidgets.QMessageBox):
+    """Message with Material icons, colors and no icons on buttons."""
+
+    def setStandardButtons(
+        self, buttons: QtWidgets.QDialogButtonBox.StandardButtons
+    ) -> None:
+        super().setStandardButtons(buttons)
+        for button in self.buttons():
+            button.setIcon(QtGui.QIcon())
+
     @staticmethod
     def critical(
         parent: QtWidgets.QWidget | None,
