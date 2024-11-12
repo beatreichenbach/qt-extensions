@@ -309,6 +309,7 @@ class StringParameter(ParameterWidget):
     def set_area(self, area: bool) -> None:
         if area != self._area:
             self._area = area
+            self.layout().removeWidget(self.text)
             self.text.deleteLater()
             self._init_text()
 
