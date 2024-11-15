@@ -188,14 +188,6 @@ class ParameterForm(QtWidgets.QWidget):
 
         row = self.grid_layout.rowCount() - 1
 
-        # label
-        if widget.label():
-            label = ParameterLabel(widget, self)
-            column = 1
-            self.grid_layout.addWidget(label, row, column)
-            widget.enabled_changed.connect(label.setEnabled)
-            label.setEnabled(widget.isEnabled())
-
         # widget
         column = 2
         self.grid_layout.addWidget(widget, row, column)
@@ -209,12 +201,20 @@ class ParameterForm(QtWidgets.QWidget):
             self.grid_layout.addWidget(checkbox, row, column)
             checkbox.set_value(False)
             widget.blockSignals(True)
-            self._set_widget_row_enabled(checkbox, False)
+            widget.setEnabled(False)
             widget.blockSignals(False)
             checkbox.toggled.connect(partial(self._set_widget_row_enabled, checkbox))
             checkbox.toggled.connect(lambda: self.parameter_changed.emit(checkbox))
 
             self._widgets[checkbox_name] = checkbox
+
+        # label
+        if widget.label():
+            label = ParameterLabel(widget, self)
+            column = 1
+            self.grid_layout.addWidget(label, row, column)
+            widget.enabled_changed.connect(label.setEnabled)
+            label.setEnabled(widget.isEnabled())
 
         self._update_stretch()
         return widget
@@ -418,26 +418,22 @@ class ParameterForm(QtWidgets.QWidget):
             ]
             self._set_expanded_boxes(child_boxes, children)
 
-    # noinspection PyMethodMayBeStatic
     def _set_widget_row_enabled(self, widget: QtWidgets.QWidget, enabled: bool) -> None:
-        # get parent grid layout
         layout = widget.parentWidget().layout()
-        if not isinstance(layout, QtWidgets.QGridLayout):
-            return
+        if isinstance(layout, QtWidgets.QGridLayout):
+            # find row of widget
+            index = layout.indexOf(widget)
+            if index < 0:
+                return
+            row, column, row_span, col_span = layout.getItemPosition(index)
 
-        # find row of widget
-        index = layout.indexOf(widget)
-        if index < 0:
-            return
-        row, column, row_span, col_span = layout.getItemPosition(index)
+            # widget
+            item = layout.itemAtPosition(row, 2)
+            if not item or not item.widget():
+                return
 
-        # widget
-        item = layout.itemAtPosition(row, 2)
-        if not item or not item.widget():
-            return
-
-        item_widget = item.widget()
-        item_widget.setEnabled(enabled)
+            item_widget = item.widget()
+            item_widget.setEnabled(enabled)
 
     def _update_stretch(self) -> None:
         # NOTE: Setting 0 Margins breaks when the layout doesn't have any children, so
