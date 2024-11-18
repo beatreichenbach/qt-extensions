@@ -52,7 +52,6 @@ class LogCache(QtCore.QObject):
             f.writelines(text)
 
     def cleanup(self) -> None:
-        print('cleanup')
         self.handler.emit = logging.Handler.emit
         self.handler.close()
 
