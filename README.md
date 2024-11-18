@@ -20,17 +20,17 @@ For examples see the [tests_gui](tests_gui) directory.
 ### parameters
 A collection of modules for a unified parameter editor. It has widgets for most common variable types similar to the Nuke knobs.
 
-![Screenshot of the box widget](/.github/assets/parameter_editor.png)
+![Screenshot of the box widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/parameter_editor.png)
 
 ### box
 A collapsible box with multiple styles.
 
-![Screenshot of the box widget](/.github/assets/box.png)
+![Screenshot of the box widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/box.png)
 
 ### buttons
 A helper module to create styled buttons.
 
-![Screenshot of the buttons widget](/.github/assets/buttons.png)
+![Screenshot of the buttons widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/buttons.png)
 
 ### elementbrowser
 An abstract element browser that can display complex objects with multiple columns.
@@ -38,7 +38,7 @@ An abstract element browser that can display complex objects with multiple colum
 ### filebrowser
 A browser based on the ElementBrowser widget to display files.
 
-![Screenshot of the filebrowser widget](/.github/assets/filebrowser.png)
+![Screenshot of the filebrowser widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/filebrowser.png)
 
 ### flexview
 A StandardItemView that displays items in a flex view.
@@ -46,22 +46,22 @@ A StandardItemView that displays items in a flex view.
 ### logger
 A status bar and log viewer that provides a gui interface for the logging module.
 
-![Screenshot of the logbar and logviewer widget](/.github/assets/logger.png)
+![Screenshot of the logbar and logviewer widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/logger.png)
 
 ### mainwindow
 A main window widget that allows the docking of panels.
 
-![Screenshot of the mainwindow widget](/.github/assets/mainwindow.png)
+![Screenshot of the mainwindow widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/mainwindow.png)
 
 ### messagebox
 A QMessageBox with icons from the MaterialIcon module.
 
-![Screenshot of the messagebox widget](/.github/assets/messagebox.png)
+![Screenshot of the messagebox widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/messagebox.png)
 
 ### resizegrip
 A resize grip that can be added to any widget to make it resizable.
 
-![Screenshot of a QPlainTextEdit field with the resize grip widget](/.github/assets/resizegrip.png)
+![Screenshot of a QPlainTextEdit field with the resize grip widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/resizegrip.png)
 
 ### scrollarea
 A scrollArea widget that has a minimum width based on its content.
@@ -75,7 +75,7 @@ A module for helping with types. For example cast a dictionary to a dataclass.
 ### viewer
 A viewer for numpy array images. It has an exposure slider zoom, pan and shows pixel information.
 
-![Screenshot of the viewer widget](/.github/assets/viewer.png)
+![Screenshot of the viewer widget](https://raw.githubusercontent.com/beatreichenbach/qt-extensions/refs/heads/main/.github/assets/viewer.png)
 
 
 ## Contributing
