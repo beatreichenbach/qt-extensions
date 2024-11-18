@@ -188,17 +188,11 @@ class ParameterForm(QtWidgets.QWidget):
 
         row = self.grid_layout.rowCount() - 1
 
-        # widget
-        column = 2
-        self.grid_layout.addWidget(widget, row, column)
-        widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
-
         # checkbox
         if checkable:
             checkbox_name = f'{name}_enabled'
             checkbox = ParameterToggle(checkbox_name)
-            column = 0
-            self.grid_layout.addWidget(checkbox, row, column)
+            self.grid_layout.addWidget(checkbox, row, 0)
             checkbox.set_value(False)
             widget.blockSignals(True)
             widget.setEnabled(False)
@@ -211,10 +205,13 @@ class ParameterForm(QtWidgets.QWidget):
         # label
         if widget.label():
             label = ParameterLabel(widget, self)
-            column = 1
-            self.grid_layout.addWidget(label, row, column)
+            self.grid_layout.addWidget(label, row, 1)
             widget.enabled_changed.connect(label.setEnabled)
             label.setEnabled(widget.isEnabled())
+
+        # widget
+        self.grid_layout.addWidget(widget, row, 2)
+        widget.value_changed.connect(lambda: self.parameter_changed.emit(widget))
 
         self._update_stretch()
         return widget
@@ -436,11 +433,7 @@ class ParameterForm(QtWidgets.QWidget):
             item_widget.setEnabled(enabled)
 
     def _update_stretch(self) -> None:
-        # NOTE: Setting 0 Margins breaks when the layout doesn't have any children, so
-        #       set it here.
-        # if self.grid_layout.contentsMargins():
-        # self.grid_layout.setContentsMargins(QtCore.QMargins())
-        # print(self.grid_layout.contentsMargins())
+        self.grid_layout.setColumnStretch(self.grid_layout.columnCount() - 1, 1)
         self.grid_layout.setRowStretch(self.grid_layout.rowCount() - 1, 0)
         self.grid_layout.setRowStretch(self.grid_layout.rowCount(), 1)
 
