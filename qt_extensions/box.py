@@ -93,7 +93,7 @@ class CollapsibleBox(QtWidgets.QFrame):
         self._refresh_box_style()
 
     def __repr__(self) -> str:
-        return f'{self.__class__.__name__}({repr(self.title())})'
+        return f'{self.__class__.__name__}({self.title()!r})'
 
     def actionEvent(self, event: QtGui.QActionEvent) -> None:
         self._menu_button.setVisible(bool(self.actions()))
