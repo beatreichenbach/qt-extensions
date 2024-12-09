@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
-from collections.abc import Sequence, Iterator
+from collections.abc import Sequence, Iterable, Mapping
 from dataclasses import is_dataclass, fields
 from enum import Enum
 from types import GenericAlias
@@ -157,10 +157,10 @@ def basic(obj: Any) -> tuple | list | dict | str | int | float | bool | None:
         return obj
     elif dataclasses.is_dataclass(obj):
         return basic(dataclasses.asdict(obj))
-    elif isinstance(obj, Iterator):
-        return tuple(basic(v) for v in obj)
-    elif isinstance(obj, dict):
+    elif isinstance(obj, Mapping):
         return {k: basic(v) for k, v in obj.items()}
+    elif isinstance(obj, Iterable):
+        return tuple(basic(v) for v in obj)
     elif isinstance(obj, Enum):
         return obj.name
     elif isinstance(obj, (QtCore.QPoint, QtCore.QPointF)):
