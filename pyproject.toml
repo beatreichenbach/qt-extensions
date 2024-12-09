@@ -27,7 +27,9 @@ build-backend = "setuptools.build_meta"
 include = ["qt_extensions*"]
 
 [tool.semantic_release]
-version_variable = "qt_extensions/__init__.py:__version__"
+version_variables = [
+    "qt_extensions/__init__.py:__version__"
+]
 version_toml  = ["pyproject.toml:project.version"]
 
 [tool.semantic_release.publish]
