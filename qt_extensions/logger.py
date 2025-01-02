@@ -472,6 +472,15 @@ class LogBar(QtWidgets.QWidget):
         self.message_line.setFont(font)
         message_layout.addWidget(self.message_line)
 
+        # clear button
+        self.message_line.setClearButtonEnabled(True)
+        clear_button = self.message_line.findChild(QtWidgets.QToolButton)
+        if isinstance(clear_button, QtWidgets.QToolButton):
+            icon = MaterialIcon('close')
+            clear_button.setIcon(icon)
+            clear_button.setEnabled(True)
+            clear_button.pressed.connect(self.clear_message)
+
         layout.addLayout(message_layout)
         layout.setStretch(0, 1)
 
