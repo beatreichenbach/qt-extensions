@@ -493,17 +493,10 @@ class ComboParameter(ParameterWidget):
         self.set_value(default)
 
     def set_value(self, value: Any) -> None:
+        index = self._index_from_value(value)
+        value = self.combo.itemData(index)
         super().set_value(value)
         self.combo.blockSignals(True)
-        if value is None:
-            index = -1
-        else:
-            if isinstance(value, str):
-                index = self.combo.findText(value)
-            else:
-                index = -1
-            if index < 0:
-                index = self.combo.findData(value)
         self.combo.setCurrentIndex(index)
         self.combo.blockSignals(False)
 
@@ -521,6 +514,20 @@ class ComboParameter(ParameterWidget):
         for label, data in self._items:
             self.combo.addItem(label, data)
         self.combo.blockSignals(False)
+
+    def _index_from_value(self, value: Any) -> int:
+        """Return the index for a value, searching text and data."""
+        if value is None:
+            return -1
+
+        if isinstance(value, str):
+            index = self.combo.findText(value)
+        else:
+            index = -1
+
+        if index < 0:
+            index = self.combo.findData(value)
+        return index
 
 
 class EnumParameter(ParameterWidget):

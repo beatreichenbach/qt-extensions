@@ -16,6 +16,7 @@ from qt_extensions.parameters import (
     BoolParameter,
     EnumParameter,
     TabDataParameter,
+    ComboParameter,
 )
 
 
@@ -72,6 +73,10 @@ def main() -> QtWidgets.QWidget:
     widget.layout().addWidget(sizef_parameter)
 
     widget.layout().addWidget(BoolParameter('bool'))
+
+    combo_parameter = ComboParameter('combo')
+    combo_parameter.set_items({'text 0': 0, 'text 1': 1, 'text 2': 2})
+    widget.layout().addWidget(combo_parameter)
 
     enum_parameter = EnumParameter('enum')
     enum_parameter.set_enum(Enum('Number', ('one', 'two', 'three')))
