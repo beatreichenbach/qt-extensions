@@ -498,7 +498,12 @@ class ComboParameter(ParameterWidget):
         if value is None:
             index = -1
         else:
-            index = self.combo.findData(value)
+            if isinstance(value, str):
+                index = self.combo.findText(value)
+            else:
+                index = -1
+            if index < 0:
+                index = self.combo.findData(value)
         self.combo.setCurrentIndex(index)
         self.combo.blockSignals(False)
 
