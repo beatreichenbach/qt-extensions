@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v1.2.1 (2025-01-02)
+
+### Bug Fixes
+
+- **parameters**: Combo parameter value
+  ([`0eeeb83`](https://github.com/beatreichenbach/qt-extensions/commit/0eeeb83672ea06c386d57748e8bd466bc1c279cb))
+
+
 ## v1.2.0 (2025-01-02)
 
 ### Bug Fixes
