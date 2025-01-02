@@ -27,11 +27,13 @@ class LogCache(QtCore.QObject):
         self.records = []
         self.handler = logging.Handler()
         self.handler.emit = self.add
-        self.destroyed.connect(self.cleanup)
 
     def add(self, record: logging.LogRecord) -> None:
         self.records.append(record)
-        self.added.emit(record)
+        try:
+            self.added.emit(record)
+        except RuntimeError:
+            self.handler.close()
 
     def clear(self) -> None:
         self.records = []
@@ -50,10 +52,6 @@ class LogCache(QtCore.QObject):
         with open(filename, 'w') as f:
             text = (f'{formatter.format(record)}\n' for record in self.records)
             f.writelines(text)
-
-    def cleanup(self) -> None:
-        self.handler.emit = logging.Handler.emit
-        self.handler.close()
 
 
 class LogViewer(QtWidgets.QWidget):
