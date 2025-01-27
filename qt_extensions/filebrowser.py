@@ -6,11 +6,11 @@ import os
 import shutil
 from typing import Sequence
 
-from PySide2 import QtWidgets, QtCore, QtGui
 from qt_material_icons import MaterialIcon
+from qtpy import QtGui, QtCore, QtWidgets
 
-from qt_extensions.elementbrowser import ElementBrowser, Field, ElementDelegate
-from qt_extensions.helper import unique_path
+from .elementbrowser import ElementBrowser, Field, ElementDelegate
+from .helper import unique_path
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class FileNameDelegate(ElementDelegate):
         index: QtCore.QModelIndex,
     ) -> QtWidgets.QWidget:
         editor = super().createEditor(parent, option, index)
-        if self.validator:
+        if self.validator and isinstance(editor, QtWidgets.QLineEdit):
             editor.setValidator(self.validator)
         return editor
 
@@ -42,6 +42,8 @@ class FileNameDelegate(ElementDelegate):
         self, editor: QtWidgets.QWidget, index: QtCore.QModelIndex
     ) -> None:
         super().setEditorData(editor, index)
+
+        editor: QtWidgets.QLineEdit
 
         # selectAll gets called after opening the editor
         def set_selection() -> None:
@@ -81,7 +83,7 @@ class FileBrowser(ElementBrowser):
         self.tree.setItemDelegateForColumn(0, delegate)
 
         icon = MaterialIcon('refresh')
-        action = QtWidgets.QAction(icon, 'Refresh', self)
+        action = QtGui.QAction(icon, 'Refresh', self)
         action.triggered.connect(self.refresh)
         self.toolbar.addAction(action)
 

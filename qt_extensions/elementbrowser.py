@@ -5,23 +5,23 @@ import dataclasses
 from collections.abc import Sequence
 from typing import Any, Callable
 
-from PySide2 import QtGui, QtCore, QtWidgets
 from qt_material_icons import MaterialIcon
+from qtpy import QtCore, QtGui, QtWidgets
 
-from qt_extensions.helper import title
+from .helper import title
 
 
 def set_flag(item: QtGui.QStandardItem, flag: QtCore.Qt.ItemFlag, value: bool) -> None:
     if value:
-        item.setFlags(item.flags() | flag)
+        item.setFlags(item.flags() or flag)
     else:
-        item.setFlags(item.flags() & ~flag)
+        item.setFlags(item.flags() and ~flag)
 
 
 def check_flag(
     item: QtGui.QStandardItem | QtCore.QModelIndex, flag: QtCore.Qt.ItemFlag
 ) -> bool:
-    return bool(item.flags() & flag)
+    return bool(item.flags() and flag)
 
 
 @dataclasses.dataclass
@@ -67,9 +67,9 @@ class ElementModel(QtGui.QStandardItemModel):
         parent: QtCore.QModelIndex,
     ) -> bool:
         result = super().dropMimeData(data, action, row, 0, parent.siblingAtColumn(0))
-        if result and action == QtCore.Qt.MoveAction:
+        if result and action == QtCore.Qt.DropAction.MoveAction:
             for index in self.selected_indexes:
-                element = index.data(QtCore.Qt.UserRole)
+                element = index.data(QtCore.Qt.ItemDataRole.UserRole)
                 self.element_moved.emit(element, parent)
             self.selected_indexes = []
         return result
@@ -79,17 +79,18 @@ class ElementModel(QtGui.QStandardItemModel):
     ) -> bool:
         index = self.index(row, 0, parent)
         if index.isValid():
-            self.element_removed.emit(index.data(QtCore.Qt.UserRole))
+            self.element_removed.emit(index.data(QtCore.Qt.ItemDataRole.UserRole))
         return super().removeRow(row, parent)
 
     def setData(
         self,
         index: QtCore.QModelIndex,
         value: Any,
-        role: int = QtCore.Qt.EditRole,
+        role: int = QtCore.Qt.ItemDataRole.EditRole,
     ) -> Any:
         result = super().setData(index, value, role)
-        if result and role & QtCore.Qt.DisplayRole | QtCore.Qt.EditRole:
+        roles = QtCore.Qt.ItemDataRole.DisplayRole | QtCore.Qt.ItemDataRole.EditRole
+        if result and role & roles:
             element_index = index.siblingAtColumn(0)
             if element_index.isValid():
                 element = index.data(QtCore.Qt.UserRole)
@@ -317,9 +318,11 @@ class ElementTree(QtWidgets.QTreeView):
         self.class_groups = True
         self.selected_indexes = []
 
-        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.setDragDropMode(QtWidgets.QAbstractItemView.InternalMove)
-        self.setSelectionBehavior(QtWidgets.QTableView.SelectRows)
+        self.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
+        )
+        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDropMode.InternalMove)
+        self.setSelectionBehavior(QtWidgets.QTableView.SelectionBehavior.SelectRows)
         self.setSortingEnabled(True)
         self.setAutoExpandDelay(500)
         self.setItemDelegate(ElementDelegate())
@@ -328,10 +331,10 @@ class ElementTree(QtWidgets.QTreeView):
         if self.class_groups:
             # don't allow drag onto items with different element classes
             index = self.indexAt(event.pos())
-            parent_element = index.data(QtCore.Qt.UserRole)
+            parent_element = index.data(QtCore.Qt.ItemDataRole.UserRole)
             if parent_element is not None:
                 for index in self.selected_indexes:
-                    element = index.data(QtCore.Qt.UserRole)
+                    element = index.data(QtCore.Qt.ItemDataRole.UserRole)
                     if not isinstance(element, type(parent_element)):
                         event.ignore()
                         return
@@ -359,7 +362,10 @@ class ElementTree(QtWidgets.QTreeView):
         super().selectionChanged(selected, deselected)
 
     def selected_elements(self) -> tuple:
-        elements = (index.data(QtCore.Qt.UserRole) for index in self.selected_indexes)
+        elements = (
+            index.data(QtCore.Qt.ItemDataRole.UserRole)
+            for index in self.selected_indexes
+        )
         return tuple(elements)
 
     def resize_columns(self) -> None:
@@ -468,13 +474,13 @@ class ElementBrowser(QtWidgets.QWidget):
         label: str | None = None,
         icon: QtGui.QIcon | None = None,
         slot: Callable | None = None,
-    ) -> QtWidgets.QAction:
+    ) -> QAction:
         if name in self._actions:
             raise ValueError(f'Action with name {name} already exists.')
         if label is None:
             label = title(name)
 
-        action = QtWidgets.QAction(self)
+        action = QAction(self)
         if label:
             action.setText(label)
         if icon:

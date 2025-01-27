@@ -4,12 +4,11 @@ import logging
 import typing
 
 import numpy as np
-from PySide2 import QtWidgets, QtGui, QtCore
 from qt_material_icons import MaterialIcon
+from qt_parameters import FloatParameter
+from qtpy import QtGui, QtCore, QtWidgets
 
-from qt_extensions.combobox import QComboBox
-from qt_extensions.parameters import FloatParameter
-
+from .combobox import QComboBox
 
 logger = logging.getLogger(__name__)
 CHANNELS = ['rgba', 'red', 'green', 'blue', 'alpha']
@@ -41,12 +40,12 @@ class GraphicsScene(QtWidgets.QGraphicsScene):
 
         # bounding box frame
         rect = QtCore.QRect()
-        color = self.palette().color(QtGui.QPalette.Midlight)
+        color = self.palette().color(QtGui.QPalette.ColorRole.Midlight)
         pen = QtGui.QPen(color)
-        pen.setStyle(QtCore.Qt.DotLine)
+        pen.setStyle(QtCore.Qt.PenStyle.DotLine)
         pen.setWidth(0)
         brush = QtGui.QBrush()
-        brush.setStyle(QtCore.Qt.NoBrush)
+        brush.setStyle(QtCore.Qt.BrushStyle.NoBrush)
 
         self._frame = self.addRect(rect, pen, brush)
         self._frame.setZValue(1)
@@ -85,35 +84,37 @@ class GraphicsView(QtWidgets.QGraphicsView):
         self._dragging: bool = False
 
         self.setMouseTracking(True)
-        self.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.setDragMode(self.ScrollHandDrag)
-        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.setFocusPolicy(QtCore.Qt.FocusPolicy.StrongFocus)
+        self.setDragMode(QtWidgets.QGraphicsView.DragMode.ScrollHandDrag)
+        self.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setSceneRect(self.scene_rect)
-        self.setFrameShape(QtWidgets.QFrame.NoFrame)
-        self.setTransformationAnchor(QtWidgets.QGraphicsView.AnchorUnderMouse)
-        self.viewport().setCursor(QtCore.Qt.CrossCursor)
+        self.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
+        self.setTransformationAnchor(
+            QtWidgets.QGraphicsView.ViewportAnchor.AnchorUnderMouse
+        )
+        self.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor)
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
-        if event.key() == QtCore.Qt.Key_F:
+        if event.key() == QtCore.Qt.Key.Key_F:
             self.fit()
             event.accept()
             return
         super().keyPressEvent(event)
 
     def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
-        if event.button() == QtCore.Qt.MidButton:
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
             handmade_event = QtGui.QMouseEvent(
-                QtCore.QEvent.MouseButtonPress,
+                QtCore.QEvent.Type.MouseButtonPress,
                 QtCore.QPointF(event.pos()),
-                QtCore.Qt.LeftButton,
+                QtCore.Qt.MouseButton.LeftButton,
                 event.buttons(),
                 QtCore.Qt.KeyboardModifiers(),
             )
             super().mousePressEvent(handmade_event)
-            self.viewport().setCursor(QtCore.Qt.CrossCursor)
+            self.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor)
 
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._dragging = True
             self.mouseMoveEvent(event)
             event.accept()
@@ -122,18 +123,18 @@ class GraphicsView(QtWidgets.QGraphicsView):
         super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QtGui.QMouseEvent) -> None:
-        if event.button() == QtCore.Qt.MidButton:
+        if event.button() == QtCore.Qt.MouseButton.MiddleButton:
             release_event = QtGui.QMouseEvent(
-                QtCore.QEvent.MouseButtonRelease,
+                QtCore.QEvent.Type.MouseButtonRelease,
                 QtCore.QPointF(event.pos()),
-                QtCore.Qt.LeftButton,
+                QtCore.Qt.MouseButton.LeftButton,
                 event.buttons(),
                 QtCore.Qt.KeyboardModifiers(),
             )
             super().mouseReleaseEvent(release_event)
-            self.viewport().setCursor(QtCore.Qt.CrossCursor)
+            self.viewport().setCursor(QtCore.Qt.CursorShape.CrossCursor)
 
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             self._dragging = False
             event.accept()
             return
@@ -175,7 +176,9 @@ class GraphicsView(QtWidgets.QGraphicsView):
 
     def fit(self) -> None:
         if self.scene() and self.scene().item():
-            self.fitInView(self.scene().item(), QtCore.Qt.KeepAspectRatio)
+            self.fitInView(
+                self.scene().item(), QtCore.Qt.AspectRatioMode.KeepAspectRatio
+            )
             self.zoom_changed.emit(self.absolute_scale())
 
     def set_absolute_scale(self, value: float) -> None:
@@ -197,28 +200,31 @@ class Footer(QtWidgets.QWidget):
         self.set_background_color(QtGui.QColor(0, 0, 0))
 
     def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QHBoxLayout())
+        layout = QtWidgets.QHBoxLayout()
+        self.setLayout(layout)
 
         self.setAutoFillBackground(True)
 
         self.resolution_lbl = QtWidgets.QLabel('resolution')
-        self.layout().addWidget(self.resolution_lbl)
+        layout.addWidget(self.resolution_lbl)
 
-        self.layout().addStretch()
+        layout.addStretch()
 
         self.coordinates_lbl = QtWidgets.QLabel('coordinates')
-        self.layout().addWidget(self.coordinates_lbl)
+        layout.addWidget(self.coordinates_lbl)
 
         self.rgb_lbl = QtWidgets.QLabel('rgb')
-        self.layout().addWidget(self.rgb_lbl)
+        layout.addWidget(self.rgb_lbl)
 
         self.hsv_lbl = QtWidgets.QLabel('hsv')
-        self.layout().addWidget(self.hsv_lbl)
+        layout.addWidget(self.hsv_lbl)
 
     def set_background_color(self, value: QtGui.QColor) -> None:
         palette = self.palette()
-        palette.setColor(QtGui.QPalette.Window, value)
-        palette.setColor(QtGui.QPalette.WindowText, QtGui.QColor(255, 255, 255))
+        palette.setColor(QtGui.QPalette.ColorRole.Window, value)
+        palette.setColor(
+            QtGui.QPalette.ColorRole.WindowText, QtGui.QColor(255, 255, 255)
+        )
         self.setPalette(palette)
 
     def update_pixel_color(self, color: QtGui.QColor | None) -> None:
@@ -269,7 +275,7 @@ class ToolBar(QtWidgets.QToolBar):
         self._init_actions()
 
     def _init_actions(self) -> None:
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
+        size = self.style().pixelMetric(QtWidgets.QStyle.PixelMetric.PM_SmallIconSize)
         self.setIconSize(QtCore.QSize(size, size))
 
         self.channel_cmb = QtWidgets.QComboBox()
@@ -284,9 +290,11 @@ class ToolBar(QtWidgets.QToolBar):
         icon = MaterialIcon('toggle_on')
         icon_off = MaterialIcon('toggle_off')
         palette = self.palette()
-        color = palette.color(QtGui.QPalette.Highlight)
-        pixmap = icon_off.pixmap(0, QtGui.QIcon.Active, QtGui.QIcon.On, color)
-        icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
+        color = palette.color(QtGui.QPalette.ColorRole.Highlight)
+        pixmap = icon_off.pixmap(
+            0, QtGui.QIcon.Mode.Active, QtGui.QIcon.State.On, color
+        )
+        icon.addPixmap(pixmap, QtGui.QIcon.Mode.Active, QtGui.QIcon.State.On)
 
         self.exposure_toggle_action = QtWidgets.QAction(icon, 'exposure_toggle', self)
         self.exposure_toggle_action.setCheckable(True)
@@ -299,7 +307,10 @@ class ToolBar(QtWidgets.QToolBar):
         self.exposure_slider.set_slider_max(10)
         self.exposure_slider.value_changed.connect(self._exposure_changed)
         palette = self.exposure_slider.slider.palette()
-        palette.setColor(QtGui.QPalette.Highlight, palette.color(QtGui.QPalette.Base))
+        palette.setColor(
+            QtGui.QPalette.ColorRole.Highlight,
+            palette.color(QtGui.QPalette.ColorRole.Base),
+        )
         self.exposure_slider.slider.setPalette(palette)
 
         exposure_action = QtWidgets.QWidgetAction(self)
@@ -316,8 +327,8 @@ class ToolBar(QtWidgets.QToolBar):
         # pause
         icon = MaterialIcon('pause')
         color = self.pause_color
-        pixmap = icon.pixmap(0, QtGui.QIcon.Active, QtGui.QIcon.On, color)
-        icon.addPixmap(pixmap, QtGui.QIcon.Active, QtGui.QIcon.On)
+        pixmap = icon.pixmap(0, QtGui.QIcon.Mode.Active, QtGui.QIcon.State.On, color)
+        icon.addPixmap(pixmap, QtGui.QIcon.Mode.Active, QtGui.QIcon.State.On)
         pause_action = QtWidgets.QAction(icon, 'pause', self)
         pause_action.setCheckable(True)
         pause_action.toggled.connect(self.paused.emit)
@@ -335,7 +346,9 @@ class ToolBar(QtWidgets.QToolBar):
         # NOTE: Currently AdjustToContents doesn't do anything, but this might be
         # because the placeholder text is broken, thus setting setMinimumContentsLength
         # works to ensure that the full placeholder text is visible.
-        self.zoom_cmb.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+        self.zoom_cmb.setSizeAdjustPolicy(
+            QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToContents
+        )
         self.zoom_cmb.setMinimumContentsLength(6)
 
         zoom_action = QtWidgets.QWidgetAction(self)
@@ -451,12 +464,12 @@ class Viewer(QtWidgets.QWidget):
         self.view.pixel_position_changed.connect(self._pixel_position_changed)
         self.view.position_changed.connect(self.position_changed.emit)
 
-    def keyPressEvent(self, event: QtCore.QEvent) -> None:
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         channels = {
-            QtCore.Qt.Key_R: CHANNELS[1],
-            QtCore.Qt.Key_G: CHANNELS[2],
-            QtCore.Qt.Key_B: CHANNELS[3],
-            QtCore.Qt.Key_A: CHANNELS[4],
+            QtCore.Qt.Key.Key_R: CHANNELS[1],
+            QtCore.Qt.Key.Key_G: CHANNELS[2],
+            QtCore.Qt.Key.Key_B: CHANNELS[3],
+            QtCore.Qt.Key.Key_A: CHANNELS[4],
         }
         channel = channels.get(event.key())
         if channel:
@@ -490,13 +503,13 @@ class Viewer(QtWidgets.QWidget):
         self.paused = state
 
         if self.paused:
-            self.view.setFrameShape(QtWidgets.QFrame.Box)
+            self.view.setFrameShape(QtWidgets.QFrame.Shape.Box)
             self.view.setStyleSheet(
                 f'QFrame {{ border: 1px solid {self.pause_color.name()}; }}'
             )
             self.view.setEnabled(False)
         else:
-            self.view.setFrameShape(QtWidgets.QFrame.NoFrame)
+            self.view.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
             self.view.setStyleSheet('')
             self.view.setEnabled(True)
 
@@ -618,7 +631,7 @@ class Viewer(QtWidgets.QWidget):
 
         bytes_per_line = width * channels * array.dtype.itemsize
         image = QtGui.QImage(
-            array.data, width, height, bytes_per_line, QtGui.QImage.Format_RGB888
+            array.data, width, height, bytes_per_line, QtGui.QImage.Format.Format_RGB888
         )
         # QImage is only valid as long as array stays in memory, so it is copied
         self.item.image = image.copy()

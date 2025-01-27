@@ -10,7 +10,7 @@ from types import GenericAlias
 from typing import Any, Callable, ForwardRef, TypeVar
 from typing import _eval_type, _UnionGenericAlias  # noqa
 
-from PySide2 import QtCore, QtGui
+from qtpy import QtGui, QtCore
 
 try:
     from types import UnionType, NoneType

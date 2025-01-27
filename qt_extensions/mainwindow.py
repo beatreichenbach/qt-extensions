@@ -6,11 +6,11 @@ from collections import OrderedDict
 from collections.abc import Sequence
 from functools import partial
 
-from PySide2 import QtCore, QtGui, QtWidgets
 from qt_material_icons import MaterialIcon
+from qtpy import QtGui, QtCore, QtWidgets
 
-from qt_extensions import helper
-from qt_extensions.typeutils import cast, basic
+from . import helper
+from .typeutils import cast, basic
 
 
 @dataclasses.dataclass()
@@ -83,29 +83,32 @@ class DockTabBar(QtWidgets.QTabBar):
     def tabInserted(self, index: int) -> None:
         self._update_tab(index)
 
-    def _request_tab_close(self, action: QtWidgets.QAction) -> None:
+    def _request_tab_close(self, action: QtGui.QAction) -> None:
         for index in range(self.count()):
-            button = self.tabButton(index, QtWidgets.QTabBar.RightSide)
-            if action == button.defaultAction():
-                self.tabCloseRequested.emit(index)
-                return
+            button = self.tabButton(index, QtWidgets.QTabBar.ButtonPosition.RightSide)
+            if isinstance(button, QtWidgets.QToolButton):
+                if action == button.defaultAction():
+                    self.tabCloseRequested.emit(index)
+                    return
 
     def _tab_bar_click(self, index: int) -> None:
         self._drag_index = index
 
     def _update_tab(self, index: int) -> None:
         close_icon = MaterialIcon('close')
-        size = self.style().pixelMetric(QtWidgets.QStyle.PM_SmallIconSize)
+        size = self.style().pixelMetric(QtWidgets.QStyle.PixelMetric.PM_SmallIconSize)
         icon_size = QtCore.QSize(size, size)
 
-        close_action = QtWidgets.QAction()
+        close_action = QtGui.QAction()
         close_action.setIcon(close_icon)
         close_action.triggered.connect(partial(self._request_tab_close, close_action))
         close_button = QtWidgets.QToolButton(self)
         close_button.setAutoRaise(True)
         close_button.setDefaultAction(close_action)
         close_button.setMaximumSize(icon_size)
-        self.setTabButton(index, QtWidgets.QTabBar.RightSide, close_button)
+        self.setTabButton(
+            index, QtWidgets.QTabBar.ButtonPosition.RightSide, close_button
+        )
 
 
 class Splitter(QtWidgets.QSplitter):
@@ -117,11 +120,11 @@ class Splitter(QtWidgets.QSplitter):
 
 class DockWidget(QtWidgets.QTabWidget):
     dock_areas = (
-        QtCore.Qt.LeftDockWidgetArea,
-        QtCore.Qt.RightDockWidgetArea,
-        QtCore.Qt.TopDockWidgetArea,
-        QtCore.Qt.BottomDockWidgetArea,
-        QtCore.Qt.NoDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.TopDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.BottomDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.NoDockWidgetArea,
     )
 
     def __init__(self, dock_window, parent: QtWidgets.QWidget | None = None) -> None:
@@ -137,13 +140,15 @@ class DockWidget(QtWidgets.QTabWidget):
         self._init_ui()
 
     def _init_ui(self) -> None:
-        self.setTabBar(DockTabBar())
+
+        tab_bar = DockTabBar()
+        self.setTabBar(tab_bar)
         self.setMovable(True)
         self.setTabsClosable(True)
 
-        self.tabBar().detach_started.connect(self._detach_start)
-        self.tabBar().detach_moved.connect(self._detach_move)
-        self.tabBar().detach_finished.connect(self._detach_finish)
+        tab_bar.detach_started.connect(self._detach_start)
+        tab_bar.detach_moved.connect(self._detach_move)
+        tab_bar.detach_finished.connect(self._detach_finish)
 
         self.tabCloseRequested.connect(self.close_tab)
         self.currentChanged.connect(self.update_window_title)
@@ -165,7 +170,7 @@ class DockWidget(QtWidgets.QTabWidget):
     def add_dock_widget(
         self, widget: QtWidgets.QTabWidget, area: QtCore.Qt.DockWidgetArea
     ) -> None:
-        if area == QtCore.Qt.NoDockWidgetArea:
+        if area == QtCore.Qt.DockWidgetArea.NoDockWidgetArea:
             self.addTab(widget.widget(0), widget.tabText(0))
         else:
             parent = self.parent()
@@ -174,7 +179,7 @@ class DockWidget(QtWidgets.QTabWidget):
                 return
 
             if self.isWindow() or not isinstance(parent, QtWidgets.QSplitter):
-                splitter = Splitter(QtCore.Qt.Vertical)
+                splitter = Splitter(QtCore.Qt.Orientation.Vertical)
 
                 if self.isWindow():
                     splitter.setParent(parent)
@@ -208,13 +213,13 @@ class DockWidget(QtWidgets.QTabWidget):
                     index = 0
 
             if area in (
-                QtCore.Qt.LeftDockWidgetArea,
-                QtCore.Qt.TopDockWidgetArea,
+                QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
+                QtCore.Qt.DockWidgetArea.TopDockWidgetArea,
             ):
                 parent.insertWidget(index, widget)
             elif area in (
-                QtCore.Qt.RightDockWidgetArea,
-                QtCore.Qt.BottomDockWidgetArea,
+                QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+                QtCore.Qt.DockWidgetArea.BottomDockWidgetArea,
             ):
                 parent.insertWidget(index + 1, widget)
 
@@ -271,7 +276,7 @@ class DockWidget(QtWidgets.QTabWidget):
         return self._dock_rect(area, 0.5)
 
     def float(self) -> None:
-        self.setWindowFlag(QtCore.Qt.Tool, True)
+        self.setWindowFlag(QtCore.Qt.WindowType.Tool, True)
 
     def update_window_title(self, index: int) -> None:
         if self.window() != self.dock_window:
@@ -297,15 +302,17 @@ class DockWidget(QtWidgets.QTabWidget):
     def _detach_start(self, index: int) -> None:
         self.detach(index, interactive=True)
 
-    def _detach_move(self, position: QtCore.QPoint) -> None:
+    def _detach_move(self, _: QtCore.QPoint) -> None:
         if self._drag_widget:
             position = QtGui.QCursor().pos()
-            height = self.style().pixelMetric(QtWidgets.QStyle.PM_TitleBarHeight)
-            offset = position - QtCore.QPoint(height / 2, height / 2)
+            height = self.style().pixelMetric(
+                QtWidgets.QStyle.PixelMetric.PM_TitleBarHeight
+            )
+            offset = position - QtCore.QPoint(int(height / 2), int(height / 2))
             self._drag_widget.move(offset)
             self.dock_window.add_dock_widget(self._drag_widget, position, True)
 
-    def _detach_finish(self, position: QtCore.QPoint) -> None:
+    def _detach_finish(self, _: QtCore.QPoint) -> None:
         if self._drag_widget:
             self._drag_widget.setWindowOpacity(1)
             position = QtGui.QCursor().pos()
@@ -318,23 +325,23 @@ class DockWidget(QtWidgets.QTabWidget):
     ) -> QtCore.QRect:
         size = self.size() * factor
         rect = self.rect()
-        if area == QtCore.Qt.LeftDockWidgetArea:
+        if area == QtCore.Qt.DockWidgetArea.LeftDockWidgetArea:
             rect.setWidth(size.width())
             return rect
-        elif area == QtCore.Qt.RightDockWidgetArea:
+        elif area == QtCore.Qt.DockWidgetArea.RightDockWidgetArea:
             right = rect.right()
             rect.setWidth(size.width())
             rect.moveRight(right)
             return rect
-        elif area == QtCore.Qt.TopDockWidgetArea:
+        elif area == QtCore.Qt.DockWidgetArea.TopDockWidgetArea:
             rect.setHeight(size.height())
             return rect
-        elif area == QtCore.Qt.BottomDockWidgetArea:
+        elif area == QtCore.Qt.DockWidgetArea.BottomDockWidgetArea:
             bottom = rect.bottom()
             rect.setHeight(size.height())
             rect.moveBottom(bottom)
             return rect
-        elif area == QtCore.Qt.NoDockWidgetArea:
+        elif area == QtCore.Qt.DockWidgetArea.NoDockWidgetArea:
             return rect
         return rect
 
@@ -370,21 +377,22 @@ class DockWindow(QtWidgets.QWidget):
         self._init_ui()
 
     def _init_rubber_band(self) -> None:
-        self._rubber_band = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Rectangle)
+        self._rubber_band = QtWidgets.QRubberBand(QtWidgets.QRubberBand.Shape.Rectangle)
         self._rubber_band.setParent(self)
         self._rubber_band.destroyed.connect(self._init_rubber_band)
 
     def _init_ui(self) -> None:
-        self.setLayout(QtWidgets.QVBoxLayout())
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.layout().setSpacing(0)
+        layout = QtWidgets.QVBoxLayout()
+        self.setLayout(layout)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
 
         # center widget
-        self.center_splitter = Splitter(QtCore.Qt.Vertical)
+        self.center_splitter = Splitter(QtCore.Qt.Orientation.Vertical)
         self.center_widget = self._add_protected_dock_widget(self.center_splitter)
-        self.layout().addWidget(self.center_splitter)
+        layout.addWidget(self.center_splitter)
 
-        self.layout().setStretch(0, 1)
+        layout.setStretch(0, 1)
 
     def add_dock_widget(
         self, widget: DockWidget, position: QtCore.QPoint, simulate: bool = False
@@ -438,7 +446,7 @@ class DockWindow(QtWidgets.QWidget):
         # that makes sense for checking dock areas.
         children = self.findChildren(DockWidget)
         # floating widgets have the Tool window flag and are always in front:
-        children = sorted(children, key=DockWidget.isWindow)
+        children = sorted(children, key=lambda w: w.isWindow())
         # list deepest nested children first
         children = reversed(children)
 
@@ -499,7 +507,7 @@ class DockWindow(QtWidgets.QWidget):
                 return k
 
     def widget_states(
-        self, widget: QtWidgets.QWidget | None = None
+        self, widget: Splitter | DockWidget | None = None
     ) -> tuple[StateType, ...]:
         states = []
 
@@ -548,7 +556,8 @@ class DockWindow(QtWidgets.QWidget):
 
         window = widget.window()
         window.setWindowState(
-            (window.windowState() & ~QtCore.Qt.WindowMinimized) | QtCore.Qt.WindowActive
+            (window.windowState() and ~QtCore.Qt.WindowState.WindowMinimized)
+            | QtCore.Qt.WindowState.WindowActive
         )
         window.raise_()
         window.activateWindow()
@@ -669,7 +678,7 @@ class DockWindow(QtWidgets.QWidget):
 
             # set window
             if state.flags:
-                flags = QtCore.Qt.WindowFlags(state.flags)
+                flags = QtCore.Qt.WindowType(state.flags)
                 widget.setWindowFlags(flags)
                 widget.setGeometry(state.geometry)
                 widget.show()
@@ -684,10 +693,16 @@ class DockWindow(QtWidgets.QWidget):
 
 
 def area_orientation(area: QtCore.Qt.DockWidgetArea) -> QtCore.Qt.Orientation:
-    if area in (QtCore.Qt.LeftDockWidgetArea, QtCore.Qt.RightDockWidgetArea):
-        return QtCore.Qt.Horizontal
-    elif area in (QtCore.Qt.TopDockWidgetArea, QtCore.Qt.BottomDockWidgetArea):
-        return QtCore.Qt.Vertical
+    if area in (
+        QtCore.Qt.DockWidgetArea.LeftDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.RightDockWidgetArea,
+    ):
+        return QtCore.Qt.Orientation.Horizontal
+    elif area in (
+        QtCore.Qt.DockWidgetArea.TopDockWidgetArea,
+        QtCore.Qt.DockWidgetArea.BottomDockWidgetArea,
+    ):
+        return QtCore.Qt.Orientation.Vertical
 
 
 def tab_widget_classes(widget: QtWidgets.QTabWidget) -> tuple[tuple[str, str], ...]:

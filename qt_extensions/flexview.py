@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-
 from enum import auto, Enum
 
-from PySide2 import QtWidgets, QtCore, QtGui
+from qtpy import QtCore, QtGui, QtWidgets
 
+State_Flag = QtWidgets.QStyle.StateFlag
 ScrollHint = QtWidgets.QAbstractItemView.ScrollHint
+CursorAction = QtWidgets.QAbstractItemView.CursorAction
 
 
 class FlexItemDelegate(QtWidgets.QItemDelegate):
@@ -59,12 +60,16 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         if pixmap is None or not rect.isValid():
             return
 
-        pixmap = pixmap.scaled(rect.size(), QtCore.Qt.KeepAspectRatioByExpanding)
+        pixmap = pixmap.scaled(
+            rect.size(), QtCore.Qt.AspectRatioMode.KeepAspectRatioByExpanding
+        )
 
         # if hasattr(painter, 'selected') and painter.selected:
-        if option.state & QtWidgets.QStyle.State_Selected:
+        if option.state & State_Flag.State_Selected:
             pixmap = self.selectedPixmap(
-                pixmap, option.palette, option.state & QtWidgets.QStyle.State_Enabled
+                pixmap,
+                option.palette,
+                option.state & State_Flag.State_Enabled,
             )
 
         source_rect = QtWidgets.QStyle.alignedRect(
@@ -86,7 +91,7 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
             -self.text_margins.right(),
             -self.text_margins.bottom(),
         )
-        option.state &= ~QtWidgets.QStyle.State_Selected
+        option.state &= ~State_Flag.State_Selected
         super().drawDisplay(painter, option, rect, text)
 
     def sizeHint(
@@ -112,27 +117,30 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
         painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem
     ) -> None:
         widget = option.widget
-        style = widget.style() or QtWidgets.QApplication.style()
+        style = widget.style() if widget else QtWidgets.QApplication.style()
         option_frame = QtWidgets.QStyleOptionFrame()
 
         palette = option_frame.palette
         option_frame.palette.setColor(
-            QtGui.QPalette.Window, palette.color(QtGui.QPalette.Dark)
+            QtGui.QPalette.ColorRole.Window,
+            palette.color(QtGui.QPalette.ColorRole.Dark),
         )
         option_frame.state = option.state
         option_frame.rect = option.rect
         option_frame.rect.adjust(1, 1, -1, -1)
-        option_frame.frameShape = QtWidgets.QFrame.StyledPanel
+        option_frame.frameShape = QtWidgets.QFrame.Shape.StyledPanel
         option_frame.lineWidth = 1
 
-        if option.state & QtWidgets.QStyle.State_Selected:
-            color = palette.color(QtGui.QPalette.Highlight)
+        if option.state & State_Flag.State_Selected:
+            color = palette.color(QtGui.QPalette.ColorRole.Highlight)
         else:
-            color = palette.color(QtGui.QPalette.Window)
+            color = palette.color(QtGui.QPalette.ColorRole.Window)
         painter.fillRect(option_frame.rect, color)
         painter.save()
-        painter.setRenderHint(QtGui.QPainter.Antialiasing, False)
-        style.drawPrimitive(QtWidgets.QStyle.PE_Frame, option_frame, painter)
+        painter.setRenderHint(QtGui.QPainter.RenderHint.Antialiasing, False)
+        style.drawPrimitive(
+            QtWidgets.QStyle.PrimitiveElement.PE_Frame, option_frame, painter
+        )
         # painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
         painter.restore()
 
@@ -140,9 +148,9 @@ class FlexItemDelegate(QtWidgets.QItemDelegate):
     def _draw_selection(
         painter: QtGui.QPainter, option: QtWidgets.QStyleOptionViewItem
     ) -> None:
-        if option.state & QtWidgets.QStyle.State_Selected:
+        if option.state & State_Flag.State_Selected:
             palette = option.palette
-            color = palette.color(QtGui.QPalette.Highlight)
+            color = palette.color(QtGui.QPalette.ColorRole.Highlight)
             pen = QtGui.QPen(color)
             painter.save()
             painter.setPen(pen)
@@ -199,10 +207,16 @@ class FlexView(QtWidgets.QAbstractItemView):
 
         # defaults
         self.setItemDelegate(FlexItemDelegate())
-        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(
+            QtWidgets.QAbstractItemView.SelectionMode.ExtendedSelection
+        )
 
-        self.setHorizontalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
-        self.setVerticalScrollMode(QtWidgets.QAbstractItemView.ScrollPerPixel)
+        self.setHorizontalScrollMode(
+            QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
+        self.setVerticalScrollMode(
+            QtWidgets.QAbstractItemView.ScrollMode.ScrollPerPixel
+        )
 
     @property
     def item_rects(self) -> dict[QtCore.QModelIndex, QtCore.QRect]:
@@ -244,10 +258,10 @@ class FlexView(QtWidgets.QAbstractItemView):
         self.indexAt(event.pos())
 
         # rubber_band
-        if event.button() == QtCore.Qt.LeftButton:
+        if event.button() == QtCore.Qt.MouseButton.LeftButton:
             if not self._rubber_band:
                 self._rubber_band = QtWidgets.QRubberBand(
-                    QtWidgets.QRubberBand.Rectangle, self
+                    QtWidgets.QRubberBand.Shape.Rectangle, self
                 )
             self._rubber_origin = event.pos()
             rect = QtCore.QRect(self._rubber_origin, QtCore.QSize())
@@ -269,9 +283,8 @@ class FlexView(QtWidgets.QAbstractItemView):
     def moveCursor(
         self,
         cursor_action: QtWidgets.QAbstractItemView.CursorAction,
-        modifiers: QtCore.Qt.KeyboardModifiers,
+        modifiers: QtCore.Qt.KeyboardModifier,
     ) -> QtCore.QModelIndex:
-        view = QtWidgets.QAbstractItemView
         index = self.currentIndex()
         if index.isValid():
             row = index.row()
@@ -279,17 +292,25 @@ class FlexView(QtWidgets.QAbstractItemView):
             min_row = 0
             max_row = self.model().rowCount(index.parent()) - 1
 
-            if cursor_action in (view.MoveLeft | view.MoveUp | view.MovePrevious):
+            if cursor_action in (
+                CursorAction.MoveLeft,
+                CursorAction.MoveUp,
+                CursorAction.MovePrevious,
+            ):
                 row -= 1
-            elif cursor_action in (view.MoveRight | view.MoveDown | view.MoveNext):
+            elif cursor_action in (
+                CursorAction.MoveRight,
+                CursorAction.MoveDown,
+                CursorAction.MoveNext,
+            ):
                 row += 1
-            elif cursor_action == view.MoveHome:
+            elif cursor_action == CursorAction.MoveHome:
                 row = min_row
-            elif cursor_action == view.MoveEnd:
+            elif cursor_action == CursorAction.MoveEnd:
                 row = max_row
-            elif cursor_action == view.MovePageUp:
+            elif cursor_action == CursorAction.MovePageUp:
                 row -= 10
-            elif cursor_action == view.MovePageDown:
+            elif cursor_action == CursorAction.MovePageDown:
                 row += 10
             else:
                 return index
@@ -303,12 +324,13 @@ class FlexView(QtWidgets.QAbstractItemView):
         painter = QtGui.QPainter(self.viewport())
 
         painter.setRenderHints(
-            QtGui.QPainter.Antialiasing | QtGui.QPainter.TextAntialiasing
+            QtGui.QPainter.RenderHint.Antialiasing
+            | QtGui.QPainter.RenderHint.TextAntialiasing
         )
 
-        option = QtWidgets.QStyleOptionViewItem(self.viewOptions())
+        option = QtWidgets.QStyleOptionViewItem()
         state = option.state
-        enabled = bool(state & QtWidgets.QStyle.State_Enabled)
+        enabled = bool(state & State_Flag.State_Enabled)
         has_focus = self.hasFocus() or self.viewport().hasFocus()
         focused = has_focus and self.currentIndex().isValid()
 
@@ -318,23 +340,25 @@ class FlexView(QtWidgets.QAbstractItemView):
                 continue
             option.state = state
             option.rect = self._map_to_viewport(rect)
-            option.decorationAlignment = QtCore.Qt.AlignCenter
-            option.decorationPosition = QtWidgets.QStyleOptionViewItem.Top
-            option.displayAlignment = QtCore.Qt.AlignBottom | QtCore.Qt.AlignLeft
+            option.decorationAlignment = QtCore.Qt.AlignmentFlag.AlignCenter
+            option.decorationPosition = QtWidgets.QStyleOptionViewItem.Position.Top
+            option.displayAlignment = (
+                QtCore.Qt.AlignmentFlag.AlignBottom | QtCore.Qt.AlignmentFlag.AlignLeft
+            )
 
             if self.selectionModel().isSelected(index):
-                option.state |= QtWidgets.QStyle.State_Selected
+                option.state |= State_Flag.State_Selected
             if enabled:
-                if self.model().flags(index) & QtCore.Qt.ItemIsEnabled:
-                    current_color_group = QtGui.QPalette.Normal
+                if self.model().flags(index) and QtCore.Qt.ItemFlag.ItemIsEnabled:
+                    current_color_group = QtGui.QPalette.ColorGroup.Normal
                 else:
-                    option.state &= ~QtWidgets.QStyle.State_Enabled
-                    current_color_group = QtGui.QPalette.Disabled
+                    option.state = option.state and ~State_Flag.State_Enabled
+                    current_color_group = QtGui.QPalette.ColorGroup.Disabled
                 option.palette.setCurrentColorGroup(current_color_group)
             if focused and self.currentIndex() == index:
-                option.state |= QtWidgets.QStyle.State_HasFocus
-                if self.state() == QtWidgets.QAbstractItemView.EditingState:
-                    option.state |= QtWidgets.QStyle.State_Editing
+                option.state |= State_Flag.State_HasFocus
+                if self.state() == QtWidgets.QAbstractItemView.State.EditingState:
+                    option.state |= State_Flag.State_Editing
             self.itemDelegate(index).paint(painter, option, index)
 
     def resizeEvent(self, event: QtGui.QResizeEvent) -> None:
@@ -358,7 +382,7 @@ class FlexView(QtWidgets.QAbstractItemView):
     def scrollTo(
         self,
         index: QtCore.QModelIndex,
-        hint: ScrollHint = QtWidgets.QAbstractItemView.EnsureVisible,
+        hint: ScrollHint = ScrollHint.EnsureVisible,
     ) -> None:
         if index.parent() != self.rootIndex():
             return
@@ -369,9 +393,8 @@ class FlexView(QtWidgets.QAbstractItemView):
         rect = self.item_rects[index]
         mapped_rect = self._map_to_viewport(rect)
 
-        if (
-            hint == QtWidgets.QAbstractItemView.EnsureVisible
-            and self.viewport().rect().contains(mapped_rect)
+        if hint == ScrollHint.EnsureVisible and self.viewport().rect().contains(
+            mapped_rect
         ):
             self.viewport().update(mapped_rect)
             return
@@ -394,7 +417,9 @@ class FlexView(QtWidgets.QAbstractItemView):
         self.viewport().update()
 
     def setSelection(
-        self, rect: QtCore.QRect, command: QtCore.QItemSelectionModel.SelectionFlags
+        self,
+        rect: QtCore.QRect,
+        command: QtCore.QItemSelectionModel.SelectionFlag,
     ) -> None:
         rect = rect.translated(self.horizontalOffset(), self.verticalOffset())
         rect = rect.normalized()
@@ -407,8 +432,8 @@ class FlexView(QtWidgets.QAbstractItemView):
                 selection.select(index, index)
         self.selectionModel().select(selection, command)
 
-    def update(self) -> None:
-        super().update()
+    def update(self, index: QtCore.QModelIndex | None = None) -> None:
+        super().update(index)
         self.viewport().update()
 
     def updateGeometries(self) -> None:
@@ -449,25 +474,23 @@ class FlexView(QtWidgets.QAbstractItemView):
                     indexes.extend(self._indexes(first_index))
         return tuple(indexes)
 
-    def _horizontal_scroll_to_value(
-        self, rect: QtCore.QRect, hint: ScrollHint
-    ) -> float:
-        if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
+    def _horizontal_scroll_to_value(self, rect: QtCore.QRect, hint: ScrollHint) -> int:
+        if hint == ScrollHint.PositionAtBottom:
             value = rect.right() - self.viewport().width() + self.spacing
-        elif hint == QtWidgets.QAbstractItemView.PositionAtCenter:
+        elif hint == ScrollHint.PositionAtCenter:
             value = rect.left() + rect.width() / 2 - (self.viewport().width() / 2)
         else:
             value = rect.left() - self.spacing
-        return value
+        return int(value)
 
-    def _vertical_scroll_to_value(self, rect: QtCore.QRect, hint: ScrollHint) -> float:
-        if hint == QtWidgets.QAbstractItemView.PositionAtBottom:
+    def _vertical_scroll_to_value(self, rect: QtCore.QRect, hint: ScrollHint) -> int:
+        if hint == ScrollHint.PositionAtBottom:
             value = rect.bottom() - self.viewport().height() + self.spacing
-        elif hint == QtWidgets.QAbstractItemView.PositionAtCenter:
+        elif hint == ScrollHint.PositionAtCenter:
             value = rect.top() + rect.height() / 2 - (self.viewport().height() / 2)
         else:
             value = rect.top() - self.spacing
-        return value
+        return int(value)
 
     def _map_to_viewport(
         self, rect: QtCore.QRect, extend: bool = False
